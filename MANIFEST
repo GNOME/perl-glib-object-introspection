@@ -1,0 +1,7 @@
+GObjectIntrospection.xs
+lib/Glib/Object/Introspection.pm
+LICENSE
+Makefile.PL
+MANIFEST
+MANIFEST.SKIP
+README
