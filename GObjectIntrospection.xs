@@ -119,6 +119,7 @@ sv_to_pointer (GITypeInfo* info, SV *sv)
 
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
+	    case GI_INFO_TYPE_INTERFACE:
 		pointer = gperl_get_object (sv);
 		break;
 
