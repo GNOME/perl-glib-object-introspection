@@ -1249,8 +1249,11 @@ register_types (class, namespace, version, package)
 		g_base_info_unref ((GIBaseInfo *) info);
 	}
 
-	EXTEND (SP, 2);
-	PUSHs (sv_2mortal (newRV_noinc ((SV *) global_functions)));
+	/* Use the empty string as the key to indicate "no namespace". */
+	gperl_hv_take_sv (namespaced_functions, "", 0,
+	                  newRV_noinc ((SV *) global_functions));
+
+	EXTEND (SP, 1);
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) namespaced_functions)));
 
 void

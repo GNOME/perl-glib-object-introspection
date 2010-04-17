@@ -30,24 +30,27 @@ sub setup {
   my $basename = $params{basename};
   my $version = $params{version};
   my $package = $params{package};
+  my $name_corrections = $params{name_corrections} || {};
 
-  my ($global_functions, $namespaced_functions) =
+  my $functions =
     __PACKAGE__->register_types($basename, $version, $package);
 
   no strict 'refs';
 
-  foreach my $name (@{$global_functions}) {
-    # warn "${package}::$name => $name\n";
-    *{$package . '::' . $name} = sub {
-      __PACKAGE__->invoke($basename, undef, $name, @_);
-    };
-  }
-
-  foreach my $namespace (keys %{$namespaced_functions}) {
-    foreach my $name (@{$namespaced_functions->{$namespace}}) {
-      # warn "${package}::${namespace}::$name => $name\n";
-      *{$package . '::' . $namespace . '::' . $name} = sub {
-        __PACKAGE__->invoke($basename, $namespace, $name, @_);
+  foreach my $namespace (keys %{$functions}) {
+    my $is_namespaced = $namespace ne "";
+    foreach my $name (@{$functions->{$namespace}}) {
+      my $auto_name = $is_namespaced
+        ? $package . '::' . $namespace . '::' . $name
+        : $package . '::' . $name;
+      my $corrected_name = exists $name_corrections->{$auto_name}
+        ? $name_corrections->{$auto_name}
+        : $auto_name;
+      *{$corrected_name} = sub {
+        __PACKAGE__->invoke($basename,
+                            $is_namespaced ? $namespace : undef,
+                            $name,
+                            @_);
       };
     }
   }
