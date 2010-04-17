@@ -32,8 +32,33 @@
 
 /* ------------------------------------------------------------------------- */
 
-static gpointer create_callback_closure (GITypeInfo *type, SV *code);
-static gpointer create_callback_data (SV *data);
+typedef struct {
+	ffi_cif *cif;
+	ffi_closure *closure;
+
+	GICallableInfo *interface;
+
+	SV *code;
+	SV *data;
+
+	gint data_pos;
+	gint notify_pos;
+
+	gboolean free_after_use;
+
+	gpointer priv; /* perl context */
+} GPerlI11nCallbackInfo;
+
+/* This stores information that one call to sv_to_arg needs to make available
+ * to later calls of sv_to_arg. */
+typedef struct {
+	gint current_pos;
+	GSList * callback_infos;
+	GSList * free_after_call;
+} GPerlI11nInvocationInfo;
+
+static GPerlI11nCallbackInfo* create_callback_closure (GITypeInfo *cb_type, SV *code);
+static void attach_callback_data (GPerlI11nCallbackInfo *info, SV *data);
 
 static void invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata);
 static void release_callback (gpointer data);
@@ -102,12 +127,94 @@ get_function_info (GIRepository *repository,
 /* ------------------------------------------------------------------------- */
 
 static gpointer
-sv_to_pointer (GITypeInfo* info, SV *sv)
+handle_callback_arg (GIArgInfo * arg_info,
+                     GITypeInfo * type_info,
+                     SV * sv,
+                     GPerlI11nInvocationInfo * invocation_info)
+{
+	GPerlI11nCallbackInfo *callback_info;
+
+	GSList *l;
+	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
+		GPerlI11nCallbackInfo *callback_info = l->data;
+		if (invocation_info->current_pos == callback_info->notify_pos) {
+			dwarn ("      destroy notify for callback %p\n",
+			       callback_info);
+			return release_callback;
+		}
+	}
+
+	callback_info = create_callback_closure (type_info, sv);
+	callback_info->data_pos = g_arg_info_get_closure (arg_info);
+	callback_info->notify_pos = g_arg_info_get_destroy (arg_info);
+	callback_info->free_after_use = FALSE;
+
+	switch (g_arg_info_get_scope (arg_info)) {
+	    case GI_SCOPE_TYPE_CALL:
+		invocation_info->free_after_call
+			= g_slist_prepend (invocation_info->free_after_call,
+			                   callback_info);
+		break;
+	    case GI_SCOPE_TYPE_NOTIFIED:
+		/* This case is already taken care of by the notify
+		 * stuff above */
+		break;
+	    case GI_SCOPE_TYPE_ASYNC:
+		/* FIXME: callback_info->free_after_use = TRUE; */
+		break;
+	    default:
+		croak ("unhandled scope type %d encountered",
+		       g_arg_info_get_scope (arg_info));
+	}
+
+	invocation_info->callback_infos =
+		g_slist_prepend (invocation_info->callback_infos,
+		                 callback_info);
+
+	dwarn ("      returning closure %p from info %p\n",
+	       callback_info->closure, callback_info);
+	return callback_info->closure;
+}
+
+static gpointer
+handle_void_arg (GIArgInfo * arg_info,
+                 GITypeInfo * type_info,
+                 SV * sv,
+                 GPerlI11nInvocationInfo * invocation_info)
+{
+	gpointer pointer = NULL;
+	gboolean is_user_data = FALSE;
+	GSList *l;
+	dwarn ("    type %p -> void pointer\n", type_info);
+	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
+		GPerlI11nCallbackInfo *callback_info = l->data;
+		if (callback_info->data_pos == invocation_info->current_pos) {
+			is_user_data = TRUE;
+			dwarn ("      user data for callback %p\n",
+			       callback_info);
+			attach_callback_data (callback_info, sv);
+			pointer = callback_info;
+			break; /* out of the for loop */
+		}
+	}
+	if (!is_user_data)
+		croak ("encountered void pointer that is not "
+		       "callback user data");
+	return pointer;
+}
+
+/* ------------------------------------------------------------------------- */
+
+static gpointer
+sv_to_pointer (GIArgInfo * arg_info,
+               GITypeInfo * type_info,
+               SV * sv,
+               GPerlI11nInvocationInfo * invocation_info)
 {
 	GIBaseInfo *interface;
 	GIInfoType info_type;
 
-	interface = g_type_info_get_interface (info);
+	interface = g_type_info_get_interface (type_info);
 	if (!interface)
 		croak ("Could not convert sv %p to pointer", sv);
 	info_type = g_base_info_get_type (interface);
@@ -153,19 +260,9 @@ sv_to_pointer (GITypeInfo* info, SV *sv)
 	    }
 
 	    case GI_INFO_TYPE_CALLBACK:
-	    {
-		const gchar *type_name = g_base_info_get_name (interface);
-		/* FIXME: this is a hack */
-		if (0 == strncmp (type_name, "DestroyNotify", 14)) {
-			warn ("FIXME: callback of name DestroyNotify "
-			      "interpreted as destroy notify thingy\n");
-			pointer = release_callback;
-		} else {
-			pointer = create_callback_closure (info, sv);
-			dwarn ("      returning closure %p\n", pointer);
-		}
+		pointer = handle_callback_arg (arg_info, type_info, sv,
+		                               invocation_info);
 		break;
-	    }
 
 	    default:
 		croak ("sv_to_pointer: Don't know how to handle info type %d", info_type);
@@ -280,11 +377,13 @@ instance_sv_to_pointer (GIFunctionInfo *function_info, SV *sv)
 
 static void
 sv_to_arg (SV * sv,
-	   GArgument * arg,
-	   GITypeInfo * info,
-           gboolean may_be_null)
+           GArgument * arg,
+           GIArgInfo * arg_info,
+           GITypeInfo * type_info,
+           gboolean may_be_null,
+           GPerlI11nInvocationInfo * invocation_info)
 {
-	GITypeTag tag = g_type_info_get_tag (info);
+	GITypeTag tag = g_type_info_get_tag (type_info);
 
 	if (!sv || !SvOK (sv))
 		/* Interfaces need to be able to handle undef separately. */
@@ -293,10 +392,8 @@ sv_to_arg (SV * sv,
 
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
-		dwarn ("    type %p -> void pointer\n", info);
-		warn ("FIXME: void pointer interpreted as callback user data\n");
-		/* FIXME: this is a hack */
-		arg->v_pointer = create_callback_data (sv);
+		arg->v_pointer = handle_void_arg (arg_info, type_info, sv,
+		                                  invocation_info);
 		break;
 
 	    case GI_TYPE_TAG_BOOLEAN:
@@ -364,8 +461,9 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_INTERFACE:
-		dwarn ("    type %p -> interface\n", info);
-		arg->v_pointer = sv_to_pointer (info, sv);
+		dwarn ("    type %p -> interface\n", type_info);
+		arg->v_pointer = sv_to_pointer (arg_info, type_info, sv,
+		                                invocation_info);
 		break;
 
 	    case GI_TYPE_TAG_GLIST:
@@ -540,26 +638,6 @@ arg_to_sv (const GArgument * arg,
 }
 
 /* ------------------------------------------------------------------------- */
-
-typedef struct {
-	ffi_cif *cif;
-	ffi_closure *closure;
-
-	GICallableInfo *interface;
-
-	SV *code;
-	SV *data;
-
-	gpointer priv; /* perl context */
-} GPerlI11nCallbackInfo;
-
-/* This gross global variable hack is needed because the callback and callback
- * user data arguments are handled separately by the argument list converter.
- * But we need a place to save the callback info struct since that's what has
- * to be passed back to the caller as the real user data.  This in turn is
- * necessary so that our GDestroyNotify function (release_callback) can free
- * everything that's been allocated. */
-static GPerlI11nCallbackInfo *current_callback_info = NULL;
 
 #define CAST_RAW(raw, type) (*((type *) raw))
 
@@ -757,7 +835,7 @@ arg_to_raw (GArgument *arg, gpointer raw, GITypeInfo *info)
 	}
 }
 
-static gpointer
+static GPerlI11nCallbackInfo *
 create_callback_closure (GITypeInfo *cb_type, SV *code)
 {
 	GPerlI11nCallbackInfo *info;
@@ -770,24 +848,18 @@ create_callback_closure (GITypeInfo *cb_type, SV *code)
 		g_callable_info_prepare_closure (info->interface, info->cif,
 		                                 invoke_callback, info);
 	info->code = newSVsv (code);
+
 #ifdef PERL_IMPLICIT_CONTEXT
 	info->priv = aTHX;
 #endif
 
-	current_callback_info = info;
-
-	return info->closure;
+	return info;
 }
 
-static gpointer
-create_callback_data (SV *data)
+static void
+attach_callback_data (GPerlI11nCallbackInfo *info, SV *data)
 {
-	GPerlI11nCallbackInfo *info = current_callback_info;
-
 	info->data = newSVsv (data);
-	current_callback_info = NULL;
-
-	return info;
 }
 
 static void
@@ -869,7 +941,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 
 	/* push user data onto the Perl stack */
 	if (info->data)
-		XPUSHs (info->data);
+		XPUSHs (sv_2mortal (newSVsv (info->data)));
 
 	PUTBACK;
 
@@ -936,7 +1008,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 			    direction == GI_DIRECTION_OUT)
 			{
 				GArgument tmp_arg;
-				sv_to_arg (returned_values[out_index], &tmp_arg, arg_type, may_be_null);
+				sv_to_arg (returned_values[out_index], &tmp_arg, arg_info, arg_type, may_be_null, NULL);
 				arg_to_raw (&tmp_arg, args[i], arg_type);
 				out_index++;
 			}
@@ -948,25 +1020,25 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	/* store return value in resp, if any */
 	if (have_return_type) {
 		GArgument arg;
-		GITypeInfo *info;
+		GITypeInfo *type_info;
 		gboolean may_be_null;
 
-		info = g_callable_info_get_return_type (cb_interface);
+		type_info = g_callable_info_get_return_type (cb_interface);
 		may_be_null = g_callable_info_may_return_null (cb_interface);
 
 		dwarn ("ret type: %p\n"
 		       "  is pointer: %d\n"
 		       "  tag: %d\n",
-		       info,
-		       g_type_info_is_pointer (info),
-		       g_type_info_get_tag (info));
+		       type_info,
+		       g_type_info_is_pointer (type_info),
+		       g_type_info_get_tag (type_info));
 
 		/* FIXME: Does this leak the sv?  Should we check the transfer
 		 * setting? */
-		sv_to_arg (newSVsv (POPs), &arg, info, may_be_null);
-		arg_to_raw (&arg, resp, info);
+		sv_to_arg (newSVsv (POPs), &arg, NULL, type_info, may_be_null, NULL);
+		arg_to_raw (&arg, resp, type_info);
 
-		g_base_info_unref ((GIBaseInfo *) info);
+		g_base_info_unref ((GIBaseInfo *) type_info);
 	}
 
 	PUTBACK;
@@ -975,12 +1047,24 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 
 	FREETMPS;
 	LEAVE;
+
+	/* FIXME: We can't just free everything here because ffi will use parts
+	 * of this after we've returned.
+	 *
+	 * if (info->free_after_use) {
+	 * 	release_callback (info);
+	 * }
+	 *
+	 * Gjs uses a global list of callback infos instead and periodically
+	 * frees unused ones.
+	 */
 }
 
 static void
 release_callback (gpointer data)
 {
 	GPerlI11nCallbackInfo *info = data;
+	dwarn ("releasing callback info %p\n", info);
 
 	if (info->cif)
 		g_free (info->cif);
@@ -1148,6 +1232,7 @@ PREINIT:
 	GITypeInfo ** out_arg_type = NULL;
 	GITypeInfo * return_type_info = NULL;
 	gboolean throws, is_constructor, is_method, has_return_value;
+	GPerlI11nInvocationInfo invocation_info = {0,};
 	GArgument return_value;
 	GArgument * in_args = NULL;
 	GArgument * out_args = NULL;
@@ -1172,7 +1257,8 @@ PPCODE:
 
 	have_args = items - stack_offset;
 
-	n_invoke_args = n_args = g_callable_info_get_n_args ((GICallableInfo *) info);
+	n_invoke_args = n_args =
+		g_callable_info_get_n_args ((GICallableInfo *) info);
 
 	throws = g_function_info_get_flags (info) & GI_FUNCTION_THROWS;
 	if (throws) {
@@ -1221,14 +1307,23 @@ PPCODE:
 		GITypeInfo * arg_type = g_arg_info_get_type (arg_info);
 		gboolean may_be_null = g_arg_info_may_be_null (arg_info);
 
+		/* FIXME: Is it right to just add method_offset here?  I'm
+		 * confused about the relation of the numbers in
+		 * g_callable_info_get_arg and g_arg_info_get_closure and
+		 * g_arg_info_get_destroy. */
+		invocation_info.current_pos = method_offset + i;
+
 		dwarn ("  arg tag: %s (%d)\n",
 		       g_type_tag_to_string (g_type_info_get_tag (arg_type)),
 		       g_type_info_get_tag (arg_type));
 
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
-			sv_to_arg (ST (i + method_offset + stack_offset), &in_args[n_in_args], arg_type, may_be_null);
-			arg_types[i + method_offset] = g_type_info_get_ffi_type (arg_type);
+			sv_to_arg (ST (i + method_offset + stack_offset),
+			           &in_args[n_in_args], arg_info, arg_type,
+			           may_be_null, &invocation_info);
+			arg_types[i + method_offset] =
+				g_type_info_get_ffi_type (arg_type);
 			args[i + method_offset] = &in_args[n_in_args];
 			g_base_info_unref ((GIBaseInfo *) arg_type);
 			n_in_args++;
@@ -1245,7 +1340,9 @@ PPCODE:
 		    {
 			GArgument * temp =
 				gperl_alloc_temp (sizeof (GArgument));
-			sv_to_arg (ST (i + method_offset + stack_offset), temp, arg_type, may_be_null);
+			sv_to_arg (ST (i + method_offset + stack_offset),
+			           temp, arg_info, arg_type, may_be_null,
+			           &invocation_info);
 			in_args[n_in_args].v_pointer =
 				out_args[n_out_args].v_pointer =
 					temp;
@@ -1267,7 +1364,8 @@ PPCODE:
 	}
 
 	/* find the return value type */
-	return_type_info = g_callable_info_get_return_type ((GICallableInfo *) info);
+	return_type_info =
+		g_callable_info_get_return_type ((GICallableInfo *) info);
 	return_type_ffi = g_type_info_get_ffi_type (return_type_info);
 
 	/* prepare and call the function */
@@ -1280,6 +1378,13 @@ PPCODE:
 
 	ffi_call (&cif, func_pointer, &return_value, args);
 
+	/* free call-scoped callback infos */
+	g_slist_foreach (invocation_info.free_after_call,
+	                 (GFunc) release_callback, NULL);
+
+	g_slist_free (invocation_info.callback_infos);
+	g_slist_free (invocation_info.free_after_call);
+
 	if (local_error) {
 		gperl_croak_gerror (NULL, local_error);
 	}
@@ -1287,7 +1392,8 @@ PPCODE:
 	/*
 	 * place return value and output args on the stack
 	 */
-	has_return_value = GI_TYPE_TAG_VOID != g_type_info_get_tag (return_type_info);
+	has_return_value =
+		GI_TYPE_TAG_VOID != g_type_info_get_tag (return_type_info);
 	if (has_return_value) {
 		GITransfer return_type_transfer =
 			g_callable_info_get_caller_owns ((GICallableInfo *) info);
@@ -1309,8 +1415,10 @@ PPCODE:
 		    case GI_DIRECTION_OUT:
 		    case GI_DIRECTION_INOUT:
 		    {
-			GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
-			SV *sv = arg_to_sv (out_args[out_i].v_pointer, out_arg_type[out_i], transfer);
+			GITransfer transfer =
+				g_arg_info_get_ownership_transfer (arg_info);
+			SV *sv = arg_to_sv (out_args[out_i].v_pointer,
+			                    out_arg_type[out_i], transfer);
 			if (sv)
 				XPUSHs (sv_2mortal (sv));
 			g_base_info_unref ((GIBaseInfo*) out_arg_type[out_i]);
