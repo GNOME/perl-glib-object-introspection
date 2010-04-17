@@ -21,7 +21,7 @@
 #include "gperl_marshal.h"
 
 #include <girepository.h>
-#include <ffi.h>
+#include <girffi.h>
 
 /* #define NOISY */
 #ifdef NOISY
@@ -817,51 +817,19 @@ arg_to_raw (GArgument *arg, gpointer raw, GITypeInfo *info)
 static gpointer
 create_callback_closure (GITypeInfo *cb_type, SV *code)
 {
-	GITypeInfo *ret_info;
 	GPerlI11nCallbackInfo *info;
-	ffi_type **arg_types;
-	ffi_type *ret_type;
-	gint n_args, i;
 
 	info = g_new0 (GPerlI11nCallbackInfo, 1);
 	info->interface =
 		(GICallableInfo *) g_type_info_get_interface (cb_type);
 	info->cif = g_new0 (ffi_cif, 1);
-	info->closure = g_new0 (ffi_closure, 1);
+	info->closure =
+		g_callable_info_prepare_closure (info->interface, info->cif,
+		                                 invoke_callback, info);
 	info->code = newSVsv (code);
 #ifdef PERL_IMPLICIT_CONTEXT
 	info->priv = aTHX;
 #endif
-
-	n_args = g_callable_info_get_n_args (info->interface);
-	arg_types = g_new0 (ffi_type*, n_args);
-
-	/* lookup type of every arg */
-	for (i = 0; i < n_args; i++) {
-		GIArgInfo *arg_info;
-		GITypeInfo *arg_type;
-
-		arg_info = g_callable_info_get_arg (info->interface, i);
-		arg_type = g_arg_info_get_type (arg_info);
-
-		arg_types[i] = get_ffi_type (arg_type);
-
-		g_base_info_unref ((GIBaseInfo *) arg_info);
-		g_base_info_unref ((GIBaseInfo *) arg_type);
-	}
-
-	/* lookup return type */
-	ret_info = g_callable_info_get_return_type (info->interface);
-	ret_type = get_ffi_type (ret_info);
-	g_base_info_unref ((GIBaseInfo *) ret_info);
-
-	/* prepare callback interface */
-	if (FFI_OK != ffi_prep_cif (info->cif, FFI_DEFAULT_ABI, n_args, ret_type, arg_types))
-		croak ("Couldn't prepare callback interface");
-
-	/* prepare closure; put callback info struct into userdata slot */
-	if (FFI_OK != ffi_prep_closure (info->closure, info->cif, invoke_callback, info))
-		croak ("Couldn't prepare callback closure");
 
 	current_callback_info = info;
 
@@ -1075,11 +1043,10 @@ release_callback (gpointer data)
 		g_free (info->cif);
 
 	if (info->closure)
-		g_free (info->closure);
+		g_callable_info_free_closure (info->interface, info->closure);
 
 	if (info->interface)
 		g_base_info_unref ((GIBaseInfo*) info->interface);
-
 
 	if (info->code)
 		SvREFCNT_dec (info->code);
