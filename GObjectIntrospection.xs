@@ -283,7 +283,7 @@ sv_to_pointer (GIArgInfo * arg_info,
 	return pointer;
 }
 
-SV *
+static SV *
 pointer_to_sv (GITypeInfo* info, gpointer pointer, gboolean own)
 {
 	GIBaseInfo *interface;
