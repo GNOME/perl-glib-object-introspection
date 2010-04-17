@@ -25,17 +25,22 @@ our @ISA = qw(DynaLoader);
 our $VERSION = 0.001;
 Glib::Object::Introspection->bootstrap ($VERSION);
 
-sub find_registered_namespace {
+sub find_registered_ancestors {
   my ($class, $namespace) = @_;
 
-  # replace the prefix for unregistered types
-  while ($namespace =~ m/^Glib::Object::_Unregistered::\w+/) {
+  my @ancestors = ($namespace);
+  {
     no strict 'refs';
     my @parents = @{$namespace . '::ISA'};
-    $namespace = $parents[-1];
+    foreach my $parent (@parents) {
+      push @ancestors, __PACKAGE__->find_registered_ancestors($parent);
+    }
   }
 
-  return $namespace;
+  my @registered_ancestors =
+    grep { !m/^Glib::Object::_Unregistered::/ } @ancestors;
+
+  return @registered_ancestors;
 }
 
 1;
