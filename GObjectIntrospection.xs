@@ -1169,15 +1169,19 @@ register_types (class, namespace, version, package)
 		    info_type != GI_INFO_TYPE_UNION &&
 		    info_type != GI_INFO_TYPE_ENUM &&
 		    info_type != GI_INFO_TYPE_FLAGS) {
-			g_base_info_unref ((GIBaseInfo *) info);
 			continue;
 		}
 
 		type = g_registered_type_info_get_g_type (
 			(GIRegisteredTypeInfo *) info);
-		if (!type)
+		g_base_info_unref ((GIBaseInfo *) info);
+		if (!type) {
 			croak ("Could not find GType for type %s::%s",
 			       namespace, name);
+		}
+		if (type == G_TYPE_NONE) {
+			continue;
+		}
 
 		full_package = g_strconcat (package, "::", name, NULL);
 		dwarn ("registering %s, %d => %s\n",
@@ -1215,7 +1219,6 @@ register_types (class, namespace, version, package)
 		}
 
 		g_free (full_package);
-		g_base_info_unref ((GIBaseInfo *) info);
 	}
 
 =for apidoc __hide__
