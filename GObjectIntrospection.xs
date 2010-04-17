@@ -561,63 +561,6 @@ typedef struct {
  * everything that's been allocated. */
 static GPerlI11nCallbackInfo *current_callback_info = NULL;
 
-static ffi_type *
-get_ffi_type (GITypeInfo *info)
-{
-	if (g_type_info_is_pointer (info)) {
-		return &ffi_type_pointer;
-	}
-
-	switch (g_type_info_get_tag (info)) {
-	    case GI_TYPE_TAG_VOID:
-		return &ffi_type_void;
-	    case GI_TYPE_TAG_BOOLEAN:
-		return &ffi_type_uint;
-	    case GI_TYPE_TAG_INT8:
-		return &ffi_type_sint8;
-	    case GI_TYPE_TAG_UINT8:
-		return &ffi_type_uint8;
-	    case GI_TYPE_TAG_INT16:
-		return &ffi_type_sint16;
-	    case GI_TYPE_TAG_UINT16:
-		return &ffi_type_uint16;
-	    case GI_TYPE_TAG_INT32:
-		return &ffi_type_sint32;
-	    case GI_TYPE_TAG_UINT32:
-		return &ffi_type_uint32;
-	    case GI_TYPE_TAG_INT64:
-		return &ffi_type_sint64;
-	    case GI_TYPE_TAG_UINT64:
-		return &ffi_type_uint64;
-	    case GI_TYPE_TAG_SSIZE:
-	    case GI_TYPE_TAG_INT:
-		return &ffi_type_sint;
-	    case GI_TYPE_TAG_SIZE:
-	    case GI_TYPE_TAG_UINT:
-		return &ffi_type_uint;
-	    case GI_TYPE_TAG_LONG:
-		return &ffi_type_slong;
-	    case GI_TYPE_TAG_ULONG:
-		return &ffi_type_ulong;
-	    case GI_TYPE_TAG_FLOAT:
-		return &ffi_type_float;
-	    case GI_TYPE_TAG_DOUBLE:
-		return &ffi_type_double;
-	    case GI_TYPE_TAG_UTF8:
-	    case GI_TYPE_TAG_FILENAME:
-	    case GI_TYPE_TAG_ARRAY:
-	    case GI_TYPE_TAG_INTERFACE:
-	    case GI_TYPE_TAG_GLIST:
-	    case GI_TYPE_TAG_GSLIST:
-	    case GI_TYPE_TAG_GHASH:
-	    case GI_TYPE_TAG_ERROR:
-		return &ffi_type_pointer;
-	    default:
-		g_assert_not_reached ();
-		return NULL;
-	}
-}
-
 #define CAST_RAW(raw, type) (*((type *) raw))
 
 static void
@@ -1285,7 +1228,7 @@ PPCODE:
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
 			sv_to_arg (ST (i + method_offset + stack_offset), &in_args[n_in_args], arg_type, may_be_null);
-			arg_types[i + method_offset] = get_ffi_type (arg_type);
+			arg_types[i + method_offset] = g_type_info_get_ffi_type (arg_type);
 			args[i + method_offset] = &in_args[n_in_args];
 			g_base_info_unref ((GIBaseInfo *) arg_type);
 			n_in_args++;
@@ -1325,7 +1268,7 @@ PPCODE:
 
 	/* find the return value type */
 	return_type_info = g_callable_info_get_return_type ((GICallableInfo *) info);
-	return_type_ffi = get_ffi_type (return_type_info);
+	return_type_ffi = g_type_info_get_ffi_type (return_type_info);
 
 	/* prepare and call the function */
 	if (FFI_OK != ffi_prep_cif (&cif, FFI_DEFAULT_ABI, n_invoke_args,
