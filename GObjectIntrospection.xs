@@ -545,7 +545,7 @@ typedef struct {
 	ffi_cif *cif;
 	ffi_closure *closure;
 
-	GIBaseInfo *interface;
+	GICallableInfo *interface;
 
 	SV *code;
 	SV *data;
@@ -818,21 +818,22 @@ static gpointer
 create_callback_closure (GITypeInfo *cb_type, SV *code)
 {
 	GITypeInfo *ret_info;
-	GICallableInfo *cb_interface;
 	GPerlI11nCallbackInfo *info;
-	ffi_cif *cif;
-	ffi_closure *closure;
 	ffi_type **arg_types;
 	ffi_type *ret_type;
 	gint n_args, i;
 
-	cb_interface = (GICallableInfo *) g_type_info_get_interface (cb_type);
-
 	info = g_new0 (GPerlI11nCallbackInfo, 1);
-	cif = g_new0 (ffi_cif, 1);
-	closure = g_new0 (ffi_closure, 1);
+	info->interface =
+		(GICallableInfo *) g_type_info_get_interface (cb_type);
+	info->cif = g_new0 (ffi_cif, 1);
+	info->closure = g_new0 (ffi_closure, 1);
+	info->code = newSVsv (code);
+#ifdef PERL_IMPLICIT_CONTEXT
+	info->priv = aTHX;
+#endif
 
-	n_args = g_callable_info_get_n_args (cb_interface);
+	n_args = g_callable_info_get_n_args (info->interface);
 	arg_types = g_new0 (ffi_type*, n_args);
 
 	/* lookup type of every arg */
@@ -840,7 +841,7 @@ create_callback_closure (GITypeInfo *cb_type, SV *code)
 		GIArgInfo *arg_info;
 		GITypeInfo *arg_type;
 
-		arg_info = g_callable_info_get_arg (cb_interface, i);
+		arg_info = g_callable_info_get_arg (info->interface, i);
 		arg_type = g_arg_info_get_type (arg_info);
 
 		arg_types[i] = get_ffi_type (arg_type);
@@ -850,30 +851,21 @@ create_callback_closure (GITypeInfo *cb_type, SV *code)
 	}
 
 	/* lookup return type */
-	ret_info = g_callable_info_get_return_type (cb_interface);
+	ret_info = g_callable_info_get_return_type (info->interface);
 	ret_type = get_ffi_type (ret_info);
 	g_base_info_unref ((GIBaseInfo *) ret_info);
 
 	/* prepare callback interface */
-	if (FFI_OK != ffi_prep_cif (cif, FFI_DEFAULT_ABI, n_args, ret_type, arg_types))
+	if (FFI_OK != ffi_prep_cif (info->cif, FFI_DEFAULT_ABI, n_args, ret_type, arg_types))
 		croak ("Couldn't prepare callback interface");
 
 	/* prepare closure; put callback info struct into userdata slot */
-	if (FFI_OK != ffi_prep_closure (closure, cif, invoke_callback, info))
+	if (FFI_OK != ffi_prep_closure (info->closure, info->cif, invoke_callback, info))
 		croak ("Couldn't prepare callback closure");
-
-	info->cif = cif;
-	info->closure = closure;
-	info->interface = (GIBaseInfo *) cb_interface;
-	info->code = newSVsv (code);
-
-#ifdef PERL_IMPLICIT_CONTEXT
-	info->priv = aTHX;
-#endif
 
 	current_callback_info = info;
 
-	return closure;
+	return info->closure;
 }
 
 static gpointer
@@ -1086,7 +1078,7 @@ release_callback (gpointer data)
 		g_free (info->closure);
 
 	if (info->interface)
-		g_base_info_unref (info->interface);
+		g_base_info_unref ((GIBaseInfo*) info->interface);
 
 
 	if (info->code)
