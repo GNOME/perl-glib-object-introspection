@@ -1132,6 +1132,8 @@ clone_autoload (const gchar *base_package, const gchar *package)
 
 MODULE = Glib::Object::Introspection	PACKAGE = Glib::Object::Introspection
 
+=for apidoc __hide__
+=cut
 void
 register_types (class, namespace, version, package)
 	const gchar *namespace
@@ -1216,6 +1218,8 @@ register_types (class, namespace, version, package)
 		g_base_info_unref ((GIBaseInfo *) info);
 	}
 
+=for apidoc __hide__
+=cut
 void
 invoke (class, basename, namespace, method, ...)
 	const gchar *basename
@@ -1223,17 +1227,14 @@ invoke (class, basename, namespace, method, ...)
 	const gchar *method
 PREINIT:
 	int stack_offset = 4;
-
 	GIRepository *repository;
 	GIFunctionInfo *info;
-
 	ffi_cif cif;
 	ffi_type **arg_types = NULL;
 	ffi_type *return_type_ffi = NULL;
 	gpointer *args = NULL;
 	gpointer func_pointer = NULL, instance = NULL;
 	const gchar *symbol = NULL;
-
 	int have_args;
 	int n_args, n_invoke_args;
 	int n_in_args;
