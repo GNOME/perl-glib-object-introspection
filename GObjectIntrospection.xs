@@ -1,19 +1,20 @@
 /*
- * Copyright (C) 2005-2009 by the gtk2-perl team
+ * Copyright (C) 2005 muppet
+ * Copyright (C) 2005-2010 Torsten Schoenfeld <kaffeetisch@gmx.de>
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2.1 of the License, or (at your option) any later version.
+ * This library is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU Lesser General Public License as published by the
+ * Free Software Foundation; either version 2.1 of the License, or (at your
+ * option) any later version.
  *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
+ * This library is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License
+ * for more details.
  *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this library; if not, write to the Free Software Foundation,
+ * Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  *
  */
 
@@ -1152,8 +1153,6 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 
 MODULE = Glib::Object::Introspection	PACKAGE = Glib::Object::Introspection
 
-=for apidoc __hide__
-=cut
 void
 register_types (class, namespace, version, package)
 	const gchar *namespace
@@ -1254,8 +1253,6 @@ register_types (class, namespace, version, package)
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) global_functions)));
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) namespaced_functions)));
 
-=for apidoc __hide__
-=cut
 void
 invoke (class, basename, namespace, method, ...)
 	const gchar *basename
