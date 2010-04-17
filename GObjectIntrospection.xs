@@ -1087,31 +1087,65 @@ release_callback (gpointer data)
 /* ------------------------------------------------------------------------- */
 
 static void
-clone_autoload (const gchar *base_package, const gchar *package)
+store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 {
-	gchar *autoload_name;
-	GV *autoload_glob;
-	CV *autoload_code;
-	gchar *package_autoload;
-	GV *gv;
+	const gchar *namespace;
+	AV *av;
+	gint i;
 
-	/* FIXME: This would only need to be done once per register_types()
-	          call */
-	autoload_name = g_strconcat (base_package, "::AUTOLOAD", NULL);
-	autoload_glob = gv_fetchpv (autoload_name, GV_NOADD_NOINIT, SVt_PVCV);
-	autoload_code = GvCV (autoload_glob);
-	g_free (autoload_name);
+	namespace = g_base_info_get_name (info);
+	av = newAV ();
 
-	package_autoload = g_strconcat (package, "::AUTOLOAD", NULL);
-	gv = gv_fetchpv (package_autoload, GV_ADDMULTI, SVt_PVCV);
-	g_free (package_autoload);
+	switch (info_type) {
+	    case GI_INFO_TYPE_OBJECT:
+	    {
+		gint n_methods = g_object_info_get_n_methods (
+		                   (GIObjectInfo *) info);
+		for (i = 0; i < n_methods; i++) {
+			GIFunctionInfo *function_info =
+				g_object_info_get_method (
+					(GIObjectInfo *) info, i);
+			const gchar *function_name =
+				g_base_info_get_name (
+					(GIBaseInfo *) function_info);
+			av_push (av, newSVpv (function_name, PL_na));
+			g_base_info_unref ((GIBaseInfo *) function_info);
+		}
+		break;
+	    }
 
-	/* FIXME: Shouldn't we have to increase the CV's ref count?  Valgrind
-	          doesn't complain, though.
-	          SvREFCNT_inc (autoload_code); */
-	GvCV (gv) = autoload_code;
-	GvCVGEN (gv) = 0;
-	mro_method_changed_in (GvSTASH (gv)); /* FIXME: version checks */
+	    case GI_INFO_TYPE_INTERFACE:
+	    {
+		gint n_methods = g_interface_info_get_n_methods (
+		                   (GIInterfaceInfo *) info);
+		for (i = 0; i < n_methods; i++) {
+			GIFunctionInfo *function_info =
+				g_interface_info_get_method (
+					(GIInterfaceInfo *) info, i);
+			const gchar *function_name =
+				g_base_info_get_name (
+					(GIBaseInfo *) function_info);
+			av_push (av, newSVpv (function_name, PL_na));
+			g_base_info_unref ((GIBaseInfo *) function_info);
+		}
+		break;
+		break;
+	    }
+
+	    case GI_INFO_TYPE_BOXED:
+	    case GI_INFO_TYPE_STRUCT:
+	    {
+		/* FIXME */
+		break;
+	    }
+
+	    case GI_INFO_TYPE_UNION:
+	    default:
+		croak ("store_methods: unsupported info type %d", info_type);
+	}
+
+	gperl_hv_take_sv (namespaced_functions, namespace, strlen (namespace),
+	                  newRV_noinc ((SV *) av));
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1129,12 +1163,17 @@ register_types (class, namespace, version, package)
 	GIRepository *repository;
 	GError *error = NULL;
 	gint number, i;
-    CODE:
+	AV *global_functions;
+	HV *namespaced_functions;
+    PPCODE:
 	repository = g_irepository_get_default ();
 	g_irepository_require (repository, namespace, version, 0, &error);
 	if (error) {
 		gperl_croak_gerror (NULL, error);
 	}
+
+	global_functions = newAV ();
+	namespaced_functions = newHV ();
 
 	number = g_irepository_get_n_infos (repository, namespace);
 	for (i = 0; i < number; i++) {
@@ -1148,6 +1187,10 @@ register_types (class, namespace, version, package)
 		info_type = g_base_info_get_type (info);
 		name = g_base_info_get_name (info);
 
+		if (info_type == GI_INFO_TYPE_FUNCTION) {
+			av_push (global_functions, newSVpv (name, PL_na));
+		}
+
 		if (info_type != GI_INFO_TYPE_OBJECT &&
 		    info_type != GI_INFO_TYPE_INTERFACE &&
 		    info_type != GI_INFO_TYPE_BOXED &&
@@ -1160,7 +1203,6 @@ register_types (class, namespace, version, package)
 
 		type = g_registered_type_info_get_g_type (
 			(GIRegisteredTypeInfo *) info);
-		g_base_info_unref ((GIBaseInfo *) info);
 		if (!type) {
 			croak ("Could not find GType for type %s::%s",
 			       namespace, name);
@@ -1180,7 +1222,7 @@ register_types (class, namespace, version, package)
 		    info_type == GI_INFO_TYPE_STRUCT ||
 		    info_type == GI_INFO_TYPE_UNION)
 		{
-			clone_autoload (package, full_package);
+			store_methods (namespaced_functions, info, info_type);
 		}
 
 		switch (info_type) {
@@ -1205,7 +1247,12 @@ register_types (class, namespace, version, package)
 		}
 
 		g_free (full_package);
+		g_base_info_unref ((GIBaseInfo *) info);
 	}
+
+	EXTEND (SP, 2);
+	PUSHs (sv_2mortal (newRV_noinc ((SV *) global_functions)));
+	PUSHs (sv_2mortal (newRV_noinc ((SV *) namespaced_functions)));
 
 =for apidoc __hide__
 =cut
@@ -1370,7 +1417,7 @@ PPCODE:
 
 	/* prepare and call the function */
 	if (FFI_OK != ffi_prep_cif (&cif, FFI_DEFAULT_ABI, n_invoke_args,
-	   	      		    return_type_ffi, arg_types))
+	                            return_type_ffi, arg_types))
 	{
 		g_base_info_unref ((GIBaseInfo *) return_type_info);
 		croak ("Could not prepare a call interface for %s", symbol);

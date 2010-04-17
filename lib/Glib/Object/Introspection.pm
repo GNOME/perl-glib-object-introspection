@@ -25,22 +25,32 @@ our @ISA = qw(DynaLoader);
 our $VERSION = 0.001;
 Glib::Object::Introspection->bootstrap ($VERSION);
 
-sub find_registered_ancestors {
-  my ($class, $namespace) = @_;
+sub setup {
+  my ($class, %params) = @_;
+  my $basename = $params{basename};
+  my $version = $params{version};
+  my $package = $params{package};
 
-  my @ancestors = ($namespace);
-  {
-    no strict 'refs';
-    my @parents = @{$namespace . '::ISA'};
-    foreach my $parent (@parents) {
-      push @ancestors, __PACKAGE__->find_registered_ancestors($parent);
-    }
+  my ($global_functions, $namespaced_functions) =
+    __PACKAGE__->register_types($basename, $version, $package);
+
+  no strict 'refs';
+
+  foreach my $name (@{$global_functions}) {
+    # warn "${package}::$name => $name\n";
+    *{$package . '::' . $name} = sub {
+      __PACKAGE__->invoke($basename, undef, $name, @_);
+    };
   }
 
-  my @registered_ancestors =
-    grep { !m/^Glib::Object::_Unregistered::/ } @ancestors;
-
-  return @registered_ancestors;
+  foreach my $namespace (keys %{$namespaced_functions}) {
+    foreach my $name (@{$namespaced_functions->{$namespace}}) {
+      # warn "${package}::${namespace}::$name => $name\n";
+      *{$package . '::' . $namespace . '::' . $name} = sub {
+        __PACKAGE__->invoke($basename, $namespace, $name, @_);
+      };
+    }
+  }
 }
 
 1;
