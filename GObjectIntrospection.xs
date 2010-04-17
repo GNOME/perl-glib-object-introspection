@@ -152,15 +152,18 @@ handle_callback_arg (GIArgInfo * arg_info,
 
 	switch (g_arg_info_get_scope (arg_info)) {
 	    case GI_SCOPE_TYPE_CALL:
+		dwarn ("      callback has scope 'call'\n");
 		invocation_info->free_after_call
 			= g_slist_prepend (invocation_info->free_after_call,
 			                   callback_info);
 		break;
 	    case GI_SCOPE_TYPE_NOTIFIED:
+		dwarn ("      callback has scope 'notified'\n");
 		/* This case is already taken care of by the notify
 		 * stuff above */
 		break;
 	    case GI_SCOPE_TYPE_ASYNC:
+		dwarn ("      callback has scope 'async'\n");
 		/* FIXME: callback_info->free_after_use = TRUE; */
 		break;
 	    default:
@@ -290,6 +293,7 @@ pointer_to_sv (GITypeInfo* info, gpointer pointer, gboolean own)
 	if (!interface)
 		croak ("Could not convert pointer %p to SV", pointer);
 	info_type = g_base_info_get_type (interface);
+	dwarn ("    info type: %d\n", info_type);
 
 	SV *sv = NULL;
 
@@ -308,6 +312,7 @@ pointer_to_sv (GITypeInfo* info, gpointer pointer, gboolean own)
 			croak ("Could not find GType for boxed/struct/union type %s::%s",
 			       g_base_info_get_namespace (interface),
 			       g_base_info_get_name (interface));
+		dwarn ("    boxed type: %d (%s)\n", type, g_type_name (type));
 		sv = gperl_new_boxed (pointer, type, own);
 		break;
 	    }
@@ -512,7 +517,8 @@ arg_to_sv (const GArgument * arg,
 	GITypeTag tag = g_type_info_get_tag (info);
 	gboolean own = transfer == GI_TRANSFER_EVERYTHING;
 
-	dwarn ("  arg_to_sv: info %p with type tag %d\n", info, tag);
+	dwarn ("  arg_to_sv: info %p with type tag %d (%s)\n",
+	       info, tag, g_type_tag_to_string (tag));
 
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
@@ -1360,9 +1366,9 @@ PPCODE:
 		 * g_arg_info_get_destroy. */
 		invocation_info.current_pos = method_offset + i;
 
-		dwarn ("  arg tag: %s (%d)\n",
-		       g_type_tag_to_string (g_type_info_get_tag (arg_type)),
-		       g_type_info_get_tag (arg_type));
+		dwarn ("  arg tag: %d (%s)\n",
+		       g_type_info_get_tag (arg_type),
+		       g_type_tag_to_string (g_type_info_get_tag (arg_type)));
 
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
