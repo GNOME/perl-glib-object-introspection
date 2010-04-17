@@ -94,6 +94,12 @@ get_function_info (GIRepository *repository,
 				(GIInterfaceInfo *) namespace_info,
 				method);
 			break;
+		    case GI_INFO_TYPE_BOXED:
+		    case GI_INFO_TYPE_STRUCT:
+			function_info = g_struct_info_find_method (
+				(GIStructInfo *) namespace_info,
+				method);
+			break;
 		    default:
 			croak ("Base info for namespace %s has incorrect type",
 			       namespace);
@@ -362,6 +368,7 @@ instance_sv_to_pointer (GIFunctionInfo *function_info, SV *sv)
 		break;
 
 	    case GI_INFO_TYPE_BOXED:
+	    case GI_INFO_TYPE_STRUCT:
 	    {
 		GType type = g_registered_type_info_get_g_type (
 			       (GIRegisteredTypeInfo *) container);
@@ -1136,17 +1143,32 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 			g_base_info_unref ((GIBaseInfo *) function_info);
 		}
 		break;
-		break;
 	    }
 
 	    case GI_INFO_TYPE_BOXED:
 	    case GI_INFO_TYPE_STRUCT:
 	    {
-		/* FIXME */
+		gint n_methods = g_struct_info_get_n_methods (
+		                   (GIStructInfo *) info);
+		for (i = 0; i < n_methods; i++) {
+			GIFunctionInfo *function_info =
+				g_struct_info_get_method (
+					(GIStructInfo *) info, i);
+			const gchar *function_name =
+				g_base_info_get_name (
+					(GIBaseInfo *) function_info);
+			av_push (av, newSVpv (function_name, PL_na));
+			g_base_info_unref ((GIBaseInfo *) function_info);
+		}
 		break;
 	    }
 
 	    case GI_INFO_TYPE_UNION:
+	    {
+		/* FIXME */
+		break;
+	    }
+
 	    default:
 		croak ("store_methods: unsupported info type %d", info_type);
 	}
