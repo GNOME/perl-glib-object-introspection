@@ -23,6 +23,7 @@
 #include <girepository.h>
 #include <ffi.h>
 
+/* #define NOISY */
 #ifdef NOISY
 # define dwarn(...) warn(__VA_ARGS__)
 #else
@@ -46,7 +47,7 @@ get_function_info (GIRepository *repository,
                    const gchar *namespace,
                    const gchar *method)
 {
-	dwarn ("%s: %s, %s, %s", G_STRFUNC, basename, namespace, method);
+	dwarn ("%s: %s, %s, %s\n", G_STRFUNC, basename, namespace, method);
 
 	if (namespace) {
 		GIBaseInfo *namespace_info = g_irepository_find_by_name (
@@ -82,6 +83,10 @@ get_function_info (GIRepository *repository,
 	} else {
 		GIBaseInfo *method_info = g_irepository_find_by_name (
 			repository, basename, method);
+
+		if (!method_info)
+			croak ("Can't find information for method %s", method);
+
 		switch (g_base_info_get_type (method_info)) {
 		    case GI_INFO_TYPE_FUNCTION:
 			return (GIFunctionInfo *) method_info;
@@ -152,10 +157,11 @@ sv_to_pointer (GITypeInfo* info, SV *sv)
 		/* FIXME: this is a hack */
 		if (0 == strncmp (type_name, "DestroyNotify", 14)) {
 			warn ("FIXME: callback of name DestroyNotify "
-			      "interpreted as destroy notify thingy");
+			      "interpreted as destroy notify thingy\n");
 			pointer = release_callback;
 		} else {
 			pointer = create_callback_closure (info, sv);
+			dwarn ("      returning closure %p\n", pointer);
 		}
 		break;
 	    }
@@ -287,7 +293,7 @@ sv_to_arg (SV * sv,
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
 		dwarn ("    type %p -> void pointer\n", info);
-		warn ("FIXME: void pointer interpreted as callback user data");
+		warn ("FIXME: void pointer interpreted as callback user data\n");
 		/* FIXME: this is a hack */
 		arg->v_pointer = create_callback_data (sv);
 		break;
@@ -917,7 +923,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
 		GIDirection direction = g_arg_info_get_direction (arg_info);
 
-		dwarn ("arg info: 0x%x\n"
+		dwarn ("arg info: %p\n"
 		       "  direction: %d\n"
 		       "  is dipper: %d\n"
 		       "  is return value: %d\n"
@@ -932,7 +938,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		       g_arg_info_may_be_null (arg_info),
 		       g_arg_info_get_ownership_transfer (arg_info));
 
-		dwarn ("arg type: 0x%x\n"
+		dwarn ("arg type: %p\n"
 		       "  is pointer: %d\n"
 		       "  tag: %d\n",
 		       arg_type,
@@ -1044,7 +1050,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		info = g_callable_info_get_return_type (cb_interface);
 		may_be_null = g_callable_info_may_return_null (cb_interface);
 
-		dwarn ("ret type: 0x%x\n"
+		dwarn ("ret type: %p\n"
 		       "  is pointer: %d\n"
 		       "  tag: %d\n",
 		       info,
@@ -1089,6 +1095,36 @@ release_callback (gpointer data)
 		SvREFCNT_dec (info->data);
 
 	g_free (info);
+}
+
+/* ------------------------------------------------------------------------- */
+
+static void
+clone_autoload (const gchar *base_package, const gchar *package)
+{
+	gchar *autoload_name;
+	GV *autoload_glob;
+	CV *autoload_code;
+	gchar *package_autoload;
+	GV *gv;
+
+	/* FIXME: This would only need to be done once per register_types()
+	          call */
+	autoload_name = g_strconcat (base_package, "::AUTOLOAD", NULL);
+	autoload_glob = gv_fetchpv (autoload_name, GV_NOADD_NOINIT, SVt_PVCV);
+	autoload_code = GvCV (autoload_glob);
+	g_free (autoload_name);
+
+	package_autoload = g_strconcat (package, "::AUTOLOAD", NULL);
+	gv = gv_fetchpv (package_autoload, GV_ADDMULTI, SVt_PVCV);
+	g_free (package_autoload);
+
+	/* FIXME: Shouldn't we have to increase the CV's ref count?  Valgrind
+	          doesn't complain, though.
+	          SvREFCNT_inc (autoload_code); */
+	GvCV (gv) = autoload_code;
+	GvCVGEN (gv) = 0;
+	mro_method_changed_in (GvSTASH (gv)); /* FIXME: version checks */
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1145,13 +1181,13 @@ register_types (class, namespace, version, package)
 		       g_type_name (type), type,
 		       full_package);
 
-		/* FIXME: This is a hack to get our AUTOLOAD involved. */
 		if (info_type == GI_INFO_TYPE_OBJECT ||
 		    info_type == GI_INFO_TYPE_INTERFACE ||
 		    info_type == GI_INFO_TYPE_BOXED ||
 		    info_type == GI_INFO_TYPE_STRUCT ||
-		    info_type == GI_INFO_TYPE_UNION) {
-			gperl_set_isa (full_package, package);
+		    info_type == GI_INFO_TYPE_UNION)
+		{
+			clone_autoload (package, full_package);
 		}
 
 		switch (info_type) {
@@ -1383,6 +1419,8 @@ PPCODE:
 
 	if (has_return_value)
 		out_i++;
+
+	dwarn ("  number of return values: %d\n", out_i);
 
 	if (out_i == 0) {
 		XSRETURN_EMPTY;
