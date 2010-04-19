@@ -64,6 +64,10 @@ static void attach_callback_data (GPerlI11nCallbackInfo *info, SV *data);
 static void invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata);
 static void release_callback (gpointer data);
 
+static SV * arg_to_sv (const GArgument * arg,
+                       GITypeInfo * info,
+                       GITransfer transfer);
+
 /* ------------------------------------------------------------------------- */
 
 /* Caller owns return value */
@@ -215,6 +219,61 @@ handle_void_arg (GIArgInfo * arg_info,
 
 /* ------------------------------------------------------------------------- */
 
+static SV *
+struct_to_sv (GIBaseInfo* info,
+              GIInfoType info_type,
+              gpointer pointer,
+              gboolean own)
+{
+	HV *hv;
+
+	hv = newHV ();
+
+	switch (info_type) {
+	    case GI_INFO_TYPE_BOXED:
+	    case GI_INFO_TYPE_STRUCT:
+	    {
+		gint i, n_fields =
+			g_struct_info_get_n_fields ((GIStructInfo *) info);
+		for (i = 0; i < n_fields; i++) {
+			GIFieldInfo *field_info;
+			GArgument value;
+			field_info =
+				g_struct_info_get_field ((GIStructInfo *) info, i);
+			if (g_field_info_get_field (field_info, pointer, &value)) {
+				/* FIXME: Is it right to use
+				 * GI_TRANSFER_NOTHING here? */
+				SV *sv;
+				const gchar *name;
+				sv = arg_to_sv (
+				       &value,
+				       g_field_info_get_type (field_info),
+				       GI_TRANSFER_NOTHING);
+				name = g_base_info_get_name (
+				         (GIBaseInfo *) field_info);
+				gperl_hv_take_sv (hv, name, strlen (name), sv);
+			}
+			g_base_info_unref ((GIBaseInfo *) field_info);
+		}
+		break;
+	    }
+
+	    case GI_INFO_TYPE_UNION:
+		/* FIXME */
+
+	    default:
+		croak ("%s: unhandled info type %d", G_STRFUNC, info_type);
+	}
+
+	if (own) {
+		/* FIXME: Is it correct to just call g_free here?  What if the
+		 * thing was allocated via GSlice? */
+		g_free (pointer);
+	}
+
+	return newRV_noinc ((SV *) hv);
+}
+
 static gpointer
 sv_to_pointer (GIArgInfo * arg_info,
                GITypeInfo * type_info,
@@ -249,7 +308,8 @@ sv_to_pointer (GIArgInfo * arg_info,
 			croak ("Could not find GType for boxed/struct/union type %s::%s",
 			       g_base_info_get_namespace (interface),
 			       g_base_info_get_name (interface));
-		dwarn ("    struct gtype %s (%d)\n",
+		/* FIXME: handle G_TYPE_NONE */
+		dwarn ("    struct type: %s (%d)\n",
 		       g_type_name (type), type);
 		pointer = gperl_get_boxed_check (sv, type);
 		break;
@@ -314,12 +374,17 @@ pointer_to_sv (GITypeInfo* info, gpointer pointer, gboolean own)
 	    case GI_INFO_TYPE_BOXED:
 	    {
 		GType type = g_registered_type_info_get_g_type ((GIRegisteredTypeInfo *) interface);
-		if (!type)
+		if (!type) {
 			croak ("Could not find GType for boxed/struct/union type %s::%s",
 			       g_base_info_get_namespace (interface),
 			       g_base_info_get_name (interface));
-		dwarn ("    boxed type: %d (%s)\n", type, g_type_name (type));
-		sv = gperl_new_boxed (pointer, type, own);
+		} else if (type == G_TYPE_NONE) {
+			sv = struct_to_sv (interface, info_type, pointer, own);
+		} else {
+			dwarn ("    struct type: %d (%s)\n",
+			       type, g_type_name (type));
+			sv = gperl_new_boxed (pointer, type, own);
+		}
 		break;
 	    }
 
