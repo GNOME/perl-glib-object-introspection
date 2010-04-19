@@ -1224,7 +1224,9 @@ register_types (class, namespace, version, package)
 		    info_type != GI_INFO_TYPE_STRUCT &&
 		    info_type != GI_INFO_TYPE_UNION &&
 		    info_type != GI_INFO_TYPE_ENUM &&
-		    info_type != GI_INFO_TYPE_FLAGS) {
+		    info_type != GI_INFO_TYPE_FLAGS)
+		{
+			g_base_info_unref ((GIBaseInfo *) info);
 			continue;
 		}
 
@@ -1235,6 +1237,7 @@ register_types (class, namespace, version, package)
 			       namespace, name);
 		}
 		if (type == G_TYPE_NONE) {
+			g_base_info_unref ((GIBaseInfo *) info);
 			continue;
 		}
 
@@ -1506,6 +1509,8 @@ PPCODE:
 
 		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
+
+	g_base_info_unref ((GIBaseInfo *) info);
 
 	if (has_return_value)
 		out_i++;
