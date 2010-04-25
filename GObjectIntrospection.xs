@@ -859,7 +859,8 @@ arg_to_sv (const GArgument * arg,
 
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
-		return NULL;
+		dwarn ("    argument with no type information -> undef\n");
+		return &PL_sv_undef;
 
 	    case GI_TYPE_TAG_BOOLEAN:
 		return boolSV (arg->v_boolean);
