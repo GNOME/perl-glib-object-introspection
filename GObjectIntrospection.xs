@@ -64,12 +64,12 @@ static void attach_callback_data (GPerlI11nCallbackInfo *info, SV *data);
 static void invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata);
 static void release_callback (gpointer data);
 
-static SV * arg_to_sv (const GArgument * arg,
+static SV * arg_to_sv (GArgument * arg,
                        GITypeInfo * info,
                        GITransfer transfer);
-static SV * pointer_to_sv (GITypeInfo* info,
-                           gpointer pointer,
-                           gboolean own);
+static SV * interface_to_sv (GITypeInfo* info,
+                             GArgument *arg,
+                             gboolean own);
 
 /* ------------------------------------------------------------------------- */
 
@@ -395,6 +395,10 @@ struct_to_sv (GIBaseInfo* info,
 {
 	HV *hv;
 
+	if (pointer == NULL) {
+		return &PL_sv_undef;
+	}
+
 	hv = newHV ();
 
 	switch (info_type) {
@@ -515,6 +519,10 @@ glist_to_sv (GITypeInfo* info,
 	AV *av;
 	SV *value;
 
+	if (pointer == NULL) {
+		return &PL_sv_undef;
+	}
+
 	param_info = g_type_info_get_param_type (info, 0);
 	av = newAV ();
 
@@ -525,8 +533,8 @@ glist_to_sv (GITypeInfo* info,
 
 	for (i = pointer; i; i = i->next) {
 		dwarn ("      converting pointer %p\n", i->data);
-		value = pointer_to_sv (param_info, i->data,
-		                       transfer == GI_TRANSFER_EVERYTHING);
+		value = interface_to_sv (param_info, i->data,
+		                         transfer == GI_TRANSFER_EVERYTHING);
 		if (value)
 			av_push (av, value);
 	}
@@ -539,11 +547,12 @@ glist_to_sv (GITypeInfo* info,
 	return newRV_noinc ((SV *) av);
 }
 
-static gpointer
-sv_to_pointer (GIArgInfo * arg_info,
-               GITypeInfo * type_info,
-               SV * sv,
-               GPerlI11nInvocationInfo * invocation_info)
+static void
+sv_to_interface (GIArgInfo * arg_info,
+                 GITypeInfo * type_info,
+                 SV * sv,
+                 GArgument * arg,
+                 GPerlI11nInvocationInfo * invocation_info)
 {
 	GIBaseInfo *interface;
 	GIInfoType info_type;
@@ -556,12 +565,10 @@ sv_to_pointer (GIArgInfo * arg_info,
 	dwarn ("    interface %p (%s) of type %d\n",
 	       interface, g_base_info_get_name (interface), info_type);
 
-	gpointer pointer = NULL;
-
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
 	    case GI_INFO_TYPE_INTERFACE:
-		pointer = gperl_get_object (sv);
+		arg->v_pointer = gperl_get_object (sv);
 		break;
 
 	    case GI_INFO_TYPE_UNION:
@@ -576,53 +583,50 @@ sv_to_pointer (GIArgInfo * arg_info,
 		/* FIXME: handle G_TYPE_NONE */
 		dwarn ("    struct type: %s (%d)\n",
 		       g_type_name (type), type);
-		pointer = gperl_get_boxed_check (sv, type);
+		arg->v_pointer = gperl_get_boxed_check (sv, type);
 		break;
 	    }
 
 	    case GI_INFO_TYPE_ENUM:
 	    {
 		GType type = g_registered_type_info_get_g_type ((GIRegisteredTypeInfo *) interface);
-		pointer = GINT_TO_POINTER (gperl_convert_enum (type, sv));
+		/* FIXME: Check storage type? */
+		arg->v_long = gperl_convert_enum (type, sv);
 		break;
 	    }
 
 	    case GI_INFO_TYPE_FLAGS:
 	    {
 		GType type = g_registered_type_info_get_g_type ((GIRegisteredTypeInfo *) interface);
-		pointer = GUINT_TO_POINTER (gperl_convert_flags (type, sv));
+		/* FIXME: Check storage type? */
+		arg->v_long = gperl_convert_flags (type, sv);
 		break;
 	    }
 
 	    case GI_INFO_TYPE_CALLBACK:
-		pointer = handle_callback_arg (arg_info, type_info, sv,
-		                               invocation_info);
+		arg->v_pointer = handle_callback_arg (arg_info, type_info, sv,
+		                                      invocation_info);
 		break;
 
 	    default:
-		croak ("sv_to_pointer: Don't know how to handle info type %d", info_type);
+		croak ("sv_to_interface: Don't know how to handle info type %d", info_type);
 	}
 
 	g_base_info_unref ((GIBaseInfo *) interface);
-
-	return pointer;
 }
 
 static SV *
-pointer_to_sv (GITypeInfo* info, gpointer pointer, gboolean own)
+interface_to_sv (GITypeInfo* info, GArgument *arg, gboolean own)
 {
 	GIBaseInfo *interface;
 	GIInfoType info_type;
 
-	dwarn ("  pointer_to_sv: pointer %p, info %p\n",
-	       pointer, info);
-
-	if (!pointer)
-		return &PL_sv_undef;
+	dwarn ("  interface_to_sv: arg %p, info %p\n",
+	       arg, info);
 
 	interface = g_type_info_get_interface (info);
 	if (!interface)
-		croak ("Could not convert pointer %p to SV", pointer);
+		croak ("Could not convert arg %p to SV", arg);
 	info_type = g_base_info_get_type (interface);
 	dwarn ("    info type: %d\n", info_type);
 
@@ -631,22 +635,25 @@ pointer_to_sv (GITypeInfo* info, gpointer pointer, gboolean own)
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
 	    case GI_INFO_TYPE_INTERFACE:
-		sv = gperl_new_object (pointer, own);
+		sv = gperl_new_object (arg->v_pointer, own);
 		break;
 
 	    case GI_INFO_TYPE_UNION:
 	    case GI_INFO_TYPE_STRUCT:
 	    case GI_INFO_TYPE_BOXED:
 	    {
-		GType type = g_registered_type_info_get_g_type ((GIRegisteredTypeInfo *) interface);
-		if (!type) {
-			croak ("Could not find GType for boxed/struct/union type %s::%s",
-			       g_base_info_get_namespace (interface),
-			       g_base_info_get_name (interface));
-		} else if (type == G_TYPE_NONE) {
+		GType type;
+		gpointer pointer;
+		type = g_registered_type_info_get_g_type (
+		               (GIRegisteredTypeInfo *) interface);
+		pointer = g_type_info_is_pointer (info)
+			? arg->v_pointer
+			: &arg->v_pointer;
+		if (!type || type == G_TYPE_NONE) {
+			dwarn ("    unboxed type\n");
 			sv = struct_to_sv (interface, info_type, pointer, own);
 		} else {
-			dwarn ("    struct type: %d (%s)\n",
+			dwarn ("    boxed type: %d (%s)\n",
 			       type, g_type_name (type));
 			sv = gperl_new_boxed (pointer, type, own);
 		}
@@ -656,19 +663,21 @@ pointer_to_sv (GITypeInfo* info, gpointer pointer, gboolean own)
 	    case GI_INFO_TYPE_ENUM:
 	    {
 		GType type = g_registered_type_info_get_g_type ((GIRegisteredTypeInfo *) interface);
-		sv = gperl_convert_back_enum (type, GPOINTER_TO_INT (pointer));
+		/* FIXME: Is it right to just use v_long here? */
+		sv = gperl_convert_back_enum (type, arg->v_long);
 		break;
 	    }
 
 	    case GI_INFO_TYPE_FLAGS:
 	    {
 		GType type = g_registered_type_info_get_g_type ((GIRegisteredTypeInfo *) interface);
-		sv = gperl_convert_back_flags (type, GPOINTER_TO_UINT (pointer));
+		/* FIXME: Is it right to just use v_long here? */
+		sv = gperl_convert_back_flags (type, arg->v_long);
 		break;
 	    }
 
 	    default:
-		croak ("pointer_to_sv: Don't know how to handle info type %d", info_type);
+		croak ("interface_to_sv: Don't know how to handle info type %d", info_type);
 	}
 
 	g_base_info_unref ((GIBaseInfo *) interface);
@@ -707,10 +716,6 @@ instance_sv_to_pointer (GIFunctionInfo *function_info, SV *sv)
 		break;
 	    }
 
-	    case GI_INFO_TYPE_ENUM:
-	    case GI_INFO_TYPE_FLAGS:
-	    case GI_INFO_TYPE_CALLBACK:
-	    case GI_INFO_TYPE_UNRESOLVED:
 	    default:
 		croak ("instance_sv_to_pointer: Don't know how to handle info type %d", info_type);
 	}
@@ -805,8 +810,8 @@ sv_to_arg (SV * sv,
 
 	    case GI_TYPE_TAG_INTERFACE:
 		dwarn ("    type %p -> interface\n", type_info);
-		arg->v_pointer = sv_to_pointer (arg_info, type_info, sv,
-		                                invocation_info);
+		sv_to_interface (arg_info, type_info, sv, arg,
+		                 invocation_info);
 		break;
 
 	    case GI_TYPE_TAG_GLIST:
@@ -847,7 +852,7 @@ sv_to_arg (SV * sv,
 }
 
 static SV *
-arg_to_sv (const GArgument * arg,
+arg_to_sv (GArgument * arg,
 	   GITypeInfo * info,
            GITransfer transfer)
 {
@@ -911,7 +916,7 @@ arg_to_sv (const GArgument * arg,
 		return array_to_sv (info, arg->v_pointer, transfer);
 
 	    case GI_TYPE_TAG_INTERFACE:
-		return pointer_to_sv (info, arg->v_pointer, own);
+		return interface_to_sv (info, arg, own);
 
 	    case GI_TYPE_TAG_GLIST:
 		return glist_to_sv (info, arg->v_pointer, transfer);
