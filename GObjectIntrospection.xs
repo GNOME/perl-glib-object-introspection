@@ -1698,6 +1698,8 @@ PPCODE:
 		       g_type_info_get_tag (arg_type),
 		       g_type_tag_to_string (g_type_info_get_tag (arg_type)));
 
+		/* FIXME: Check that i+method_offset+stack_offset<items before
+		 * calling ST, and generate a usage methods otherwise. */
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
 			sv_to_arg (ST (i + method_offset + stack_offset),
