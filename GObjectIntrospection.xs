@@ -222,6 +222,171 @@ handle_void_arg (GIArgInfo * arg_info,
 
 /* ------------------------------------------------------------------------- */
 
+/* These three are basically copied from pygi's pygi-info.c. :-( */
+
+static gsize
+size_of_type_tag (GITypeTag type_tag)
+{
+	switch(type_tag) {
+	    case GI_TYPE_TAG_BOOLEAN:
+		return sizeof (gboolean);
+	    case GI_TYPE_TAG_INT8:
+	    case GI_TYPE_TAG_UINT8:
+		return sizeof (gint8);
+	    case GI_TYPE_TAG_INT16:
+	    case GI_TYPE_TAG_UINT16:
+		return sizeof (gint16);
+	    case GI_TYPE_TAG_INT32:
+	    case GI_TYPE_TAG_UINT32:
+		return sizeof (gint32);
+	    case GI_TYPE_TAG_INT64:
+	    case GI_TYPE_TAG_UINT64:
+		return sizeof (gint64);
+	    case GI_TYPE_TAG_SHORT:
+	    case GI_TYPE_TAG_USHORT:
+		return sizeof (gshort);
+	    case GI_TYPE_TAG_INT:
+	    case GI_TYPE_TAG_UINT:
+		return sizeof (gint);
+	    case GI_TYPE_TAG_LONG:
+	    case GI_TYPE_TAG_ULONG:
+		return sizeof (glong);
+	    case GI_TYPE_TAG_SIZE:
+	    case GI_TYPE_TAG_SSIZE:
+		return sizeof (gsize);
+	    case GI_TYPE_TAG_FLOAT:
+		return sizeof (gfloat);
+	    case GI_TYPE_TAG_DOUBLE:
+		return sizeof (gdouble);
+	    case GI_TYPE_TAG_TIME_T:
+		return sizeof (time_t);
+	    case GI_TYPE_TAG_GTYPE:
+		return sizeof (GType);
+
+	    case GI_TYPE_TAG_VOID:
+	    case GI_TYPE_TAG_UTF8:
+	    case GI_TYPE_TAG_FILENAME:
+	    case GI_TYPE_TAG_ARRAY:
+	    case GI_TYPE_TAG_INTERFACE:
+	    case GI_TYPE_TAG_GLIST:
+	    case GI_TYPE_TAG_GSLIST:
+	    case GI_TYPE_TAG_GHASH:
+	    case GI_TYPE_TAG_ERROR:
+		g_assert_not_reached ();
+	}
+
+	return 0;
+}
+
+static gsize
+size_of_interface (GITypeInfo *type_info)
+{
+	gsize size = 0;
+
+	GIBaseInfo *info;
+	GIInfoType info_type;
+
+	info = g_type_info_get_interface (type_info);
+	info_type = g_base_info_get_type (info);
+
+	switch (info_type) {
+	    case GI_INFO_TYPE_STRUCT:
+		if (g_type_info_is_pointer (type_info)) {
+			size = sizeof (gpointer);
+		} else {
+			size = g_struct_info_get_size ((GIStructInfo *) info);
+		}
+		break;
+
+	    case GI_INFO_TYPE_UNION:
+		if (g_type_info_is_pointer (type_info)) {
+			size = sizeof (gpointer);
+		} else {
+			size = g_union_info_get_size ((GIUnionInfo *) info);
+		}
+		break;
+
+	    case GI_INFO_TYPE_ENUM:
+	    case GI_INFO_TYPE_FLAGS:
+		if (g_type_info_is_pointer (type_info)) {
+			size = sizeof (gpointer);
+		} else {
+			GITypeTag type_tag;
+			type_tag = g_enum_info_get_storage_type ((GIEnumInfo *) info);
+			size = size_of_type_tag (type_tag);
+		}
+		break;
+
+	    case GI_INFO_TYPE_BOXED:
+	    case GI_INFO_TYPE_OBJECT:
+	    case GI_INFO_TYPE_INTERFACE:
+	    case GI_INFO_TYPE_CALLBACK:
+		size = sizeof (gpointer);
+		break;
+
+	    default:
+		g_assert_not_reached ();
+		break;
+	}
+
+	g_base_info_unref (info);
+
+	return size;
+}
+
+static gsize
+size_of_type_info (GITypeInfo *type_info)
+{
+	GITypeTag type_tag;
+
+	type_tag = g_type_info_get_tag (type_info);
+	switch (type_tag) {
+	    case GI_TYPE_TAG_BOOLEAN:
+	    case GI_TYPE_TAG_INT8:
+	    case GI_TYPE_TAG_UINT8:
+	    case GI_TYPE_TAG_INT16:
+	    case GI_TYPE_TAG_UINT16:
+	    case GI_TYPE_TAG_INT32:
+	    case GI_TYPE_TAG_UINT32:
+	    case GI_TYPE_TAG_INT64:
+	    case GI_TYPE_TAG_UINT64:
+	    case GI_TYPE_TAG_SHORT:
+	    case GI_TYPE_TAG_USHORT:
+	    case GI_TYPE_TAG_INT:
+	    case GI_TYPE_TAG_UINT:
+	    case GI_TYPE_TAG_LONG:
+	    case GI_TYPE_TAG_ULONG:
+	    case GI_TYPE_TAG_SIZE:
+	    case GI_TYPE_TAG_SSIZE:
+	    case GI_TYPE_TAG_FLOAT:
+	    case GI_TYPE_TAG_DOUBLE:
+	    case GI_TYPE_TAG_TIME_T:
+	    case GI_TYPE_TAG_GTYPE:
+		if (g_type_info_is_pointer (type_info)) {
+			return sizeof (gpointer);
+		} else {
+			return size_of_type_tag (type_tag);
+		}
+
+	    case GI_TYPE_TAG_INTERFACE:
+		return size_of_interface (type_info);
+
+	    case GI_TYPE_TAG_ARRAY:
+	    case GI_TYPE_TAG_VOID:
+	    case GI_TYPE_TAG_UTF8:
+	    case GI_TYPE_TAG_FILENAME:
+	    case GI_TYPE_TAG_GLIST:
+	    case GI_TYPE_TAG_GSLIST:
+	    case GI_TYPE_TAG_GHASH:
+	    case GI_TYPE_TAG_ERROR:
+		return sizeof (gpointer);
+	}
+
+	return 0;
+}
+
+/* ------------------------------------------------------------------------- */
+
 static SV *
 struct_to_sv (GIBaseInfo* info,
               GIInfoType info_type,
@@ -277,6 +442,68 @@ struct_to_sv (GIBaseInfo* info,
 	return newRV_noinc ((SV *) hv);
 }
 
+static SV *
+array_to_sv (GITypeInfo* info,
+             gpointer pointer,
+             GITransfer transfer)
+{
+	GITypeInfo *param_info;
+	gboolean is_zero_terminated;
+	gsize item_size;
+	GITransfer item_transfer;
+	gssize length, i;
+	AV *av;
+
+	if (pointer == NULL) {
+		return &PL_sv_undef;
+	}
+
+	is_zero_terminated = g_type_info_is_zero_terminated (info);
+	param_info = g_type_info_get_param_type (info, 0);
+	item_size = size_of_type_info (param_info);
+
+	/* FIXME: What about an array containing arrays of strings, where the
+	 * outer array is GI_TRANSFER_EVERYTHING but the inner arrays are
+	 * GI_TRANSFER_CONTAINER? */
+	item_transfer = transfer == GI_TRANSFER_EVERYTHING
+		? GI_TRANSFER_EVERYTHING
+		: GI_TRANSFER_NOTHING;
+	item_transfer = GI_TRANSFER_NOTHING;
+
+	if (is_zero_terminated) {
+		length = g_strv_length (pointer);
+	} else {
+		croak ("FIXME: non-zero-terminated arrays "
+		       "are not supported yet");
+		return &PL_sv_undef;
+	}
+
+	av = newAV ();
+
+	dwarn ("    C array: pointer %p, length %d, item size %d, "
+	       "param_info %p with type tag %d\n",
+	       pointer,
+	       length,
+	       item_size,
+	       param_info,
+	       g_type_info_get_tag (param_info));
+
+	for (i = 0; i < length; i++) {
+		GArgument *arg;
+		SV *value;
+		arg = pointer + i * item_size;
+		value = arg_to_sv (arg, param_info, item_transfer);
+		if (value)
+			av_push (av, value);
+	}
+
+	if (transfer >= GI_TRANSFER_CONTAINER)
+		g_free (pointer);
+
+	g_base_info_unref ((GIBaseInfo *) param_info);
+
+	return newRV_noinc ((SV *) av);
+}
 
 static SV *
 glist_to_sv (GITypeInfo* info,
@@ -680,7 +907,7 @@ arg_to_sv (const GArgument * arg,
 		return newSVuv (arg->v_ulong);
 
 	    case GI_TYPE_TAG_ARRAY:
-		croak ("FIXME - GI_TYPE_TAG_ARRAY");
+		return array_to_sv (info, arg->v_pointer, transfer);
 
 	    case GI_TYPE_TAG_INTERFACE:
 		return pointer_to_sv (info, arg->v_pointer, own);
