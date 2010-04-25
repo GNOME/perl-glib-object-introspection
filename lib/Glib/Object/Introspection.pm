@@ -31,6 +31,9 @@ sub setup {
   my $version = $params{version};
   my $package = $params{package};
   my $name_corrections = $params{name_corrections} || {};
+  my $class_static_methods = $params{class_static_methods} || [];
+
+  my %shift_package_name_for = map { $_ => 1 } @$class_static_methods;
 
   my $functions =
     __PACKAGE__->register_types($basename, $version, $package);
@@ -47,6 +50,7 @@ sub setup {
         ? $name_corrections->{$auto_name}
         : $auto_name;
       *{$corrected_name} = sub {
+        shift if $shift_package_name_for{$corrected_name};
         __PACKAGE__->invoke($basename,
                             $is_namespaced ? $namespace : undef,
                             $name,
