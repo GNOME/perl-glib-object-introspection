@@ -67,6 +67,9 @@ static void release_callback (gpointer data);
 static SV * arg_to_sv (const GArgument * arg,
                        GITypeInfo * info,
                        GITransfer transfer);
+static SV * pointer_to_sv (GITypeInfo* info,
+                           gpointer pointer,
+                           gboolean own);
 
 /* ------------------------------------------------------------------------- */
 
@@ -272,6 +275,41 @@ struct_to_sv (GIBaseInfo* info,
 	}
 
 	return newRV_noinc ((SV *) hv);
+}
+
+
+static SV *
+glist_to_sv (GITypeInfo* info,
+             gpointer pointer,
+             GITransfer transfer)
+{
+	GITypeInfo *param_info;
+	GList *i;
+	AV *av;
+	SV *value;
+
+	param_info = g_type_info_get_param_type (info, 0);
+	av = newAV ();
+
+	dwarn ("    GList: pointer %p, param_info %p with type tag %d\n",
+	       pointer,
+	       param_info,
+	       g_type_info_get_tag (param_info));
+
+	for (i = pointer; i; i = i->next) {
+		dwarn ("      converting pointer %p\n", i->data);
+		value = pointer_to_sv (param_info, i->data,
+		                       transfer == GI_TRANSFER_EVERYTHING);
+		if (value)
+			av_push (av, value);
+	}
+
+	if (transfer >= GI_TRANSFER_CONTAINER)
+		g_list_free (pointer);
+
+	g_base_info_unref ((GIBaseInfo *) param_info);
+
+	return newRV_noinc ((SV *) av);
 }
 
 static gpointer
@@ -648,34 +686,7 @@ arg_to_sv (const GArgument * arg,
 		return pointer_to_sv (info, arg->v_pointer, own);
 
 	    case GI_TYPE_TAG_GLIST:
-	    {
-		GITypeInfo *param_info;
-		GList *i;
-		AV *av;
-		SV *value;
-
-		param_info = g_type_info_get_param_type (info, 0);
-		av = newAV ();
-
-		dwarn ("    GList: pointer %p, param_info %p with type tag %d\n",
-		      arg->v_pointer,
-		      param_info,
-		      g_type_info_get_tag (param_info));
-
-		for (i = arg->v_pointer; i; i = i->next) {
-			dwarn ("      converting pointer %p\n", i->data);
-			value = pointer_to_sv (param_info, i->data, transfer);
-			if (value)
-				av_push (av, value);
-		}
-
-		if (transfer >= GI_TRANSFER_CONTAINER)
-			g_list_free (arg->v_pointer);
-
-		g_base_info_unref ((GIBaseInfo *) param_info);
-
-		return newRV_noinc ((SV *) av);
-	    }
+		return glist_to_sv (info, arg->v_pointer, transfer);
 
 	    case GI_TYPE_TAG_GSLIST:
 		croak ("FIXME - GI_TYPE_TAG_GSLIST");
