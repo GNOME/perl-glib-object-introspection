@@ -418,22 +418,25 @@ struct_to_sv (GIBaseInfo* info,
 			g_struct_info_get_n_fields ((GIStructInfo *) info);
 		for (i = 0; i < n_fields; i++) {
 			GIFieldInfo *field_info;
+			GITypeInfo *field_type;
 			GArgument value;
 			field_info =
 				g_struct_info_get_field ((GIStructInfo *) info, i);
+			field_type = g_field_info_get_type (field_info);
+			/* FIXME: Check GIFieldInfoFlags. */
 			if (g_field_info_get_field (field_info, pointer, &value)) {
 				/* FIXME: Is it right to use
 				 * GI_TRANSFER_NOTHING here? */
 				SV *sv;
 				const gchar *name;
-				sv = arg_to_sv (
-				       &value,
-				       g_field_info_get_type (field_info),
-				       GI_TRANSFER_NOTHING);
+				sv = arg_to_sv (&value,
+				                field_type,
+				                GI_TRANSFER_NOTHING);
 				name = g_base_info_get_name (
 				         (GIBaseInfo *) field_info);
 				gperl_hv_take_sv (hv, name, strlen (name), sv);
 			}
+			g_base_info_unref ((GIBaseInfo *) field_type);
 			g_base_info_unref ((GIBaseInfo *) field_info);
 		}
 		break;
