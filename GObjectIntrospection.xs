@@ -71,6 +71,13 @@ static SV * interface_to_sv (GITypeInfo* info,
                              GArgument *arg,
                              gboolean own);
 
+static void sv_to_arg (SV * sv,
+                       GArgument * arg,
+                       GIArgInfo * arg_info,
+                       GITypeInfo * type_info,
+                       gboolean may_be_null,
+                       GPerlI11nInvocationInfo * invocation_info);
+
 /* ------------------------------------------------------------------------- */
 
 /* Caller owns return value */
@@ -547,6 +554,93 @@ glist_to_sv (GITypeInfo* info,
 	return newRV_noinc ((SV *) av);
 }
 
+static gpointer
+sv_to_struct (GIArgInfo * arg_info,
+              GIBaseInfo * info,
+              GIInfoType info_type,
+              SV * sv)
+{
+	HV *hv;
+	gsize size = 0;
+	GITransfer transfer;
+	gpointer pointer = NULL;
+
+	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
+
+	if (!gperl_sv_is_hash_ref (sv))
+		croak ("need a hash ref to convert to struct of type %s",
+		       g_base_info_get_name (info));
+	hv = (HV *) SvRV (sv);
+
+	switch (info_type) {
+	    case GI_INFO_TYPE_BOXED:
+	    case GI_INFO_TYPE_STRUCT:
+		size = g_struct_info_get_size ((GIStructInfo *) info);
+		break;
+	    case GI_INFO_TYPE_UNION:
+		size = g_union_info_get_size ((GIStructInfo *) info);
+		break;
+	    default:
+		g_assert_not_reached ();
+	}
+
+	dwarn ("  size: %d\n", size);
+
+	transfer = g_arg_info_get_ownership_transfer (arg_info);
+	dwarn ("  transfer: %d\n", transfer);
+	if (transfer == GI_TRANSFER_EVERYTHING) {
+		/* FIXME: What if there's a special allocator for the record?
+		 * Like GSlice? */
+		pointer = g_malloc0 (size);
+	} else {
+		pointer = gperl_alloc_temp (size);
+	}
+
+	switch (info_type) {
+	    case GI_INFO_TYPE_BOXED:
+	    case GI_INFO_TYPE_STRUCT:
+	    {
+		gint i, n_fields =
+			g_struct_info_get_n_fields ((GIStructInfo *) info);
+		for (i = 0; i < n_fields; i++) {
+			GIFieldInfo *field_info;
+			const gchar *field_name;
+			SV **svp;
+			field_info = g_struct_info_get_field (
+			               (GIStructInfo *) info, i);
+			/* FIXME: Check GIFieldInfoFlags. */
+			field_name = g_base_info_get_name (
+			               (GIBaseInfo *) field_info);
+			svp = hv_fetch (hv, field_name, strlen (field_name), 0);
+			if (svp && gperl_sv_is_defined (*svp)) {
+				GITypeInfo *field_type;
+				GArgument arg;
+				field_type = g_field_info_get_type (field_info);
+				/* FIXME: No GIArgInfo and no
+				 * GPerlI11nInvocationInfo here.  What if the
+				 * struct contains an object pointer, or a
+				 * callback field? */
+				sv_to_arg (*svp, &arg, NULL, field_type,
+				           FALSE, NULL);
+				g_field_info_set_field (field_info, pointer,
+				                        &arg);
+				g_base_info_unref ((GIBaseInfo *) field_type);
+			}
+			g_base_info_unref ((GIBaseInfo *) field_info);
+		}
+		break;
+	    }
+
+	    case GI_INFO_TYPE_UNION:
+		/* FIXME */
+
+	    default:
+		croak ("%s: unhandled info type %d", G_STRFUNC, info_type);
+	}
+
+	return pointer;
+}
+
 static void
 sv_to_interface (GIArgInfo * arg_info,
                  GITypeInfo * type_info,
@@ -575,15 +669,21 @@ sv_to_interface (GIArgInfo * arg_info,
 	    case GI_INFO_TYPE_STRUCT:
 	    case GI_INFO_TYPE_BOXED:
 	    {
-		GType type = g_registered_type_info_get_g_type ((GIRegisteredTypeInfo *) interface);
-		if (!type)
-			croak ("Could not find GType for boxed/struct/union type %s::%s",
-			       g_base_info_get_namespace (interface),
-			       g_base_info_get_name (interface));
-		/* FIXME: handle G_TYPE_NONE */
-		dwarn ("    struct type: %s (%d)\n",
-		       g_type_name (type), type);
-		arg->v_pointer = gperl_get_boxed_check (sv, type);
+		/* FIXME: What about pass-by-value here? */
+		GType type = g_registered_type_info_get_g_type (
+		               (GIRegisteredTypeInfo *) interface);
+		if (!type || type == G_TYPE_NONE) {
+			dwarn ("    unboxed type\n");
+			arg->v_pointer = sv_to_struct (arg_info,
+			                               interface,
+			                               info_type,
+			                               sv);
+		} else {
+			dwarn ("    boxed type: %s (%d)\n",
+			       g_type_name (type), type);
+			/* FIXME: Check transfer setting. */
+			arg->v_pointer = gperl_get_boxed_check (sv, type);
+		}
 		break;
 	    }
 
