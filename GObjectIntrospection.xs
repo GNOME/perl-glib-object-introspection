@@ -402,6 +402,8 @@ struct_to_sv (GIBaseInfo* info,
 {
 	HV *hv;
 
+	dwarn ("%s: pointer %p\n", G_STRFUNC, pointer);
+
 	if (pointer == NULL) {
 		return &PL_sv_undef;
 	}
@@ -662,6 +664,7 @@ sv_to_interface (GIArgInfo * arg_info,
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
 	    case GI_INFO_TYPE_INTERFACE:
+		/* FIXME: Check transfer setting. */
 		arg->v_pointer = gperl_get_object (sv);
 		break;
 
@@ -939,10 +942,12 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_UTF8:
+		/* FIXME: Check transfer setting. */
 		arg->v_string = SvOK (sv) ? SvGChar (sv) : NULL;
 		break;
 
 	    case GI_TYPE_TAG_FILENAME:
+		/* FIXME: Check transfer setting. */
 		arg->v_string = SvOK (sv) ? gperl_filename_from_sv (sv) : NULL;
 		break;
 
@@ -953,7 +958,7 @@ sv_to_arg (SV * sv,
 
 static SV *
 arg_to_sv (GArgument * arg,
-	   GITypeInfo * info,
+           GITypeInfo * info,
            GITransfer transfer)
 {
 	GITypeTag tag = g_type_info_get_tag (info);
