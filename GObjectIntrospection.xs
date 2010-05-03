@@ -545,7 +545,9 @@ glist_to_sv (GITypeInfo* info,
 
 	for (i = pointer; i; i = i->next) {
 		dwarn ("      converting pointer %p\n", i->data);
-		value = interface_to_sv (param_info, i->data,
+		GArgument arg = {0,};
+		arg.v_pointer = i->data;
+		value = interface_to_sv (param_info, &arg,
 		                         transfer == GI_TRANSFER_EVERYTHING);
 		if (value)
 			av_push (av, value);
