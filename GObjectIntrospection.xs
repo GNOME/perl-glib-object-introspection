@@ -1265,7 +1265,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 
 	/* push user data onto the Perl stack */
 	if (info->data)
-		XPUSHs (sv_2mortal (newSVsv (info->data)));
+		XPUSHs (sv_2mortal (SvREFCNT_inc (info->data)));
 
 	PUTBACK;
 
