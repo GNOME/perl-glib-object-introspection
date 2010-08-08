@@ -824,7 +824,8 @@ sv_to_arg (SV * sv,
 	if (!sv || !SvOK (sv))
 		/* Interfaces need to be able to handle undef separately. */
 		if (!may_be_null && tag != GI_TYPE_TAG_INTERFACE)
-			croak ("undefined value for a mandatory argument encountered");
+			croak ("undefined value for mandatory argument '%s' encountered",
+			       g_base_info_get_name ((GIBaseInfo *) arg_info));
 
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
