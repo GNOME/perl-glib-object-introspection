@@ -42,8 +42,8 @@ typedef struct {
 	SV *code;
 	SV *data;
 
-	gint data_pos;
-	gint notify_pos;
+	guint data_pos;
+	guint notify_pos;
 
 	gboolean free_after_use;
 
@@ -53,7 +53,7 @@ typedef struct {
 /* This stores information that one call to sv_to_arg needs to make available
  * to later calls of sv_to_arg. */
 typedef struct {
-	gint current_pos;
+	guint current_pos;
 	GSList * callback_infos;
 	GSList * free_after_call;
 } GPerlI11nInvocationInfo;
@@ -90,13 +90,13 @@ get_function_info (GIRepository *repository,
 	dwarn ("%s: %s, %s, %s\n", G_STRFUNC, basename, namespace, method);
 
 	if (namespace) {
+		GIFunctionInfo *function_info = NULL;
 		GIBaseInfo *namespace_info = g_irepository_find_by_name (
 			repository, basename, namespace);
 		if (!namespace_info)
 			croak ("Can't find information for namespace %s",
 			       namespace);
 
-		GIFunctionInfo *function_info = NULL;
 		switch (g_base_info_get_type (namespace_info)) {
 		    case GI_INFO_TYPE_OBJECT:
 			function_info = g_object_info_find_method (
@@ -521,8 +521,8 @@ glist_to_sv (GITypeInfo* info,
 	       g_type_info_get_tag (param_info));
 
 	for (i = pointer; i; i = i->next) {
-		dwarn ("      converting pointer %p\n", i->data);
 		GArgument arg = {0,};
+		dwarn ("      converting pointer %p\n", i->data);
 		arg.v_pointer = i->data;
 		value = interface_to_sv (param_info, &arg,
 		                         transfer == GI_TRANSFER_EVERYTHING);
@@ -705,6 +705,7 @@ interface_to_sv (GITypeInfo* info, GArgument *arg, gboolean own)
 {
 	GIBaseInfo *interface;
 	GIInfoType info_type;
+	SV *sv = NULL;
 
 	dwarn ("  interface_to_sv: arg %p, info %p\n",
 	       arg, info);
@@ -714,8 +715,6 @@ interface_to_sv (GITypeInfo* info, GArgument *arg, gboolean own)
 		croak ("Could not convert arg %p to SV", arg);
 	info_type = g_base_info_get_type (interface);
 	dwarn ("    info type: %d\n", info_type);
-
-	SV *sv = NULL;
 
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
@@ -777,12 +776,11 @@ instance_sv_to_pointer (GIFunctionInfo *function_info, SV *sv)
 	GIBaseInfo *container = g_base_info_get_container (
 				  (GIBaseInfo *) function_info);
 	GIInfoType info_type = g_base_info_get_type (container);
+	gpointer pointer = NULL;
 
 	dwarn ("  instance_sv_to_pointer: container name: %s, info type: %d\n",
 	       g_base_info_get_name (container),
 	       info_type);
-
-	gpointer pointer = NULL;
 
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
@@ -1599,7 +1597,7 @@ invoke (class, basename, namespace, method, ...)
 	const gchar_ornull *namespace
 	const gchar *method
 PREINIT:
-	int stack_offset = 4;
+	guint stack_offset = 4;
 	GIRepository *repository;
 	GIFunctionInfo *info;
 	ffi_cif cif;
@@ -1608,14 +1606,15 @@ PREINIT:
 	gpointer *args = NULL;
 	gpointer func_pointer = NULL, instance = NULL;
 	const gchar *symbol = NULL;
-	int have_args;
-	int n_args, n_invoke_args;
-	int n_in_args;
-	int n_out_args;
-	int i, out_i;
+	guint have_args;
+	guint n_args, n_invoke_args;
+	guint n_in_args;
+	guint n_out_args;
+	guint i, out_i;
 	GITypeInfo ** out_arg_type = NULL;
 	GITypeInfo * return_type_info = NULL;
 	gboolean throws, is_constructor, is_method, has_return_value;
+	guint method_offset = 0;
 	GPerlI11nInvocationInfo invocation_info = {0,};
 	GArgument return_value;
 	GArgument * in_args = NULL;
@@ -1681,7 +1680,7 @@ PPCODE:
 		n_in_args++;
 	}
 
-	int method_offset = is_method ? 1 : 0;
+	method_offset = is_method ? 1 : 0;
 
 	for (i = 0 ; i < n_args ; i++) {
 		GIArgInfo * arg_info =
