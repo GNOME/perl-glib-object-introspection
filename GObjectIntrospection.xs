@@ -249,24 +249,10 @@ size_of_type_tag (GITypeTag type_tag)
 	    case GI_TYPE_TAG_INT64:
 	    case GI_TYPE_TAG_UINT64:
 		return sizeof (gint64);
-	    case GI_TYPE_TAG_SHORT:
-	    case GI_TYPE_TAG_USHORT:
-		return sizeof (gshort);
-	    case GI_TYPE_TAG_INT:
-	    case GI_TYPE_TAG_UINT:
-		return sizeof (gint);
-	    case GI_TYPE_TAG_LONG:
-	    case GI_TYPE_TAG_ULONG:
-		return sizeof (glong);
-	    case GI_TYPE_TAG_SIZE:
-	    case GI_TYPE_TAG_SSIZE:
-		return sizeof (gsize);
 	    case GI_TYPE_TAG_FLOAT:
 		return sizeof (gfloat);
 	    case GI_TYPE_TAG_DOUBLE:
 		return sizeof (gdouble);
-	    case GI_TYPE_TAG_TIME_T:
-		return sizeof (time_t);
 	    case GI_TYPE_TAG_GTYPE:
 		return sizeof (GType);
 
@@ -357,17 +343,8 @@ size_of_type_info (GITypeInfo *type_info)
 	    case GI_TYPE_TAG_UINT32:
 	    case GI_TYPE_TAG_INT64:
 	    case GI_TYPE_TAG_UINT64:
-	    case GI_TYPE_TAG_SHORT:
-	    case GI_TYPE_TAG_USHORT:
-	    case GI_TYPE_TAG_INT:
-	    case GI_TYPE_TAG_UINT:
-	    case GI_TYPE_TAG_LONG:
-	    case GI_TYPE_TAG_ULONG:
-	    case GI_TYPE_TAG_SIZE:
-	    case GI_TYPE_TAG_SSIZE:
 	    case GI_TYPE_TAG_FLOAT:
 	    case GI_TYPE_TAG_DOUBLE:
-	    case GI_TYPE_TAG_TIME_T:
 	    case GI_TYPE_TAG_GTYPE:
 		if (g_type_info_is_pointer (type_info)) {
 			return sizeof (gpointer);
@@ -896,22 +873,6 @@ sv_to_arg (SV * sv,
 		arg->v_double = SvNV (sv);
 		break;
 
-	    case GI_TYPE_TAG_INT:
-		arg->v_int = SvIV (sv);
-		break;
-
-	    case GI_TYPE_TAG_UINT:
-		arg->v_uint = SvUV (sv);
-		break;
-
-	    case GI_TYPE_TAG_LONG:
-		arg->v_long = SvIV (sv);
-		break;
-
-	    case GI_TYPE_TAG_ULONG:
-		arg->v_ulong = SvUV (sv);
-		break;
-
 	    case GI_TYPE_TAG_ARRAY:
 		croak ("FIXME - GI_TYPE_TAG_ARRAY");
 		break;
@@ -936,14 +897,6 @@ sv_to_arg (SV * sv,
 
 	    case GI_TYPE_TAG_ERROR:
 		croak ("FIXME - A GError as an in/inout arg?  Should never happen!");
-		break;
-
-	    case GI_TYPE_TAG_SSIZE:
-		arg->v_ssize = (gssize) SvIV (sv);
-		break;
-
-	    case GI_TYPE_TAG_SIZE:
-		arg->v_size = (gsize) SvUV (sv);
 		break;
 
 	    case GI_TYPE_TAG_UTF8:
@@ -1010,18 +963,6 @@ arg_to_sv (GArgument * arg,
 	    case GI_TYPE_TAG_DOUBLE:
 		return newSVnv (arg->v_double);
 
-	    case GI_TYPE_TAG_INT:
-		return newSViv (arg->v_int);
-
-	    case GI_TYPE_TAG_UINT:
-		return newSVuv (arg->v_uint);
-
-	    case GI_TYPE_TAG_LONG:
-		return newSViv (arg->v_long);
-
-	    case GI_TYPE_TAG_ULONG:
-		return newSVuv (arg->v_ulong);
-
 	    case GI_TYPE_TAG_ARRAY:
 		return array_to_sv (info, arg->v_pointer, transfer);
 
@@ -1040,12 +981,6 @@ arg_to_sv (GArgument * arg,
 	    case GI_TYPE_TAG_ERROR:
 		croak ("FIXME - GI_TYPE_TAG_ERROR");
 		break;
-
-	    case GI_TYPE_TAG_SSIZE:
-		return newSViv (arg->v_ssize);
-
-	    case GI_TYPE_TAG_SIZE:
-		return newSVuv (arg->v_size);
 
 	    case GI_TYPE_TAG_UTF8:
 	    {
@@ -1128,22 +1063,6 @@ raw_to_arg (gpointer raw, GArgument *arg, GITypeInfo *info)
 		arg->v_double = CAST_RAW (raw, gdouble);
 		break;
 
-	    case GI_TYPE_TAG_INT:
-		arg->v_int = CAST_RAW (raw, gint);
-		break;
-
-	    case GI_TYPE_TAG_UINT:
-		arg->v_uint = CAST_RAW (raw, guint);
-		break;
-
-	    case GI_TYPE_TAG_LONG:
-		arg->v_long = CAST_RAW (raw, glong);
-		break;
-
-	    case GI_TYPE_TAG_ULONG:
-		arg->v_ulong = CAST_RAW (raw, gulong);
-		break;
-
 	    case GI_TYPE_TAG_ARRAY:
 	    case GI_TYPE_TAG_INTERFACE:
 	    case GI_TYPE_TAG_GLIST:
@@ -1151,14 +1070,6 @@ raw_to_arg (gpointer raw, GArgument *arg, GITypeInfo *info)
 	    case GI_TYPE_TAG_GHASH:
 	    case GI_TYPE_TAG_ERROR:
 		arg->v_pointer = * (gpointer *) raw;
-		break;
-
-	    case GI_TYPE_TAG_SSIZE:
-		arg->v_ssize = CAST_RAW (raw, gssize);
-		break;
-
-	    case GI_TYPE_TAG_SIZE:
-		arg->v_size = CAST_RAW (raw, gsize);
 		break;
 
 	    case GI_TYPE_TAG_UTF8:
@@ -1225,22 +1136,6 @@ arg_to_raw (GArgument *arg, gpointer raw, GITypeInfo *info)
 		* (gdouble *) raw = arg->v_double;
 		break;
 
-	    case GI_TYPE_TAG_INT:
-		* (gint *) raw = arg->v_int;
-		break;
-
-	    case GI_TYPE_TAG_UINT:
-		* (guint *) raw = arg->v_uint;
-		break;
-
-	    case GI_TYPE_TAG_LONG:
-		* (glong *) raw = arg->v_long;
-		break;
-
-	    case GI_TYPE_TAG_ULONG:
-		* (gulong *) raw = arg->v_ulong;
-		break;
-
 	    case GI_TYPE_TAG_ARRAY:
 	    case GI_TYPE_TAG_INTERFACE:
 	    case GI_TYPE_TAG_GLIST:
@@ -1248,14 +1143,6 @@ arg_to_raw (GArgument *arg, gpointer raw, GITypeInfo *info)
 	    case GI_TYPE_TAG_GHASH:
 	    case GI_TYPE_TAG_ERROR:
 		* (gpointer *) raw = arg->v_pointer;
-		break;
-
-	    case GI_TYPE_TAG_SSIZE:
-		* (gssize *) raw = arg->v_ssize;
-		break;
-
-	    case GI_TYPE_TAG_SIZE:
-		* (gsize *) raw = arg->v_size;
 		break;
 
 	    case GI_TYPE_TAG_UTF8:
