@@ -54,6 +54,7 @@ typedef struct {
  * to later calls of sv_to_arg. */
 typedef struct {
 	guint current_pos;
+	gint dynamic_stack_offset;
 	GSList * callback_infos;
 	GSList * free_after_call;
 } GPerlI11nInvocationInfo;
@@ -161,6 +162,10 @@ handle_callback_arg (GIArgInfo * arg_info,
 		if (invocation_info->current_pos == callback_info->notify_pos) {
 			dwarn ("      destroy notify for callback %p\n",
 			       callback_info);
+			/* Decrease the dynamic stack offset so that this
+			 * destroy notify callback doesn't consume any Perl
+			 * value from the stack. */
+			invocation_info->dynamic_stack_offset--;
 			return release_callback;
 		}
 	}
@@ -1681,6 +1686,7 @@ PPCODE:
 	}
 
 	method_offset = is_method ? 1 : 0;
+	invocation_info.dynamic_stack_offset = 0;
 
 	for (i = 0 ; i < n_args ; i++) {
 		GIArgInfo * arg_info =
@@ -1689,22 +1695,24 @@ PPCODE:
 		 * the function has been invoked */
 		GITypeInfo * arg_type = g_arg_info_get_type (arg_info);
 		gboolean may_be_null = g_arg_info_may_be_null (arg_info);
+		guint perl_stack_pos = i + method_offset + stack_offset
+			+ invocation_info.dynamic_stack_offset;
 
 		/* FIXME: Is it right to just add method_offset here?  I'm
 		 * confused about the relation of the numbers in
 		 * g_callable_info_get_arg and g_arg_info_get_closure and
 		 * g_arg_info_get_destroy. */
-		invocation_info.current_pos = method_offset + i;
+		invocation_info.current_pos = i + method_offset;
 
 		dwarn ("  arg tag: %d (%s)\n",
 		       g_type_info_get_tag (arg_type),
 		       g_type_tag_to_string (g_type_info_get_tag (arg_type)));
 
 		/* FIXME: Check that i+method_offset+stack_offset<items before
-		 * calling ST, and generate a usage methods otherwise. */
+		 * calling ST, and generate a usage message otherwise. */
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
-			sv_to_arg (ST (i + method_offset + stack_offset),
+			sv_to_arg (ST (perl_stack_pos),
 			           &in_args[n_in_args], arg_info, arg_type,
 			           may_be_null, &invocation_info);
 			arg_types[i + method_offset] =
@@ -1725,7 +1733,7 @@ PPCODE:
 		    {
 			GArgument * temp =
 				gperl_alloc_temp (sizeof (GArgument));
-			sv_to_arg (ST (i + method_offset + stack_offset),
+			sv_to_arg (ST (perl_stack_pos),
 			           temp, arg_info, arg_type, may_be_null,
 			           &invocation_info);
 			in_args[n_in_args].v_pointer =
