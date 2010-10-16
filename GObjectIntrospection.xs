@@ -1516,22 +1516,33 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 MODULE = Glib::Object::Introspection	PACKAGE = Glib::Object::Introspection
 
 void
-register_types (class, namespace, version, package)
+load_library (class, namespace, version, search_path=NULL)
 	const gchar *namespace
 	const gchar *version
-	const gchar *package
+	const gchar *search_path
     PREINIT:
 	GIRepository *repository;
 	GError *error = NULL;
-	gint number, i;
-	AV *global_functions;
-	HV *namespaced_functions;
-    PPCODE:
+    CODE:
+	if (search_path)
+		g_irepository_prepend_search_path (search_path);
 	repository = g_irepository_get_default ();
 	g_irepository_require (repository, namespace, version, 0, &error);
 	if (error) {
 		gperl_croak_gerror (NULL, error);
 	}
+
+void
+register_types (class, namespace, package)
+	const gchar *namespace
+	const gchar *package
+    PREINIT:
+	GIRepository *repository;
+	gint number, i;
+	AV *global_functions;
+	HV *namespaced_functions;
+    PPCODE:
+	repository = g_irepository_get_default ();
 
 	global_functions = newAV ();
 	namespaced_functions = newHV ();

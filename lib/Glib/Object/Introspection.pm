@@ -30,13 +30,16 @@ sub setup {
   my $basename = $params{basename};
   my $version = $params{version};
   my $package = $params{package};
+  my $search_path = $params{search_path} || undef;
   my $name_corrections = $params{name_corrections} || {};
   my $class_static_methods = $params{class_static_methods} || [];
 
   my %shift_package_name_for = map { $_ => 1 } @$class_static_methods;
 
+  __PACKAGE__->load_library($basename, $version, $search_path);
+
   my $functions =
-    __PACKAGE__->register_types($basename, $version, $package);
+    __PACKAGE__->register_types($basename, $package);
 
   no strict 'refs';
 
