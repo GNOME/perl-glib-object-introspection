@@ -214,6 +214,8 @@ handle_void_arg (GIArgInfo * arg_info,
 	gpointer pointer = NULL;
 	gboolean is_user_data = FALSE;
 	GSList *l;
+	PERL_UNUSED_VAR (arg_info);
+	PERL_UNUSED_VAR (type_info);
 	dwarn ("    type %p -> void pointer\n", type_info);
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
 		GPerlI11nCallbackInfo *callback_info = l->data;
@@ -479,12 +481,13 @@ array_to_sv (GITypeInfo* info,
 	av = newAV ();
 
 	dwarn ("    C array: pointer %p, length %d, item size %d, "
-	       "param_info %p with type tag %d\n",
+	       "param_info %p with type tag %d (%s)\n",
 	       pointer,
 	       length,
 	       item_size,
 	       param_info,
-	       g_type_info_get_tag (param_info));
+	       g_type_info_get_tag (param_info),
+	       g_type_tag_to_string (g_type_info_get_tag (param_info)));
 
 	for (i = 0; i < length; i++) {
 		GArgument *arg;
@@ -726,7 +729,7 @@ interface_to_sv (GITypeInfo* info, GArgument *arg, gboolean own)
 	if (!interface)
 		croak ("Could not convert arg %p to SV", arg);
 	info_type = g_base_info_get_type (interface);
-	dwarn ("    info type: %d\n", info_type);
+	dwarn ("    info type: %d (%s)\n", info_type, g_info_type_to_string (info_type));
 
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
@@ -1205,6 +1208,8 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	I32 context;
 	dGPERL_CALLBACK_MARSHAL_SP;
 
+	PERL_UNUSED_VAR (cif);
+
 	/* unwrap callback info struct from userdata */
 	info = (GPerlI11nCallbackInfo *) userdata;
 	cb_interface = (GICallableInfo *) info->interface;
@@ -1231,14 +1236,12 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 
 		dwarn ("arg info: %p\n"
 		       "  direction: %d\n"
-		       "  is dipper: %d\n"
 		       "  is return value: %d\n"
 		       "  is optional: %d\n"
 		       "  may be null: %d\n"
 		       "  transfer: %d\n",
 		       arg_info,
 		       g_arg_info_get_direction (arg_info),
-		       g_arg_info_is_dipper (arg_info),
 		       g_arg_info_is_return_value (arg_info),
 		       g_arg_info_is_optional (arg_info),
 		       g_arg_info_may_be_null (arg_info),
