@@ -887,6 +887,13 @@ sv_to_arg (SV * sv,
 		arg->v_double = SvNV (sv);
 		break;
 
+	    case GI_TYPE_TAG_GTYPE:
+		/* GType == gsize */
+		arg->v_size = gperl_type_from_package (SvPV_nolen (sv));
+		if (!arg->v_size)
+			arg->v_size = g_type_from_name (SvPV_nolen (sv));
+		break;
+
 	    case GI_TYPE_TAG_ARRAY:
 		croak ("FIXME - GI_TYPE_TAG_ARRAY");
 		break;
@@ -976,6 +983,14 @@ arg_to_sv (GArgument * arg,
 
 	    case GI_TYPE_TAG_DOUBLE:
 		return newSVnv (arg->v_double);
+
+	    case GI_TYPE_TAG_GTYPE: {
+		/* GType == gsize */
+		const char *package = gperl_package_from_type (arg->v_size);
+		if (!package)
+			package = g_type_name (arg->v_size);
+		return newSVpv (package, PL_na);
+	    }
 
 	    case GI_TYPE_TAG_ARRAY:
 		return array_to_sv (info, arg->v_pointer, transfer);
