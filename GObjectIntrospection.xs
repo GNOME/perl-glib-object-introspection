@@ -504,12 +504,13 @@ array_to_sv (GITypeInfo* info,
 }
 
 static SV *
-glist_to_sv (GITypeInfo* info,
-             gpointer pointer,
-             GITransfer transfer)
+gslist_to_sv (GITypeInfo* info,
+              gpointer pointer,
+              GITransfer transfer)
 {
 	GITypeInfo *param_info;
-	GList *i;
+	GITransfer item_transfer;
+	GSList *i;
 	AV *av;
 	SV *value;
 
@@ -517,26 +518,32 @@ glist_to_sv (GITypeInfo* info,
 		return &PL_sv_undef;
 	}
 
-	param_info = g_type_info_get_param_type (info, 0);
-	av = newAV ();
+	/* FIXME: What about an array containing arrays of strings, where the
+	 * outer array is GI_TRANSFER_EVERYTHING but the inner arrays are
+	 * GI_TRANSFER_CONTAINER? */
+	item_transfer = transfer == GI_TRANSFER_EVERYTHING
+		? GI_TRANSFER_EVERYTHING
+		: GI_TRANSFER_NOTHING;
 
-	dwarn ("    GList: pointer %p, param_info %p with type tag %d\n",
+	param_info = g_type_info_get_param_type (info, 0);
+	dwarn ("    G(S)List: pointer %p, param_info %p with type tag %d (%s)\n",
 	       pointer,
 	       param_info,
-	       g_type_info_get_tag (param_info));
+	       g_type_info_get_tag (param_info),
+	       g_type_tag_to_string (g_type_info_get_tag (param_info)));
 
+	av = newAV ();
 	for (i = pointer; i; i = i->next) {
 		GArgument arg = {0,};
 		dwarn ("      converting pointer %p\n", i->data);
 		arg.v_pointer = i->data;
-		value = interface_to_sv (param_info, &arg,
-		                         transfer == GI_TRANSFER_EVERYTHING);
+		value = arg_to_sv (&arg, param_info, item_transfer);
 		if (value)
 			av_push (av, value);
 	}
 
 	if (transfer >= GI_TRANSFER_CONTAINER)
-		g_list_free (pointer);
+		g_slist_free (pointer);
 
 	g_base_info_unref ((GIBaseInfo *) param_info);
 
@@ -974,10 +981,9 @@ arg_to_sv (GArgument * arg,
 		return interface_to_sv (info, arg, own);
 
 	    case GI_TYPE_TAG_GLIST:
-		return glist_to_sv (info, arg->v_pointer, transfer);
-
 	    case GI_TYPE_TAG_GSLIST:
-		croak ("FIXME - GI_TYPE_TAG_GSLIST");
+		/* We rely here on being able to use a GList as a GSList. */
+		return gslist_to_sv (info, arg->v_pointer, transfer);
 
 	    case GI_TYPE_TAG_GHASH:
 		croak ("FIXME - GI_TYPE_TAG_GHASH");
