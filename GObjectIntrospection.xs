@@ -33,6 +33,30 @@
 
 /* ------------------------------------------------------------------------- */
 
+/* Call Carp's croak() so that errors are reported at their location in the
+ * user's program, not in Introspection.pm.  Adapted from
+ * <http://www.perlmonks.org/?node_id=865159>. */
+#define ccroak(...) call_carp_croak (form (__VA_ARGS__));
+static void
+call_carp_croak (const char *msg)
+{
+	dSP;
+
+	ENTER;
+	SAVETMPS;
+
+	PUSHMARK (SP);
+	XPUSHs (sv_2mortal (newSVpv(msg, PL_na)));
+	PUTBACK;
+
+	call_pv("Carp::croak", G_VOID | G_DISCARD);
+
+	FREETMPS;
+	LEAVE;
+}
+
+/* ------------------------------------------------------------------------- */
+
 typedef struct {
 	ffi_cif *cif;
 	ffi_closure *closure;
@@ -95,7 +119,7 @@ get_function_info (GIRepository *repository,
 		GIBaseInfo *namespace_info = g_irepository_find_by_name (
 			repository, basename, namespace);
 		if (!namespace_info)
-			croak ("Can't find information for namespace %s",
+			ccroak ("Can't find information for namespace %s",
 			       namespace);
 
 		switch (g_base_info_get_type (namespace_info)) {
@@ -116,12 +140,12 @@ get_function_info (GIRepository *repository,
 				method);
 			break;
 		    default:
-			croak ("Base info for namespace %s has incorrect type",
+			ccroak ("Base info for namespace %s has incorrect type",
 			       namespace);
 		}
 
 		if (!function_info)
-			croak ("Can't find information for method "
+			ccroak ("Can't find information for method "
 			       "%s::%s", namespace, method);
 
 		g_base_info_unref (namespace_info);
@@ -132,13 +156,13 @@ get_function_info (GIRepository *repository,
 			repository, basename, method);
 
 		if (!method_info)
-			croak ("Can't find information for method %s", method);
+			ccroak ("Can't find information for method %s", method);
 
 		switch (g_base_info_get_type (method_info)) {
 		    case GI_INFO_TYPE_FUNCTION:
 			return (GIFunctionInfo *) method_info;
 		    default:
-			croak ("Base info for method %s has incorrect type",
+			ccroak ("Base info for method %s has incorrect type",
 			       method);
 		}
 	}
@@ -192,7 +216,7 @@ handle_callback_arg (GIArgInfo * arg_info,
 		/* FIXME: callback_info->free_after_use = TRUE; */
 		break;
 	    default:
-		croak ("unhandled scope type %d encountered",
+		ccroak ("unhandled scope type %d encountered",
 		       g_arg_info_get_scope (arg_info));
 	}
 
@@ -229,7 +253,7 @@ handle_void_arg (GIArgInfo * arg_info,
 		}
 	}
 	if (!is_user_data)
-		croak ("encountered void pointer that is not "
+		ccroak ("encountered void pointer that is not "
 		       "callback user data");
 	return pointer;
 }
@@ -430,7 +454,7 @@ struct_to_sv (GIBaseInfo* info,
 		/* FIXME */
 
 	    default:
-		croak ("%s: unhandled info type %d", G_STRFUNC, info_type);
+		ccroak ("%s: unhandled info type %d", G_STRFUNC, info_type);
 	}
 
 	if (own) {
@@ -473,7 +497,7 @@ array_to_sv (GITypeInfo* info,
 	if (is_zero_terminated) {
 		length = g_strv_length (pointer);
 	} else {
-		croak ("FIXME: non-zero-terminated arrays "
+		ccroak ("FIXME: non-zero-terminated arrays "
 		       "are not supported yet");
 		return &PL_sv_undef;
 	}
@@ -567,7 +591,7 @@ sv_to_struct (GIArgInfo * arg_info,
 	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
 
 	if (!gperl_sv_is_hash_ref (sv))
-		croak ("need a hash ref to convert to struct of type %s",
+		ccroak ("need a hash ref to convert to struct of type %s",
 		       g_base_info_get_name (info));
 	hv = (HV *) SvRV (sv);
 
@@ -634,7 +658,7 @@ sv_to_struct (GIArgInfo * arg_info,
 		/* FIXME */
 
 	    default:
-		croak ("%s: unhandled info type %d", G_STRFUNC, info_type);
+		ccroak ("%s: unhandled info type %d", G_STRFUNC, info_type);
 	}
 
 	return pointer;
@@ -652,7 +676,7 @@ sv_to_interface (GIArgInfo * arg_info,
 
 	interface = g_type_info_get_interface (type_info);
 	if (!interface)
-		croak ("Could not convert sv %p to pointer", sv);
+		ccroak ("Could not convert sv %p to pointer", sv);
 	info_type = g_base_info_get_type (interface);
 
 	dwarn ("    interface %p (%s) of type %d\n",
@@ -709,7 +733,7 @@ sv_to_interface (GIArgInfo * arg_info,
 		break;
 
 	    default:
-		croak ("sv_to_interface: Don't know how to handle info type %d", info_type);
+		ccroak ("sv_to_interface: Don't know how to handle info type %d", info_type);
 	}
 
 	g_base_info_unref ((GIBaseInfo *) interface);
@@ -727,7 +751,7 @@ interface_to_sv (GITypeInfo* info, GArgument *arg, gboolean own)
 
 	interface = g_type_info_get_interface (info);
 	if (!interface)
-		croak ("Could not convert arg %p to SV", arg);
+		ccroak ("Could not convert arg %p to SV", arg);
 	info_type = g_base_info_get_type (interface);
 	dwarn ("    info type: %d (%s)\n", info_type, g_info_type_to_string (info_type));
 
@@ -776,7 +800,7 @@ interface_to_sv (GITypeInfo* info, GArgument *arg, gboolean own)
 	    }
 
 	    default:
-		croak ("interface_to_sv: Don't know how to handle info type %d", info_type);
+		ccroak ("interface_to_sv: Don't know how to handle info type %d", info_type);
 	}
 
 	g_base_info_unref ((GIBaseInfo *) interface);
@@ -815,7 +839,7 @@ instance_sv_to_pointer (GIFunctionInfo *function_info, SV *sv)
 	    }
 
 	    default:
-		croak ("instance_sv_to_pointer: Don't know how to handle info type %d", info_type);
+		ccroak ("instance_sv_to_pointer: Don't know how to handle info type %d", info_type);
 	}
 
 	return pointer;
@@ -834,7 +858,7 @@ sv_to_arg (SV * sv,
 	if (!sv || !SvOK (sv))
 		/* Interfaces need to be able to handle undef separately. */
 		if (!may_be_null && tag != GI_TYPE_TAG_INTERFACE)
-			croak ("undefined value for mandatory argument '%s' encountered",
+			ccroak ("undefined value for mandatory argument '%s' encountered",
 			       g_base_info_get_name ((GIBaseInfo *) arg_info));
 
 	switch (tag) {
@@ -895,7 +919,7 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_ARRAY:
-		croak ("FIXME - GI_TYPE_TAG_ARRAY");
+		ccroak ("FIXME - GI_TYPE_TAG_ARRAY");
 		break;
 
 	    case GI_TYPE_TAG_INTERFACE:
@@ -905,19 +929,19 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_GLIST:
-		croak ("FIXME - GI_TYPE_TAG_GLIST");
+		ccroak ("FIXME - GI_TYPE_TAG_GLIST");
 		break;
 
 	    case GI_TYPE_TAG_GSLIST:
-		croak ("FIXME - GI_TYPE_TAG_GSLIST");
+		ccroak ("FIXME - GI_TYPE_TAG_GSLIST");
 		break;
 
 	    case GI_TYPE_TAG_GHASH:
-		croak ("FIXME - GI_TYPE_TAG_GHASH");
+		ccroak ("FIXME - GI_TYPE_TAG_GHASH");
 		break;
 
 	    case GI_TYPE_TAG_ERROR:
-		croak ("FIXME - A GError as an in/inout arg?  Should never happen!");
+		ccroak ("FIXME - A GError as an in/inout arg?  Should never happen!");
 		break;
 
 	    case GI_TYPE_TAG_UTF8:
@@ -931,7 +955,7 @@ sv_to_arg (SV * sv,
 		break;
 
 	    default:
-		croak ("Unhandled info tag %d", tag);
+		ccroak ("Unhandled info tag %d", tag);
 	}
 }
 
@@ -1004,10 +1028,10 @@ arg_to_sv (GArgument * arg,
 		return gslist_to_sv (info, arg->v_pointer, transfer);
 
 	    case GI_TYPE_TAG_GHASH:
-		croak ("FIXME - GI_TYPE_TAG_GHASH");
+		ccroak ("FIXME - GI_TYPE_TAG_GHASH");
 
 	    case GI_TYPE_TAG_ERROR:
-		croak ("FIXME - GI_TYPE_TAG_ERROR");
+		ccroak ("FIXME - GI_TYPE_TAG_ERROR");
 		break;
 
 	    case GI_TYPE_TAG_UTF8:
@@ -1027,7 +1051,7 @@ arg_to_sv (GArgument * arg,
 	    }
 
 	    default:
-		croak ("Unhandled info tag %d", tag);
+		ccroak ("Unhandled info tag %d", tag);
 	}
 
 	return NULL;
@@ -1106,7 +1130,7 @@ raw_to_arg (gpointer raw, GArgument *arg, GITypeInfo *info)
 		break;
 
 	    default:
-		croak ("Unhandled info tag %d", tag);
+		ccroak ("Unhandled info tag %d", tag);
 	}
 }
 
@@ -1179,7 +1203,7 @@ arg_to_raw (GArgument *arg, gpointer raw, GITypeInfo *info)
 		break;
 
 	    default:
-		croak ("Unhandled info tag %d", tag);
+		ccroak ("Unhandled info tag %d", tag);
 	}
 }
 
@@ -1321,7 +1345,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	} else {
 		int n_returned = call_sv (info->code, context);
 		if (n_returned != n_return_values) {
-			croak ("callback returned %d values "
+			ccroak ("callback returned %d values "
 			       "but is supposed to return %d values",
 			       n_returned, n_return_values);
 		}
@@ -1504,7 +1528,7 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 	    }
 
 	    default:
-		croak ("store_methods: unsupported info type %d", info_type);
+		ccroak ("store_methods: unsupported info type %d", info_type);
 	}
 
 	gperl_hv_take_sv (namespaced_functions, namespace, strlen (namespace),
@@ -1578,7 +1602,7 @@ register_types (class, namespace, package)
 		type = g_registered_type_info_get_g_type (
 			(GIRegisteredTypeInfo *) info);
 		if (!type) {
-			croak ("Could not find GType for type %s::%s",
+			ccroak ("Could not find GType for type %s::%s",
 			       namespace, name);
 		}
 		if (type == G_TYPE_NONE) {
@@ -1670,7 +1694,7 @@ PPCODE:
 	if (!g_typelib_symbol (g_base_info_get_typelib((GIBaseInfo *) info),
 			       symbol, &func_pointer))
 	{
-		croak ("Could not locate symbol %s", symbol);
+		ccroak ("Could not locate symbol %s", symbol);
 	}
 
 	is_constructor =
@@ -1802,7 +1826,7 @@ PPCODE:
 	                            return_type_ffi, arg_types))
 	{
 		g_base_info_unref ((GIBaseInfo *) return_type_info);
-		croak ("Could not prepare a call interface for %s", symbol);
+		ccroak ("Could not prepare a call interface for %s", symbol);
 	}
 
 	ffi_call (&cif, func_pointer, &return_value, args);

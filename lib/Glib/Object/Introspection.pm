@@ -17,7 +17,11 @@
 package Glib::Object::Introspection;
 
 use strict;
+use warnings;
 use Glib;
+
+use Carp;
+$Carp::Internal{(__PACKAGE__)}++;
 
 require DynaLoader;
 our @ISA = qw(DynaLoader);
