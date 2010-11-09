@@ -1040,13 +1040,16 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_UTF8:
-		/* FIXME: Check transfer setting. */
-		arg->v_string = SvOK (sv) ? SvGChar (sv) : NULL;
+		arg->v_string = gperl_sv_is_defined (sv) ? SvGChar (sv) : NULL;
+		if (transfer == GI_TRANSFER_EVERYTHING)
+			arg->v_string = g_strdup (arg->v_string);
 		break;
 
 	    case GI_TYPE_TAG_FILENAME:
-		/* FIXME: Check transfer setting. */
-		arg->v_string = SvOK (sv) ? gperl_filename_from_sv (sv) : NULL;
+		/* FIXME: Is it correct to use gperl_filename_from_sv here? */
+		arg->v_string = gperl_sv_is_defined (sv) ? gperl_filename_from_sv (sv) : NULL;
+		if (transfer == GI_TRANSFER_EVERYTHING)
+			arg->v_string = g_strdup (arg->v_string);
 		break;
 
 	    default:
@@ -1138,6 +1141,7 @@ arg_to_sv (GArgument * arg,
 
 	    case GI_TYPE_TAG_FILENAME:
 	    {
+		/* FIXME: Is it correct to use gperl_sv_from_filename here? */
 		SV *sv = gperl_sv_from_filename (arg->v_string);
 		if (own)
 			g_free (arg->v_string);
