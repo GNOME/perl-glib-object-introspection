@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 
-BEGIN { do './t/inc/setup.pl' };
+BEGIN { require './t/inc/setup.pl' };
 
 use strict;
 use warnings;

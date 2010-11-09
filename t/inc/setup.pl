@@ -16,6 +16,8 @@ Glib::Object::Introspection->setup(
 
 # Inspired by Test::Number::Delta
 sub delta_ok ($$;$) {
-	my ($a, $b, $msg) = @_;
-	ok (abs ($a - $b) < 1e-6, $msg);
+  my ($a, $b, $msg) = @_;
+  ok (abs ($a - $b) < 1e-6, $msg);
 }
+
+1;
