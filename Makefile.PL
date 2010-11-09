@@ -67,6 +67,8 @@ my %pod_files = (
 
 mkdir 'build', 0777;
 
+compile_test_libraries();
+
 my $deps = ExtUtils::Depends->new ('Glib::Object::Introspection' => 'Glib');
 $deps->set_inc ($cfg{cflags});
 $deps->set_libs ($cfg{libs});
@@ -96,4 +98,58 @@ WriteMakefile(
 sub MY::postamble
 {
   return Glib::MakeHelper->postamble_clean ();
+}
+
+sub compile_test_libraries {
+  chdir 'build';
+  my $build_dir = cwd();
+
+  local $| = 1;
+  print 'Trying to build test libraries... ';
+
+  my $success = eval {
+    my $gidatadir = ExtUtils::PkgConfig->variable ('gobject-introspection-1.0',
+                                                   'gidatadir');
+    my $testsdir = $gidatadir . '/tests';
+    my %cairo_flags = ExtUtils::PkgConfig->find ('cairo');
+    my %gio_flags = ExtUtils::PkgConfig->find ('gio-2.0');
+    my %glib_flags = ExtUtils::PkgConfig->find ('glib-2.0');
+
+       !system (qq(gcc -shared \\
+                   $cairo_flags{cflags} $cairo_flags{libs} \\
+                   $gio_flags{cflags} $gio_flags{libs} \\
+                   $testsdir/regress.c \\
+                   -o libregress.so 1>/dev/null 2>/dev/null))
+    && !system (qq(LD_LIBRARY_PATH=$build_dir \\
+                   g-ir-scanner \\
+                   --include=cairo-1.0 --include=Gio-2.0 \\
+                   --namespace=Regress --nsversion=1.0 \\
+                   --quiet --warn-all --warn-error \\
+                   --library=regress \\
+                   --output=Regress-1.0.gir \\
+                   $testsdir/regress.h $testsdir/regress.c \\
+                   1>/dev/null 2>/dev/null))
+    && !system (qq(g-ir-compiler Regress-1.0.gir -o Regress-1.0.typelib \\
+                   1>/dev/null 2>/dev/null))
+    #&& !system (qq(gcc -shared \\
+    #               $glib_flags{cflags} $glib_flags{libs} \\
+    #               $testsdir/gimarshallingtests.c \\
+    #               -o libgimarshallingtests.so 1>/dev/null 2>/dev/null))
+    #&& !system (qq(LD_LIBRARY_PATH=$build_dir \\
+    #               g-ir-scanner \\
+    #               --include=GObject-2.0 \\
+    #               --namespace=GIMarshallingTests \\
+    #               --symbol-prefix=gi_marshalling_tests --nsversion=1.0 \\
+    #               --quiet --warn-all --warn-error \\
+    #               --library=gimarshallingtests \\
+    #               --output=GIMarshallingTests-1.0.gir \\
+    #               $testsdir/gimarshallingtests.h $testsdir/gimarshallingtests.c \\
+    #               1>/dev/null 2>/dev/null))
+    #&& !system (qq(g-ir-compiler GIMarshallingTests-1.0.gir \\
+    #               -o GIMarshallingTests-1.0.typelib 1>/dev/null 2>/dev/null))
+  };
+
+  print $success ? "OK\n" : "not OK\n";
+
+  chdir '..';
 }
