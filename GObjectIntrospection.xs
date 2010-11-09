@@ -492,7 +492,6 @@ array_to_sv (GITypeInfo* info,
 	item_transfer = transfer == GI_TRANSFER_EVERYTHING
 		? GI_TRANSFER_EVERYTHING
 		: GI_TRANSFER_NOTHING;
-	item_transfer = GI_TRANSFER_NOTHING;
 
 	if (is_zero_terminated) {
 		length = g_strv_length (pointer);
