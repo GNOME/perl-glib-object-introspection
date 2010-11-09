@@ -1788,6 +1788,9 @@ PPCODE:
 			arg_types[i + method_offset] = &ffi_type_pointer;
 			args[i + method_offset] = &out_args[n_out_args];
 			n_out_args++;
+			/* Adjust the dynamic stack offset so that this out
+			 * argument doesn't inadvertedly eat up an in argument. */
+			invocation_info.dynamic_stack_offset--;
 			break;
 		    case GI_DIRECTION_INOUT:
 		    {
