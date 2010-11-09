@@ -199,6 +199,9 @@ handle_callback_arg (GIArgInfo * arg_info,
 	callback_info->notify_pos = g_arg_info_get_destroy (arg_info);
 	callback_info->free_after_use = FALSE;
 
+	dwarn ("      callback data at %d, destroy at %d\n",
+	       callback_info->data_pos, callback_info->notify_pos);
+
 	switch (g_arg_info_get_scope (arg_info)) {
 	    case GI_SCOPE_TYPE_CALL:
 		dwarn ("      callback has scope 'call'\n");
@@ -240,7 +243,8 @@ handle_void_arg (GIArgInfo * arg_info,
 	GSList *l;
 	PERL_UNUSED_VAR (arg_info);
 	PERL_UNUSED_VAR (type_info);
-	dwarn ("    type %p -> void pointer\n", type_info);
+	dwarn ("    type %p -> void pointer at position %d\n",
+	       type_info, invocation_info->current_pos);
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
 		GPerlI11nCallbackInfo *callback_info = l->data;
 		if (callback_info->data_pos == invocation_info->current_pos) {
