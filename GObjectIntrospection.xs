@@ -1757,11 +1757,12 @@ PPCODE:
 		guint perl_stack_pos = i + method_offset + stack_offset
 			+ invocation_info.dynamic_stack_offset;
 
-		/* FIXME: Is it right to just add method_offset here?  I'm
-		 * confused about the relation of the numbers in
-		 * g_callable_info_get_arg and g_arg_info_get_closure and
-		 * g_arg_info_get_destroy. */
-		invocation_info.current_pos = i + method_offset;
+		/* FIXME: Is this right?  I'm confused about the relation of
+		 * the numbers in g_callable_info_get_arg and
+		 * g_arg_info_get_closure and g_arg_info_get_destroy.  We used
+		 * to add method_offset, but that stopped being correct at some
+		 * point. */
+		invocation_info.current_pos = i; /* + method_offset; */
 
 		dwarn ("  arg tag: %d (%s)\n",
 		       g_type_info_get_tag (arg_type),
