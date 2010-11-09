@@ -100,6 +100,7 @@ static void sv_to_arg (SV * sv,
                        GArgument * arg,
                        GIArgInfo * arg_info,
                        GITypeInfo * type_info,
+                       GITransfer transfer,
                        gboolean may_be_null,
                        GPerlI11nInvocationInfo * invocation_info);
 
@@ -470,6 +471,103 @@ struct_to_sv (GIBaseInfo* info,
 	return newRV_noinc ((SV *) hv);
 }
 
+static gpointer
+sv_to_struct (GIArgInfo * arg_info,
+              GIBaseInfo * info,
+              GIInfoType info_type,
+              SV * sv)
+{
+	HV *hv;
+	gsize size = 0;
+	GITransfer transfer, field_transfer;
+	gpointer pointer = NULL;
+
+	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
+
+	if (!gperl_sv_is_hash_ref (sv))
+		ccroak ("need a hash ref to convert to struct of type %s",
+		       g_base_info_get_name (info));
+	hv = (HV *) SvRV (sv);
+
+	switch (info_type) {
+	    case GI_INFO_TYPE_BOXED:
+	    case GI_INFO_TYPE_STRUCT:
+		size = g_struct_info_get_size ((GIStructInfo *) info);
+		break;
+	    case GI_INFO_TYPE_UNION:
+		size = g_union_info_get_size ((GIStructInfo *) info);
+		break;
+	    default:
+		g_assert_not_reached ();
+	}
+
+	dwarn ("  size: %d\n", size);
+
+	field_transfer = GI_TRANSFER_NOTHING;
+	transfer = g_arg_info_get_ownership_transfer (arg_info);
+	dwarn ("  transfer: %d\n", transfer);
+	switch (transfer) {
+	    case GI_TRANSFER_EVERYTHING:
+		field_transfer = GI_TRANSFER_EVERYTHING;
+	    case GI_TRANSFER_CONTAINER:
+		/* FIXME: What if there's a special allocator for the record?
+		 * Like GSlice? */
+		pointer = g_malloc0 (size);
+		break;
+
+	    default:
+		pointer = gperl_alloc_temp (size);
+		break;
+	}
+
+	switch (info_type) {
+	    case GI_INFO_TYPE_BOXED:
+	    case GI_INFO_TYPE_STRUCT:
+	    {
+		gint i, n_fields =
+			g_struct_info_get_n_fields ((GIStructInfo *) info);
+		for (i = 0; i < n_fields; i++) {
+			GIFieldInfo *field_info;
+			const gchar *field_name;
+			SV **svp;
+			field_info = g_struct_info_get_field (
+			               (GIStructInfo *) info, i);
+			/* FIXME: Check GIFieldInfoFlags. */
+			field_name = g_base_info_get_name (
+			               (GIBaseInfo *) field_info);
+			svp = hv_fetch (hv, field_name, strlen (field_name), 0);
+			if (svp && gperl_sv_is_defined (*svp)) {
+				GITypeInfo *field_type;
+				GArgument arg;
+				field_type = g_field_info_get_type (field_info);
+				/* FIXME: No GIArgInfo and no
+				 * GPerlI11nInvocationInfo here.  What if the
+				 * struct contains an object pointer, or a
+				 * callback field?  And is it OK to always
+				 * allow undef? */
+				sv_to_arg (*svp, &arg, NULL, field_type,
+				           field_transfer, TRUE, NULL);
+				g_field_info_set_field (field_info, pointer,
+				                        &arg);
+				g_base_info_unref ((GIBaseInfo *) field_type);
+			}
+			g_base_info_unref ((GIBaseInfo *) field_info);
+		}
+		break;
+	    }
+
+	    case GI_INFO_TYPE_UNION:
+		/* FIXME */
+
+	    default:
+		ccroak ("%s: unhandled info type %d", G_STRFUNC, info_type);
+	}
+
+	return pointer;
+}
+
+/* ------------------------------------------------------------------------- */
+
 static SV *
 array_to_sv (GITypeInfo* info,
              gpointer pointer,
@@ -533,13 +631,16 @@ array_to_sv (GITypeInfo* info,
 	return newRV_noinc ((SV *) av);
 }
 
+/* ------------------------------------------------------------------------- */
+
 static SV *
-gslist_to_sv (GITypeInfo* info,
-              gpointer pointer,
-              GITransfer transfer)
+glist_to_sv (GITypeInfo* info,
+             gpointer pointer,
+             GITransfer transfer)
 {
 	GITypeInfo *param_info;
 	GITransfer item_transfer;
+	gboolean is_slist;
 	GSList *i;
 	AV *av;
 	SV *value;
@@ -562,6 +663,8 @@ gslist_to_sv (GITypeInfo* info,
 	       g_type_info_get_tag (param_info),
 	       g_type_tag_to_string (g_type_info_get_tag (param_info)));
 
+	is_slist = GI_TYPE_TAG_GSLIST == g_type_info_get_tag (info);
+
 	av = newAV ();
 	for (i = pointer; i; i = i->next) {
 		GArgument arg = {0,};
@@ -572,8 +675,12 @@ gslist_to_sv (GITypeInfo* info,
 			av_push (av, value);
 	}
 
-	if (transfer >= GI_TRANSFER_CONTAINER)
-		g_slist_free (pointer);
+	if (transfer >= GI_TRANSFER_CONTAINER) {
+		if (is_slist)
+			g_slist_free (pointer);
+		else
+			g_list_free (pointer);
+	}
 
 	g_base_info_unref ((GIBaseInfo *) param_info);
 
@@ -581,91 +688,74 @@ gslist_to_sv (GITypeInfo* info,
 }
 
 static gpointer
-sv_to_struct (GIArgInfo * arg_info,
-              GIBaseInfo * info,
-              GIInfoType info_type,
-              SV * sv)
+sv_to_glist (GIArgInfo * arg_info, GITypeInfo * type_info, SV * sv)
 {
-	HV *hv;
-	gsize size = 0;
-	GITransfer transfer;
-	gpointer pointer = NULL;
+	AV *av;
+	GITransfer transfer, item_transfer;
+	gpointer list = NULL;
+	GITypeInfo *param_info;
+	gboolean is_slist;
+	gint i, length;
 
 	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
 
-	if (!gperl_sv_is_hash_ref (sv))
-		ccroak ("need a hash ref to convert to struct of type %s",
-		       g_base_info_get_name (info));
-	hv = (HV *) SvRV (sv);
+	if (sv == &PL_sv_undef)
+		return NULL;
 
-	switch (info_type) {
-	    case GI_INFO_TYPE_BOXED:
-	    case GI_INFO_TYPE_STRUCT:
-		size = g_struct_info_get_size ((GIStructInfo *) info);
-		break;
-	    case GI_INFO_TYPE_UNION:
-		size = g_union_info_get_size ((GIStructInfo *) info);
-		break;
-	    default:
-		g_assert_not_reached ();
-	}
+	if (!gperl_sv_is_array_ref (sv))
+		ccroak ("need an array ref to convert to GList");
+	av = (AV *) SvRV (sv);
 
-	dwarn ("  size: %d\n", size);
-
+	item_transfer = GI_TRANSFER_NOTHING;
 	transfer = g_arg_info_get_ownership_transfer (arg_info);
-	dwarn ("  transfer: %d\n", transfer);
-	if (transfer == GI_TRANSFER_EVERYTHING) {
-		/* FIXME: What if there's a special allocator for the record?
-		 * Like GSlice? */
-		pointer = g_malloc0 (size);
-	} else {
-		pointer = gperl_alloc_temp (size);
-	}
-
-	switch (info_type) {
-	    case GI_INFO_TYPE_BOXED:
-	    case GI_INFO_TYPE_STRUCT:
-	    {
-		gint i, n_fields =
-			g_struct_info_get_n_fields ((GIStructInfo *) info);
-		for (i = 0; i < n_fields; i++) {
-			GIFieldInfo *field_info;
-			const gchar *field_name;
-			SV **svp;
-			field_info = g_struct_info_get_field (
-			               (GIStructInfo *) info, i);
-			/* FIXME: Check GIFieldInfoFlags. */
-			field_name = g_base_info_get_name (
-			               (GIBaseInfo *) field_info);
-			svp = hv_fetch (hv, field_name, strlen (field_name), 0);
-			if (svp && gperl_sv_is_defined (*svp)) {
-				GITypeInfo *field_type;
-				GArgument arg;
-				field_type = g_field_info_get_type (field_info);
-				/* FIXME: No GIArgInfo and no
-				 * GPerlI11nInvocationInfo here.  What if the
-				 * struct contains an object pointer, or a
-				 * callback field? */
-				sv_to_arg (*svp, &arg, NULL, field_type,
-				           FALSE, NULL);
-				g_field_info_set_field (field_info, pointer,
-				                        &arg);
-				g_base_info_unref ((GIBaseInfo *) field_type);
-			}
-			g_base_info_unref ((GIBaseInfo *) field_info);
-		}
+	switch (transfer) {
+	    case GI_TRANSFER_EVERYTHING:
+		item_transfer = GI_TRANSFER_EVERYTHING;
 		break;
-	    }
-
-	    case GI_INFO_TYPE_UNION:
-		/* FIXME */
-
-	    default:
-		ccroak ("%s: unhandled info type %d", G_STRFUNC, info_type);
+	    case GI_TRANSFER_CONTAINER:
+		/* nothing special to do */
+		break;
+	    case GI_TRANSFER_NOTHING:
+		/* FIXME: need to free list after call */
+		break;
 	}
 
-	return pointer;
+	param_info = g_type_info_get_param_type (type_info, 0);
+	dwarn ("  G(S)List: param_info %p with type tag %d (%s) and transfer %d\n",
+	       param_info,
+	       g_type_info_get_tag (param_info),
+	       g_type_tag_to_string (g_type_info_get_tag (param_info)),
+	       transfer);
+
+	is_slist = GI_TYPE_TAG_GSLIST == g_type_info_get_tag (type_info);
+
+	length = av_len (av) + 1;
+	for (i = 0; i < length; i++) {
+		SV **svp;
+		svp = av_fetch (av, i, 0);
+		if (svp && gperl_sv_is_defined (*svp)) {
+			GArgument arg;
+			dwarn ("    converting SV %p\n", *svp);
+			/* FIXME: Is it OK to always allow undef here? */
+			sv_to_arg (*svp, &arg, NULL, param_info,
+			           item_transfer, TRUE, NULL);
+			/* ENHANCEME: Could use g_[s]list_prepend and
+			 * later _reverse for efficiency. */
+			if (is_slist)
+				list = g_slist_append (list, arg.v_pointer);
+			else
+				list = g_list_append (list, arg.v_pointer);
+		}
+	}
+
+	dwarn ("    -> list %p of length %d\n", list, g_list_length (list));
+
+	g_base_info_unref ((GIBaseInfo *) param_info);
+
+	return list;
 }
+
+/* ------------------------------------------------------------------------- */
 
 static void
 sv_to_interface (GIArgInfo * arg_info,
@@ -848,17 +938,22 @@ instance_sv_to_pointer (GIFunctionInfo *function_info, SV *sv)
 	return pointer;
 }
 
+/* ------------------------------------------------------------------------- */
+
+/* transfer and may_be_null can be gotten from arg_info, but sv_to_arg is also
+ * called from places which don't have access to a GIArgInfo. */
 static void
 sv_to_arg (SV * sv,
            GArgument * arg,
            GIArgInfo * arg_info,
            GITypeInfo * type_info,
+           GITransfer transfer,
            gboolean may_be_null,
            GPerlI11nInvocationInfo * invocation_info)
 {
 	GITypeTag tag = g_type_info_get_tag (type_info);
 
-	if (!sv || !SvOK (sv))
+	if (!gperl_sv_is_defined (sv))
 		/* Interfaces need to be able to handle undef separately. */
 		if (!may_be_null && tag != GI_TYPE_TAG_INTERFACE)
 			ccroak ("undefined value for mandatory argument '%s' encountered",
@@ -932,11 +1027,8 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_GLIST:
-		ccroak ("FIXME - GI_TYPE_TAG_GLIST");
-		break;
-
 	    case GI_TYPE_TAG_GSLIST:
-		ccroak ("FIXME - GI_TYPE_TAG_GSLIST");
+		arg->v_pointer = sv_to_glist (arg_info, type_info, sv);
 		break;
 
 	    case GI_TYPE_TAG_GHASH:
@@ -1027,8 +1119,7 @@ arg_to_sv (GArgument * arg,
 
 	    case GI_TYPE_TAG_GLIST:
 	    case GI_TYPE_TAG_GSLIST:
-		/* We rely here on being able to use a GList as a GSList. */
-		return gslist_to_sv (info, arg->v_pointer, transfer);
+		return glist_to_sv (info, arg->v_pointer, transfer);
 
 	    case GI_TYPE_TAG_GHASH:
 		ccroak ("FIXME - GI_TYPE_TAG_GHASH");
@@ -1210,6 +1301,8 @@ arg_to_raw (GArgument *arg, gpointer raw, GITypeInfo *info)
 	}
 }
 
+/* ------------------------------------------------------------------------- */
+
 static GPerlI11nCallbackInfo *
 create_callback_closure (GITypeInfo *cb_type, SV *code)
 {
@@ -1377,13 +1470,16 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 			GIArgInfo *arg_info = g_callable_info_get_arg (cb_interface, i);
 			GITypeInfo *arg_type = g_arg_info_get_type (arg_info);
 			GIDirection direction = g_arg_info_get_direction (arg_info);
-			gboolean may_be_null = g_arg_info_may_be_null (arg_info);
 
 			if (direction == GI_DIRECTION_INOUT ||
 			    direction == GI_DIRECTION_OUT)
 			{
 				GArgument tmp_arg;
-				sv_to_arg (returned_values[out_index], &tmp_arg, arg_info, arg_type, may_be_null, NULL);
+				GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
+				gboolean may_be_null = g_arg_info_may_be_null (arg_info);
+				sv_to_arg (returned_values[out_index], &tmp_arg,
+				           arg_info, arg_type,
+				           transfer, may_be_null, NULL);
 				arg_to_raw (&tmp_arg, args[i], arg_type);
 				out_index++;
 			}
@@ -1396,9 +1492,11 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	if (have_return_type) {
 		GArgument arg;
 		GITypeInfo *type_info;
+		GITransfer transfer;
 		gboolean may_be_null;
 
 		type_info = g_callable_info_get_return_type (cb_interface);
+		transfer = g_callable_info_get_caller_owns (cb_interface);
 		may_be_null = g_callable_info_may_return_null (cb_interface);
 
 		dwarn ("ret type: %p\n"
@@ -1408,9 +1506,9 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		       g_type_info_is_pointer (type_info),
 		       g_type_info_get_tag (type_info));
 
-		/* FIXME: Does this leak the sv?  Should we check the transfer
-		 * setting? */
-		sv_to_arg (newSVsv (POPs), &arg, NULL, type_info, may_be_null, NULL);
+		/* FIXME: Does this leak the sv? */
+		sv_to_arg (newSVsv (POPs), &arg, NULL, type_info,
+		           transfer, may_be_null, NULL);
 		arg_to_raw (&arg, resp, type_info);
 
 		g_base_info_unref ((GIBaseInfo *) type_info);
@@ -1757,6 +1855,7 @@ PPCODE:
 		/* In case of out and in-out args, arg_type is unref'ed after
 		 * the function has been invoked */
 		GITypeInfo * arg_type = g_arg_info_get_type (arg_info);
+		GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
 		gboolean may_be_null = g_arg_info_may_be_null (arg_info);
 		guint perl_stack_pos = i + method_offset + stack_offset
 			+ invocation_info.dynamic_stack_offset;
@@ -1778,7 +1877,7 @@ PPCODE:
 		    case GI_DIRECTION_IN:
 			sv_to_arg (ST (perl_stack_pos),
 			           &in_args[n_in_args], arg_info, arg_type,
-			           may_be_null, &invocation_info);
+			           transfer, may_be_null, &invocation_info);
 			arg_types[i + method_offset] =
 				g_type_info_get_ffi_type (arg_type);
 			args[i + method_offset] = &in_args[n_in_args];
@@ -1801,8 +1900,8 @@ PPCODE:
 			GArgument * temp =
 				gperl_alloc_temp (sizeof (GArgument));
 			sv_to_arg (ST (perl_stack_pos),
-			           temp, arg_info, arg_type, may_be_null,
-			           &invocation_info);
+			           temp, arg_info, arg_type,
+			           transfer, may_be_null, &invocation_info);
 			in_args[n_in_args].v_pointer =
 				out_args[n_out_args].v_pointer =
 					temp;
