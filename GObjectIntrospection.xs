@@ -799,6 +799,10 @@ sv_to_interface (GIArgInfo * arg_info,
 			/* FIXME: User cannot supply user data. */
 			dwarn ("    closure type\n");
 			arg->v_pointer = gperl_closure_new (sv, NULL, FALSE);
+		} else if (type == G_TYPE_VALUE) {
+			dwarn ("    value type\n");
+			croak ("FIXME - don't know how to convert an arbitrary SV "
+			       "to a GValue");
 		} else {
 			dwarn ("    boxed type: %s (%d)\n",
 			       g_type_name (type), type);
@@ -872,6 +876,9 @@ interface_to_sv (GITypeInfo* info, GArgument *arg, gboolean own)
 		if (!type || type == G_TYPE_NONE) {
 			dwarn ("    unboxed type\n");
 			sv = struct_to_sv (interface, info_type, pointer, own);
+		} else if (type == G_TYPE_VALUE) {
+			dwarn ("    value type\n");
+			sv = gperl_sv_from_value (pointer);
 		} else {
 			dwarn ("    boxed type: %d (%s)\n",
 			       type, g_type_name (type));
