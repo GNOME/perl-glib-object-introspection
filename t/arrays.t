@@ -5,8 +5,6 @@ BEGIN { require './t/inc/setup.pl' };
 use strict;
 use warnings;
 
-use utf8;
-
 plan tests => 10;
 
 # TODO:
