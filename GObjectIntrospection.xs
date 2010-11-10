@@ -795,6 +795,10 @@ sv_to_interface (GIArgInfo * arg_info,
 			                               interface,
 			                               info_type,
 			                               sv);
+		} else if (type == G_TYPE_CLOSURE) {
+			/* FIXME: User cannot supply user data. */
+			dwarn ("    closure type\n");
+			arg->v_pointer = gperl_closure_new (sv, NULL, FALSE);
 		} else {
 			dwarn ("    boxed type: %s (%d)\n",
 			       g_type_name (type), type);
