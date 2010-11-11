@@ -456,7 +456,7 @@ struct_to_sv (GIBaseInfo* info,
 	    }
 
 	    case GI_INFO_TYPE_UNION:
-		/* FIXME */
+		ccroak ("%s: unions not handled yet", G_STRFUNC);
 
 	    default:
 		ccroak ("%s: unhandled info type %d", G_STRFUNC, info_type);
@@ -557,7 +557,7 @@ sv_to_struct (GIArgInfo * arg_info,
 	    }
 
 	    case GI_INFO_TYPE_UNION:
-		/* FIXME */
+		ccroak ("%s: unions not handled yet", G_STRFUNC);
 
 	    default:
 		ccroak ("%s: unhandled info type %d", G_STRFUNC, info_type);
@@ -1639,7 +1639,7 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 
 	    case GI_INFO_TYPE_UNION:
 	    {
-		/* FIXME */
+		ccroak ("%s: unions not handled yet", G_STRFUNC);
 		break;
 	    }
 
