@@ -40,10 +40,10 @@ sub setup {
 
   my %shift_package_name_for = map { $_ => 1 } @$class_static_methods;
 
-  __PACKAGE__->load_library($basename, $version, $search_path);
+  __PACKAGE__->_load_library($basename, $version, $search_path);
 
-  my $functions =
-    __PACKAGE__->register_types($basename, $package);
+  my ($functions, $constants) =
+    __PACKAGE__->_register_types($basename, $package);
 
   no strict 'refs';
 
@@ -58,12 +58,22 @@ sub setup {
         : $auto_name;
       *{$corrected_name} = sub {
         shift if $shift_package_name_for{$corrected_name};
-        __PACKAGE__->invoke($basename,
-                            $is_namespaced ? $namespace : undef,
-                            $name,
-                            @_);
+        __PACKAGE__->_invoke($basename,
+                             $is_namespaced ? $namespace : undef,
+                             $name,
+                             @_);
       };
     }
+  }
+
+  foreach my $name (@{$constants}) {
+    my $auto_name = $package . '::' . $name;
+    my $corrected_name = exists $name_corrections->{$auto_name}
+      ? $name_corrections->{$auto_name}
+      : $auto_name;
+    *{$corrected_name} = sub {
+      __PACKAGE__->_fetch_constant($basename, $name);
+    };
   }
 }
 

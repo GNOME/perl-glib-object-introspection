@@ -1656,7 +1656,7 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 MODULE = Glib::Object::Introspection	PACKAGE = Glib::Object::Introspection
 
 void
-load_library (class, namespace, version, search_path=NULL)
+_load_library (class, namespace, version, search_path=NULL)
 	const gchar *namespace
 	const gchar *version
 	const gchar *search_path
@@ -1673,17 +1673,19 @@ load_library (class, namespace, version, search_path=NULL)
 	}
 
 void
-register_types (class, namespace, package)
+_register_types (class, namespace, package)
 	const gchar *namespace
 	const gchar *package
     PREINIT:
 	GIRepository *repository;
 	gint number, i;
+	AV *constants;
 	AV *global_functions;
 	HV *namespaced_functions;
     PPCODE:
 	repository = g_irepository_get_default ();
 
+	constants = newAV ();
 	global_functions = newAV ();
 	namespaced_functions = newHV ();
 
@@ -1698,6 +1700,10 @@ register_types (class, namespace, package)
 		info = g_irepository_get_info (repository, namespace, i);
 		info_type = g_base_info_get_type (info);
 		name = g_base_info_get_name (info);
+
+		if (info_type == GI_INFO_TYPE_CONSTANT) {
+			av_push (constants, newSVpv (name, PL_na));
+		}
 
 		if (info_type == GI_INFO_TYPE_FUNCTION) {
 			av_push (global_functions, newSVpv (name, PL_na));
@@ -1771,13 +1777,36 @@ register_types (class, namespace, package)
 
 	EXTEND (SP, 1);
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) namespaced_functions)));
+	PUSHs (sv_2mortal (newRV_noinc ((SV *) constants)));
 
 void
-invoke (class, basename, namespace, method, ...)
+_fetch_constant (class, basename, constant)
+	const gchar *basename
+	const gchar *constant
+    PREINIT:
+	GIRepository *repository;
+	GIConstantInfo *info;
+	GITypeInfo *type_info;
+	GArgument value = {0,};
+    PPCODE:
+	repository = g_irepository_get_default ();
+	info = g_irepository_find_by_name (repository, basename, constant);
+	if (!GI_IS_CONSTANT_INFO (info))
+		ccroak ("not a constant");
+	type_info = g_constant_info_get_type (info);
+	/* FIXME: What am I suppossed to do with the return value? */
+	g_constant_info_get_value (info, &value);
+	EXTEND (sp, 1);
+	PUSHs (sv_2mortal (arg_to_sv (&value, type_info, GI_TRANSFER_NOTHING)));
+	g_base_info_unref ((GIBaseInfo *) type_info);
+	g_base_info_unref ((GIBaseInfo *) info);
+
+void
+_invoke (class, basename, namespace, method, ...)
 	const gchar *basename
 	const gchar_ornull *namespace
 	const gchar *method
-PREINIT:
+    PREINIT:
 	guint stack_offset = 4;
 	GIRepository *repository;
 	GIFunctionInfo *info;
@@ -1802,7 +1831,7 @@ PREINIT:
 	GArgument * out_args = NULL;
 	GError * local_error = NULL;
 	gpointer local_error_address = &local_error;
-PPCODE:
+    PPCODE:
 	repository = g_irepository_get_default ();
 	info = get_function_info (repository, basename, namespace, method);
 	symbol = g_function_info_get_symbol (info);
