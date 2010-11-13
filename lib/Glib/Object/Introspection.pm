@@ -45,7 +45,8 @@ sub setup {
   my ($functions, $constants) =
     __PACKAGE__->_register_types($basename, $package);
 
-  no strict 'refs';
+  no strict qw(refs);
+  no warnings qw(redefine prototype);
 
   foreach my $namespace (keys %{$functions}) {
     my $is_namespaced = $namespace ne "";
@@ -71,8 +72,14 @@ sub setup {
     my $corrected_name = exists $name_corrections->{$auto_name}
       ? $name_corrections->{$auto_name}
       : $auto_name;
-    *{$corrected_name} = sub {
-      __PACKAGE__->_fetch_constant($basename, $name);
+    # Install a sub which, on the first invocation, calls _fetch_constant and
+    # then overrides itself with a constant sub returning that value.
+    *{$corrected_name} = sub () {
+      my $value = __PACKAGE__->_fetch_constant($basename, $name);
+      {
+        *{$corrected_name} = sub () { $value };
+      }
+      return $value;
     };
   }
 }
