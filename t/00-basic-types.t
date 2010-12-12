@@ -8,7 +8,7 @@ use warnings;
 use utf8;
 use POSIX qw(FLT_MIN FLT_MAX DBL_MIN DBL_MAX);
 
-plan tests => 30;
+plan tests => 31;
 
 ok (test_boolean (1));
 ok (!test_boolean (0));
@@ -24,6 +24,8 @@ delta_ok (test_float (FLT_MIN), FLT_MIN);
 delta_ok (test_float (FLT_MAX), FLT_MAX);
 delta_ok (test_double (DBL_MIN), DBL_MIN);
 delta_ok (test_double (DBL_MAX), DBL_MAX);
+
+is (test_unichar ('ℵ'), 'ℵ');
 
 is (test_gtype ('Glib::Object'), 'Glib::Object');
 TODO: {

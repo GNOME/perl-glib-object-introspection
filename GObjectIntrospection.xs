@@ -1332,6 +1332,10 @@ sv_to_arg (SV * sv,
 		arg->v_double = SvNV (sv);
 		break;
 
+	    case GI_TYPE_TAG_UNICHAR:
+		arg->v_uint32 = g_utf8_get_char (SvGChar (sv));
+		break;
+
 	    case GI_TYPE_TAG_GTYPE:
 		/* GType == gsize */
 		arg->v_size = gperl_type_from_package (SvPV_nolen (sv));
@@ -1429,6 +1433,16 @@ arg_to_sv (GIArgument * arg,
 
 	    case GI_TYPE_TAG_DOUBLE:
 		return newSVnv (arg->v_double);
+
+	    case GI_TYPE_TAG_UNICHAR:
+	    {
+		SV *sv;
+		gchar buffer[6];
+		gint length = g_unichar_to_utf8 (arg->v_uint32, buffer);
+		sv = newSVpv (buffer, length);
+		SvUTF8_on (sv);
+		return sv;
+	    }
 
 	    case GI_TYPE_TAG_GTYPE: {
 		/* GType == gsize */
