@@ -1819,7 +1819,9 @@ _invoke (class, basename, namespace, method, ...)
 	gpointer *args = NULL;
 	gpointer func_pointer = NULL, instance = NULL;
 	const gchar *symbol = NULL;
+#ifdef NOISY
 	guint have_args;
+#endif
 	guint n_args, n_invoke_args;
 	guint n_in_args;
 	guint n_out_args;
@@ -1850,9 +1852,9 @@ _invoke (class, basename, namespace, method, ...)
 	if (is_constructor) {
 		stack_offset++;
 	}
-
+#ifdef NOISY
 	have_args = items - stack_offset;
-
+#endif
 	n_invoke_args = n_args =
 		g_callable_info_get_n_args ((GICallableInfo *) info);
 
