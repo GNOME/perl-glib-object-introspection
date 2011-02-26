@@ -1642,7 +1642,7 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 
 	    case GI_INFO_TYPE_UNION:
 	    {
-		ccroak ("%s: unions not handled yet", G_STRFUNC);
+		dwarn ("%s: unions not handled yet", G_STRFUNC);
 		break;
 	    }
 
