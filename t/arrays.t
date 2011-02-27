@@ -6,7 +6,7 @@ use strict;
 use warnings;
 use utf8;
 
-plan tests => 18;
+plan tests => 20;
 
 my $str_array = [ '1', '2', '3' ];
 ok (test_strv_in ($str_array));
@@ -19,6 +19,8 @@ is (test_array_gint32_in (3, $int_array), 6);
 is (test_array_gint64_in (3, $int_array), 6);
 is (test_array_gtype_in (2, [ 'Glib::Object', 'Glib::Int64' ]), "[GObject,gint64,]");
 is (test_array_fixed_size_int_in ([ 1, 2, 3, 4, 5 ]), 15);
+is_deeply (test_array_fixed_size_int_out (), [ 0, 1, 2, 3, 4 ]);
+is_deeply (test_array_fixed_size_int_return (), [ 0, 1, 2, 3, 4 ]);
 
 # TODO:
 #void regress_test_array_int_out (int *n_ints, int **ints);

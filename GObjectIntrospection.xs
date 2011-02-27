@@ -604,9 +604,10 @@ array_to_sv (GITypeInfo* info,
 	if (is_zero_terminated) {
 		length = g_strv_length (pointer);
 	} else {
-		ccroak ("FIXME: non-zero-terminated arrays "
-		       "are not supported yet");
-		return &PL_sv_undef;
+                length = g_type_info_get_array_fixed_size (info);
+                if (length < 0) {
+                        ccroak ("FIXME: dynamic length arrays are not supported yet");
+                }
 	}
 
 	av = newAV ();
