@@ -89,15 +89,15 @@ static void attach_callback_data (GPerlI11nCallbackInfo *info, SV *data);
 static void invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata);
 static void release_callback (gpointer data);
 
-static SV * arg_to_sv (GArgument * arg,
+static SV * arg_to_sv (GIArgument * arg,
                        GITypeInfo * info,
                        GITransfer transfer);
 static SV * interface_to_sv (GITypeInfo* info,
-                             GArgument *arg,
+                             GIArgument *arg,
                              gboolean own);
 
 static void sv_to_arg (SV * sv,
-                       GArgument * arg,
+                       GIArgument * arg,
                        GIArgInfo * arg_info,
                        GITypeInfo * type_info,
                        GITransfer transfer,
@@ -258,8 +258,7 @@ handle_void_arg (GIArgInfo * arg_info,
 		}
 	}
 	if (!is_user_data)
-		ccroak ("encountered void pointer that is not "
-		       "callback user data");
+		ccroak ("encountered void pointer that is not callback user data");
 	return pointer;
 }
 
@@ -435,7 +434,7 @@ struct_to_sv (GIBaseInfo* info,
 		for (i = 0; i < n_fields; i++) {
 			GIFieldInfo *field_info;
 			GITypeInfo *field_type;
-			GArgument value;
+			GIArgument value;
 			field_info =
 				g_struct_info_get_field ((GIStructInfo *) info, i);
 			field_type = g_field_info_get_type (field_info);
@@ -541,7 +540,7 @@ sv_to_struct (GIArgInfo * arg_info,
 			svp = hv_fetch (hv, field_name, strlen (field_name), 0);
 			if (svp && gperl_sv_is_defined (*svp)) {
 				GITypeInfo *field_type;
-				GArgument arg;
+				GIArgument arg;
 				field_type = g_field_info_get_type (field_info);
 				/* FIXME: No GIArgInfo and no
 				 * GPerlI11nInvocationInfo here.  What if the
@@ -618,7 +617,7 @@ array_to_sv (GITypeInfo* info,
 	       g_type_tag_to_string (g_type_info_get_tag (param_info)));
 
 	for (i = 0; i < length; i++) {
-		GArgument *arg;
+		GIArgument *arg;
 		SV *value;
 		arg = pointer + i * item_size;
 		value = arg_to_sv (arg, param_info, item_transfer);
@@ -670,7 +669,7 @@ glist_to_sv (GITypeInfo* info,
 
 	av = newAV ();
 	for (i = pointer; i; i = i->next) {
-		GArgument arg = {0,};
+		GIArgument arg = {0,};
 		dwarn ("      converting pointer %p\n", i->data);
 		arg.v_pointer = i->data;
 		value = arg_to_sv (&arg, param_info, item_transfer);
@@ -737,7 +736,7 @@ sv_to_glist (GIArgInfo * arg_info, GITypeInfo * type_info, SV * sv)
 		SV **svp;
 		svp = av_fetch (av, i, 0);
 		if (svp && gperl_sv_is_defined (*svp)) {
-			GArgument arg;
+			GIArgument arg;
 			dwarn ("    converting SV %p\n", *svp);
 			/* FIXME: Is it OK to always allow undef here? */
 			sv_to_arg (*svp, &arg, NULL, param_info,
@@ -764,7 +763,7 @@ static void
 sv_to_interface (GIArgInfo * arg_info,
                  GITypeInfo * type_info,
                  SV * sv,
-                 GArgument * arg,
+                 GIArgument * arg,
                  GPerlI11nInvocationInfo * invocation_info)
 {
 	GIBaseInfo *interface;
@@ -844,7 +843,7 @@ sv_to_interface (GIArgInfo * arg_info,
 }
 
 static SV *
-interface_to_sv (GITypeInfo* info, GArgument *arg, gboolean own)
+interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own)
 {
 	GIBaseInfo *interface;
 	GIInfoType info_type;
@@ -958,7 +957,7 @@ instance_sv_to_pointer (GIFunctionInfo *function_info, SV *sv)
  * called from places which don't have access to a GIArgInfo. */
 static void
 sv_to_arg (SV * sv,
-           GArgument * arg,
+           GIArgument * arg,
            GIArgInfo * arg_info,
            GITypeInfo * type_info,
            GITransfer transfer,
@@ -1072,7 +1071,7 @@ sv_to_arg (SV * sv,
 }
 
 static SV *
-arg_to_sv (GArgument * arg,
+arg_to_sv (GIArgument * arg,
            GITypeInfo * info,
            GITransfer transfer)
 {
@@ -1174,7 +1173,7 @@ arg_to_sv (GArgument * arg,
 #define CAST_RAW(raw, type) (*((type *) raw))
 
 static void
-raw_to_arg (gpointer raw, GArgument *arg, GITypeInfo *info)
+raw_to_arg (gpointer raw, GIArgument *arg, GITypeInfo *info)
 {
 	GITypeTag tag = g_type_info_get_tag (info);
 
@@ -1247,7 +1246,7 @@ raw_to_arg (gpointer raw, GArgument *arg, GITypeInfo *info)
 }
 
 static void
-arg_to_raw (GArgument *arg, gpointer raw, GITypeInfo *info)
+arg_to_raw (GIArgument *arg, gpointer raw, GITypeInfo *info)
 {
 	GITypeTag tag = g_type_info_get_tag (info);
 
@@ -1410,7 +1409,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		if (direction == GI_DIRECTION_IN ||
 		    direction == GI_DIRECTION_INOUT)
 		{
-			GArgument arg;
+			GIArgument arg;
 			raw_to_arg (args[i], &arg, arg_type);
 			XPUSHs (sv_2mortal (arg_to_sv (&arg, arg_type, transfer)));
 		}
@@ -1492,7 +1491,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 			if (direction == GI_DIRECTION_INOUT ||
 			    direction == GI_DIRECTION_OUT)
 			{
-				GArgument tmp_arg;
+				GIArgument tmp_arg;
 				GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
 				gboolean may_be_null = g_arg_info_may_be_null (arg_info);
 				sv_to_arg (returned_values[out_index], &tmp_arg,
@@ -1508,7 +1507,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 
 	/* store return value in resp, if any */
 	if (have_return_type) {
-		GArgument arg;
+		GIArgument arg;
 		GITypeInfo *type_info;
 		GITransfer transfer;
 		gboolean may_be_null;
@@ -1790,7 +1789,7 @@ _fetch_constant (class, basename, constant)
 	GIRepository *repository;
 	GIConstantInfo *info;
 	GITypeInfo *type_info;
-	GArgument value = {0,};
+	GIArgument value = {0,};
     PPCODE:
 	repository = g_irepository_get_default ();
 	info = g_irepository_find_by_name (repository, basename, constant);
@@ -1831,9 +1830,9 @@ _invoke (class, basename, namespace, method, ...)
 	gboolean throws, is_constructor, is_method, has_return_value;
 	guint method_offset = 0;
 	GPerlI11nInvocationInfo invocation_info = {0,};
-	GArgument return_value;
-	GArgument * in_args = NULL;
-	GArgument * out_args = NULL;
+	GIArgument return_value;
+	GIArgument * in_args = NULL;
+	GIArgument * out_args = NULL;
 	GError * local_error = NULL;
 	gpointer local_error_address = &local_error;
     PPCODE:
@@ -1878,8 +1877,8 @@ _invoke (class, basename, namespace, method, ...)
 	 * only use as much as we need.  since function argument lists are
 	 * typically small, this shouldn't be a big problem. */
 	if (n_invoke_args) {
-		in_args = gperl_alloc_temp (sizeof (GArgument) * n_invoke_args);
-		out_args = gperl_alloc_temp (sizeof (GArgument) * n_invoke_args);
+		in_args = gperl_alloc_temp (sizeof (GIArgument) * n_invoke_args);
+		out_args = gperl_alloc_temp (sizeof (GIArgument) * n_invoke_args);
 		out_arg_type = gperl_alloc_temp (sizeof (GITypeInfo*) * n_invoke_args);
 
 		arg_types = gperl_alloc_temp (sizeof (ffi_type *) * n_invoke_args);
@@ -1935,7 +1934,7 @@ _invoke (class, basename, namespace, method, ...)
 			break;
 		    case GI_DIRECTION_OUT:
 			out_args[n_out_args].v_pointer =
-				gperl_alloc_temp (sizeof (GArgument));
+				gperl_alloc_temp (sizeof (GIArgument));
 			out_arg_type[n_out_args] = arg_type;
 			arg_types[i + method_offset] = &ffi_type_pointer;
 			args[i + method_offset] = &out_args[n_out_args];
@@ -1946,8 +1945,8 @@ _invoke (class, basename, namespace, method, ...)
 			break;
 		    case GI_DIRECTION_INOUT:
 		    {
-			GArgument * temp =
-				gperl_alloc_temp (sizeof (GArgument));
+			GIArgument * temp =
+				gperl_alloc_temp (sizeof (GIArgument));
 			sv_to_arg (ST (perl_stack_pos),
 			           temp, arg_info, arg_type,
 			           transfer, may_be_null, &invocation_info);
