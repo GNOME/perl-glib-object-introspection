@@ -18,6 +18,8 @@
  *
  */
 
+#include <string.h>
+
 #include "gperl.h"
 #include "gperl_marshal.h"
 
@@ -635,6 +637,68 @@ array_to_sv (GITypeInfo* info,
 	return newRV_noinc ((SV *) av);
 }
 
+static gpointer
+sv_to_array (GIArgInfo *arg_info,
+             GITypeInfo *type_info,
+             SV *sv)
+{
+	AV *av;
+	GITransfer transfer, item_transfer;
+	GITypeInfo *param_info;
+	gint i, length;
+        GArray *array;
+        gboolean is_zero_terminated = FALSE;
+        gsize item_size;
+
+	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
+
+	if (sv == &PL_sv_undef)
+		return NULL;
+
+	if (!gperl_sv_is_array_ref (sv))
+		ccroak ("need an array ref to convert to GArray");
+
+	av = (AV *) SvRV (sv);
+
+	transfer = g_arg_info_get_ownership_transfer (arg_info);
+        item_transfer = transfer == GI_TRANSFER_CONTAINER
+                      ? GI_TRANSFER_NOTHING
+                      : transfer;
+
+	param_info = g_type_info_get_param_type (type_info, 0);
+	dwarn ("  GArray: param_info %p with type tag %d (%s) and transfer %d\n",
+	       param_info,
+	       g_type_info_get_tag (param_info),
+	       g_type_tag_to_string (g_type_info_get_tag (param_info)),
+	       transfer);
+
+        is_zero_terminated = g_type_info_is_zero_terminated (type_info);
+        item_size = size_of_type_info (param_info);
+	length = av_len (av) + 1;
+        array = g_array_sized_new (is_zero_terminated, FALSE, item_size, length);
+
+	for (i = 0; i < length; i++) {
+		SV **svp;
+		svp = av_fetch (av, i, 0);
+		if (svp && gperl_sv_is_defined (*svp)) {
+			GIArgument arg;
+
+			dwarn ("    converting SV %p\n", *svp);
+			/* FIXME: Is it OK to always allow undef here? */
+			sv_to_arg (*svp, &arg, NULL, param_info,
+			           item_transfer, TRUE, NULL);
+
+                        g_array_insert_val (array, i, arg);
+		}
+	}
+
+	dwarn ("    -> array %p of size %d\n", array, array->len);
+
+	g_base_info_unref ((GIBaseInfo *) param_info);
+
+	return g_array_free (array, FALSE);
+}
+
 /* ------------------------------------------------------------------------- */
 
 static SV *
@@ -743,8 +807,8 @@ sv_to_glist (GIArgInfo * arg_info, GITypeInfo * type_info, SV * sv)
 			/* FIXME: Is it OK to always allow undef here? */
 			sv_to_arg (*svp, &arg, NULL, param_info,
 			           item_transfer, TRUE, NULL);
-			/* ENHANCEME: Could use g_[s]list_prepend and
-			 * later _reverse for efficiency. */
+                        /* ENHANCEME: Could use g_[s]list_prepend and
+                         * later _reverse for efficiency. */
 			if (is_slist)
 				list = g_slist_append (list, arg.v_pointer);
 			else
@@ -968,6 +1032,8 @@ sv_to_arg (SV * sv,
 {
 	GITypeTag tag = g_type_info_get_tag (type_info);
 
+        memset (arg, 0, sizeof (GIArgument));
+
 	if (!gperl_sv_is_defined (sv))
 		/* Interfaces need to be able to handle undef separately. */
 		if (!may_be_null && tag != GI_TYPE_TAG_INTERFACE)
@@ -1032,7 +1098,7 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_ARRAY:
-		ccroak ("FIXME - GI_TYPE_TAG_ARRAY");
+                arg->v_pointer = sv_to_array (arg_info, type_info, sv);
 		break;
 
 	    case GI_TYPE_TAG_INTERFACE:
@@ -1907,8 +1973,10 @@ _invoke (class, basename, namespace, method, ...)
 		GITypeInfo * arg_type = g_arg_info_get_type (arg_info);
 		GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
 		gboolean may_be_null = g_arg_info_may_be_null (arg_info);
-		guint perl_stack_pos = i + method_offset + stack_offset
-			+ invocation_info.dynamic_stack_offset;
+		guint perl_stack_pos = i
+                                     + method_offset
+                                     + stack_offset
+                                     + invocation_info.dynamic_stack_offset;
 
 		/* FIXME: Is this right?  I'm confused about the relation of
 		 * the numbers in g_callable_info_get_arg and

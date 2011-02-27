@@ -4,24 +4,29 @@ BEGIN { require './t/inc/setup.pl' };
 
 use strict;
 use warnings;
+use utf8;
 
-plan tests => 10;
+plan tests => 18;
+
+my $str_array = [ '1', '2', '3' ];
+ok (test_strv_in ($str_array));
+
+my $int_array = [ 1, 2, 3 ];
+is (test_array_int_in (3, $int_array), 6);
+is (test_array_gint8_in (3, $int_array), 6);
+is (test_array_gint16_in (3, $int_array), 6);
+is (test_array_gint32_in (3, $int_array), 6);
+is (test_array_gint64_in (3, $int_array), 6);
+is (test_array_gtype_in (2, [ 'Glib::Object', 'Glib::Int64' ]), "[GObject,gint64,]");
+is (test_array_fixed_size_int_in ([ 1, 2, 3, 4, 5 ]), 15);
 
 # TODO:
-#gboolean regress_test_strv_in (char **arr);
-#int regress_test_array_int_in (int n_ints, int *ints);
 #void regress_test_array_int_out (int *n_ints, int **ints);
 #void regress_test_array_int_inout (int *n_ints, int **ints);
-#int regress_test_array_gint8_in (int n_ints, gint8 *ints);
-#int regress_test_array_gint16_in (int n_ints, gint16 *ints);
-#gint32 regress_test_array_gint32_in (int n_ints, gint32 *ints);
-#gint64 regress_test_array_gint64_in (int n_ints, gint64 *ints);
-#char *regress_test_array_gtype_in (int n_types, GType *types);
 #char **regress_test_strv_out_container (void);
 #char **regress_test_strv_out (void);
 #const char * const * regress_test_strv_out_c (void);
 #void   regress_test_strv_outarg (char ***retp);
-#int regress_test_array_fixed_size_int_in (int *ints);
 #void regress_test_array_fixed_size_int_out (int **ints);
 #int *regress_test_array_fixed_size_int_return (void);
 
