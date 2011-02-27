@@ -6,10 +6,9 @@ use strict;
 use warnings;
 use utf8;
 
-plan tests => 20;
+plan tests => 24;
 
-my $str_array = [ '1', '2', '3' ];
-ok (test_strv_in ($str_array));
+ok (test_strv_in ([ '1', '2', '3' ]));
 
 my $int_array = [ 1, 2, 3 ];
 is (test_array_int_in (3, $int_array), 6);
@@ -21,16 +20,14 @@ is (test_array_gtype_in (2, [ 'Glib::Object', 'Glib::Int64' ]), "[GObject,gint64
 is (test_array_fixed_size_int_in ([ 1, 2, 3, 4, 5 ]), 15);
 is_deeply (test_array_fixed_size_int_out (), [ 0, 1, 2, 3, 4 ]);
 is_deeply (test_array_fixed_size_int_return (), [ 0, 1, 2, 3, 4 ]);
+is_deeply (test_strv_out_container (), [ '1', '2', '3' ]);
+is_deeply (test_strv_out (), [ 'thanks', 'for', 'all', 'the', 'fish' ]);
+is_deeply (test_strv_out_c (), [ 'thanks', 'for', 'all', 'the', 'fish' ]);
+is_deeply (test_strv_outarg (), [ '1', '2', '3' ]);
 
 # TODO:
 #void regress_test_array_int_out (int *n_ints, int **ints);
 #void regress_test_array_int_inout (int *n_ints, int **ints);
-#char **regress_test_strv_out_container (void);
-#char **regress_test_strv_out (void);
-#const char * const * regress_test_strv_out_c (void);
-#void   regress_test_strv_outarg (char ***retp);
-#void regress_test_array_fixed_size_int_out (int **ints);
-#int *regress_test_array_fixed_size_int_return (void);
 
 # TODO:
 #int *regress_test_array_int_full_out(int *len);
