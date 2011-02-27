@@ -142,6 +142,11 @@ get_function_info (GIRepository *repository,
 				(GIStructInfo *) namespace_info,
 				method);
 			break;
+                    case GI_INFO_TYPE_UNION:
+                        function_info = g_union_info_find_method (
+                                (GIUnionInfo *) namespace_info,
+                                method);
+                        break;
 		    default:
 			ccroak ("Base info for namespace %s has incorrect type",
 			       namespace);
@@ -1003,6 +1008,7 @@ instance_sv_to_pointer (GIFunctionInfo *function_info, SV *sv)
 
 	    case GI_INFO_TYPE_BOXED:
 	    case GI_INFO_TYPE_STRUCT:
+            case GI_INFO_TYPE_UNION:
 	    {
 		GType type = g_registered_type_info_get_g_type (
 			       (GIRegisteredTypeInfo *) container);
@@ -1710,8 +1716,18 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 
 	    case GI_INFO_TYPE_UNION:
 	    {
-		dwarn ("%s: unions not handled yet", G_STRFUNC);
-		break;
+                gint n_methods = g_union_info_get_n_methods ((GIUnionInfo *) info);
+                for (i = 0; i < n_methods; i++) {
+                        GIFunctionInfo *function_info;
+                        const gchar *function_name;
+
+                        function_info = g_union_info_get_method ((GIUnionInfo *) info, i);
+                        function_name = g_base_info_get_name ((GIBaseInfo *) function_info);
+
+                        av_push (av, newSVpv (function_name, PL_na));
+                        g_base_info_unref ((GIBaseInfo *) function_info);
+                }
+                break;
 	    }
 
 	    default:
