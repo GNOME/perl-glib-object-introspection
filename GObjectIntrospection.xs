@@ -302,7 +302,9 @@ size_of_type_tag (GITypeTag type_tag)
 	    case GI_TYPE_TAG_GSLIST:
 	    case GI_TYPE_TAG_GHASH:
 	    case GI_TYPE_TAG_ERROR:
-		g_assert_not_reached ();
+                ccroak ("Unable to determine the size of '%s'",
+                        g_type_tag_to_string (type_tag));
+                break;
 	}
 
 	return 0;
