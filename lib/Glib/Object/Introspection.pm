@@ -111,11 +111,17 @@ XXX
 
 =encoding utf8
 
-XXX
+=over
 
-=head1 COPYRIGHT AND LICENSE
+=item Emmanuele Bassi <ebassi at linux intel com>
 
-Copyright (C) 2010 by Torsten Schoenfeld <kaffeetisch@gmx.de>
+=item muppet <scott asofyet org>
+
+=item Torsten Schönfeld <kaffeetisch at gmx de>
+
+=back
+
+=head1 LICENSE
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the Lesser General Public License (LGPL).  For more information,
