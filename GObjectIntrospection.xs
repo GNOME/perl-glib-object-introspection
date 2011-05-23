@@ -1219,8 +1219,10 @@ sv_to_arg (SV * sv,
         memset (arg, 0, sizeof (GIArgument));
 
 	if (!gperl_sv_is_defined (sv))
-		/* Interfaces need to be able to handle undef separately. */
-		if (!may_be_null && tag != GI_TYPE_TAG_INTERFACE)
+		/* Interfaces and void types need to be able to handle undef
+		 * separately. */
+		if (!may_be_null && tag != GI_TYPE_TAG_INTERFACE
+		                 && tag != GI_TYPE_TAG_VOID)
 			ccroak ("undefined value for mandatory argument '%s' encountered",
 			       g_base_info_get_name ((GIBaseInfo *) arg_info));
 
