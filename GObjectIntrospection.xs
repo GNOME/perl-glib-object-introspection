@@ -1925,7 +1925,7 @@ void
 _load_library (class, namespace, version, search_path=NULL)
 	const gchar *namespace
 	const gchar *version
-	const gchar *search_path
+	const gchar_ornull *search_path
     PREINIT:
 	GIRepository *repository;
 	GError *error = NULL;
