@@ -1586,6 +1586,8 @@ create_callback_closure (GITypeInfo *cb_type, SV *code)
 	info->closure =
 		g_callable_info_prepare_closure (info->interface, info->cif,
 		                                 invoke_callback, info);
+	/* FIXME: This should most likely use SvREFCNT_inc instead of
+	 * newSVsv. */
 	info->code = newSVsv (code);
 
 #ifdef PERL_IMPLICIT_CONTEXT
