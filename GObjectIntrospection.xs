@@ -79,8 +79,29 @@ typedef struct {
 /* This stores information that one call to sv_to_arg needs to make available
  * to later calls of sv_to_arg. */
 typedef struct {
+	guint n_args;
+	guint n_invoke_args;
+	guint n_given_args;
+	gboolean is_constructor;
+	gboolean is_method;
+	gboolean throws;
+
+	gpointer * args;
+	ffi_type ** arg_types;
+	GIArgument * in_args;
+	GIArgument * out_args;
+	GITypeInfo ** out_arg_infos;
+	gboolean * is_automatic_arg;
+
+	gboolean has_return_value;
+	ffi_type * return_type_ffi;
+	GITypeInfo * return_type_info;
+
 	guint current_pos;
+	guint method_offset;
+	gint stack_offset;
 	gint dynamic_stack_offset;
+
 	GSList * callback_infos;
 	GSList * free_after_call;
 } GPerlI11nInvocationInfo;
@@ -1921,6 +1942,76 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 
 /* ------------------------------------------------------------------------- */
 
+static void
+prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
+                         GIFunctionInfo *info,
+                         IV items,
+                         UV internal_stack_offset)
+{
+	guint i;
+
+	iinfo->stack_offset = internal_stack_offset;
+
+	iinfo->is_constructor =
+		g_function_info_get_flags (info) & GI_FUNCTION_IS_CONSTRUCTOR;
+	if (iinfo->is_constructor) {
+		iinfo->stack_offset++;
+	}
+
+	iinfo->n_given_args = items - iinfo->stack_offset;
+
+	iinfo->n_invoke_args = iinfo->n_args =
+		g_callable_info_get_n_args ((GICallableInfo *) info);
+
+	iinfo->throws = g_function_info_get_flags (info) & GI_FUNCTION_THROWS;
+	if (iinfo->throws) {
+		iinfo->n_invoke_args++;
+	}
+
+	iinfo->is_method =
+		(g_function_info_get_flags (info) & GI_FUNCTION_IS_METHOD)
+	    && !iinfo->is_constructor;
+	if (iinfo->is_method) {
+		iinfo->n_invoke_args++;
+	}
+
+	dwarn ("invoke: %s\n"
+	       "  n_args: %d, n_invoke_args: %d, n_given_args: %d\n"
+	       "  is_constructor: %d, is_method: %d\n",
+	       g_function_info_get_symbol (info),
+	       iinfo->n_args, iinfo->n_invoke_args, iinfo->n_given_args,
+	       iinfo->is_constructor, iinfo->is_method);
+
+	iinfo->return_type_info =
+		g_callable_info_get_return_type ((GICallableInfo *) info);
+	iinfo->has_return_value =
+		GI_TYPE_TAG_VOID != g_type_info_get_tag (iinfo->return_type_info);
+	iinfo->return_type_ffi = g_type_info_get_ffi_type (iinfo->return_type_info);
+
+	/* to allow us to make only one pass through the arg list, allocate
+	 * enough space for all args in both the out and in lists.  we'll
+	 * only use as much as we need.  since function argument lists are
+	 * typically small, this shouldn't be a big problem. */
+	if (iinfo->n_invoke_args) {
+		iinfo->in_args = gperl_alloc_temp (sizeof (GIArgument) * iinfo->n_invoke_args);
+		iinfo->out_args = gperl_alloc_temp (sizeof (GIArgument) * iinfo->n_invoke_args);
+		iinfo->out_arg_infos = gperl_alloc_temp (sizeof (GITypeInfo*) * iinfo->n_invoke_args);
+		iinfo->arg_types = gperl_alloc_temp (sizeof (ffi_type *) * iinfo->n_invoke_args);
+		iinfo->args = gperl_alloc_temp (sizeof (gpointer) * iinfo->n_invoke_args);
+	}
+
+	iinfo->method_offset = iinfo->is_method ? 1 : 0;
+	iinfo->dynamic_stack_offset = 0;
+}
+
+static void
+clear_invocation_info (GPerlI11nInvocationInfo *iinfo)
+{
+	g_base_info_unref ((GIBaseInfo *) iinfo->return_type_info);
+}
+
+/* ------------------------------------------------------------------------- */
+
 MODULE = Glib::Object::Introspection	PACKAGE = Glib::Object::Introspection
 
 void
@@ -2075,30 +2166,15 @@ _invoke (class, basename, namespace, method, ...)
 	const gchar_ornull *namespace
 	const gchar *method
     PREINIT:
-	guint stack_offset = 4;
+	UV internal_stack_offset = 4;
 	GIRepository *repository;
 	GIFunctionInfo *info;
 	ffi_cif cif;
-	ffi_type **arg_types = NULL;
-	ffi_type *return_type_ffi = NULL;
-	gpointer *args = NULL;
 	gpointer func_pointer = NULL, instance = NULL;
 	const gchar *symbol = NULL;
-#ifdef NOISY
-	guint have_args;
-#endif
-	guint n_args, n_invoke_args;
-	guint n_in_args;
-	guint n_out_args;
-	guint i, out_i;
-	GITypeInfo ** out_arg_type = NULL;
-	GITypeInfo * return_type_info = NULL;
-	gboolean throws, is_constructor, is_method, has_return_value;
-	guint method_offset = 0;
-	GPerlI11nInvocationInfo invocation_info = {0,};
+	guint i, in_i, out_i;
+	GPerlI11nInvocationInfo iinfo = {0,};
 	GIArgument return_value;
-	GIArgument * in_args = NULL;
-	GIArgument * out_args = NULL;
 	GError * local_error = NULL;
 	gpointer local_error_address = &local_error;
     PPCODE:
@@ -2112,58 +2188,18 @@ _invoke (class, basename, namespace, method, ...)
 		ccroak ("Could not locate symbol %s", symbol);
 	}
 
-	is_constructor =
-		g_function_info_get_flags (info) & GI_FUNCTION_IS_CONSTRUCTOR;
-	if (is_constructor) {
-		stack_offset++;
-	}
-#ifdef NOISY
-	have_args = items - stack_offset;
-#endif
-	n_invoke_args = n_args =
-		g_callable_info_get_n_args ((GICallableInfo *) info);
+	prepare_invocation_info (&iinfo, info, items, internal_stack_offset);
 
-	throws = g_function_info_get_flags (info) & GI_FUNCTION_THROWS;
-	if (throws) {
-		n_invoke_args++;
+	in_i = out_i = 0;
+
+	if (iinfo.is_method) {
+		instance = instance_sv_to_pointer (info, ST (0 + iinfo.stack_offset));
+		iinfo.arg_types[0] = &ffi_type_pointer;
+		iinfo.args[0] = &instance;
+		in_i++;
 	}
 
-	is_method =
-		(g_function_info_get_flags (info) & GI_FUNCTION_IS_METHOD)
-	    && !is_constructor;
-	if (is_method) {
-		n_invoke_args++;
-	}
-
-	dwarn ("invoke: %s -> n_args %d, n_invoke_args %d, have_args %d\n",
-	       symbol, n_args, n_invoke_args, have_args);
-
-	/* to allow us to make only one pass through the arg list, allocate
-	 * enough space for all args in both the out and in lists.  we'll
-	 * only use as much as we need.  since function argument lists are
-	 * typically small, this shouldn't be a big problem. */
-	if (n_invoke_args) {
-		in_args = gperl_alloc_temp (sizeof (GIArgument) * n_invoke_args);
-		out_args = gperl_alloc_temp (sizeof (GIArgument) * n_invoke_args);
-		out_arg_type = gperl_alloc_temp (sizeof (GITypeInfo*) * n_invoke_args);
-
-		arg_types = gperl_alloc_temp (sizeof (ffi_type *) * n_invoke_args);
-		args = gperl_alloc_temp (sizeof (gpointer) * n_invoke_args);
-	}
-
-	n_in_args = n_out_args = 0;
-
-	if (is_method) {
-		instance = instance_sv_to_pointer (info, ST (0 + stack_offset));
-		arg_types[0] = &ffi_type_pointer;
-		args[0] = &instance;
-		n_in_args++;
-	}
-
-	method_offset = is_method ? 1 : 0;
-	invocation_info.dynamic_stack_offset = 0;
-
-	for (i = 0 ; i < n_args ; i++) {
+	for (i = 0 ; i < iinfo.n_args ; i++) {
 		GIArgInfo * arg_info =
 			g_callable_info_get_arg ((GICallableInfo *) info, i);
 		/* In case of out and in-out args, arg_type is unref'ed after
@@ -2172,16 +2208,16 @@ _invoke (class, basename, namespace, method, ...)
 		GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
 		gboolean may_be_null = g_arg_info_may_be_null (arg_info);
 		guint perl_stack_pos = i
-                                     + method_offset
-                                     + stack_offset
-                                     + invocation_info.dynamic_stack_offset;
+                                     + iinfo.method_offset
+                                     + iinfo.stack_offset
+                                     + iinfo.dynamic_stack_offset;
 
 		/* FIXME: Is this right?  I'm confused about the relation of
 		 * the numbers in g_callable_info_get_arg and
 		 * g_arg_info_get_closure and g_arg_info_get_destroy.  We used
 		 * to add method_offset, but that stopped being correct at some
 		 * point. */
-		invocation_info.current_pos = i; /* + method_offset; */
+		iinfo.current_pos = i; /* + method_offset; */
 
 		dwarn ("  arg tag: %d (%s)\n",
 		       g_type_info_get_tag (arg_type),
@@ -2192,24 +2228,24 @@ _invoke (class, basename, namespace, method, ...)
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
 			sv_to_arg (ST (perl_stack_pos),
-			           &in_args[n_in_args], arg_info, arg_type,
-			           transfer, may_be_null, &invocation_info);
-			arg_types[i + method_offset] =
+			           &iinfo.in_args[in_i], arg_info, arg_type,
+			           transfer, may_be_null, &iinfo);
+			iinfo.arg_types[i + iinfo.method_offset] =
 				g_type_info_get_ffi_type (arg_type);
-			args[i + method_offset] = &in_args[n_in_args];
+			iinfo.args[i + iinfo.method_offset] = &iinfo.in_args[in_i];
 			g_base_info_unref ((GIBaseInfo *) arg_type);
-			n_in_args++;
+			in_i++;
 			break;
 		    case GI_DIRECTION_OUT:
-			out_args[n_out_args].v_pointer =
+			iinfo.out_args[out_i].v_pointer =
 				gperl_alloc_temp (sizeof (GIArgument));
-			out_arg_type[n_out_args] = arg_type;
-			arg_types[i + method_offset] = &ffi_type_pointer;
-			args[i + method_offset] = &out_args[n_out_args];
-			n_out_args++;
+			iinfo.out_arg_infos[out_i] = arg_type;
+			iinfo.arg_types[i + iinfo.method_offset] = &ffi_type_pointer;
+			iinfo.args[i + iinfo.method_offset] = &iinfo.out_args[out_i];
+			out_i++;
 			/* Adjust the dynamic stack offset so that this out
 			 * argument doesn't inadvertedly eat up an in argument. */
-			invocation_info.dynamic_stack_offset--;
+			iinfo.dynamic_stack_offset--;
 			break;
 		    case GI_DIRECTION_INOUT:
 		    {
@@ -2217,15 +2253,15 @@ _invoke (class, basename, namespace, method, ...)
 				gperl_alloc_temp (sizeof (GIArgument));
 			sv_to_arg (ST (perl_stack_pos),
 			           temp, arg_info, arg_type,
-			           transfer, may_be_null, &invocation_info);
-			in_args[n_in_args].v_pointer =
-				out_args[n_out_args].v_pointer =
+			           transfer, may_be_null, &iinfo);
+			iinfo.in_args[in_i].v_pointer =
+				iinfo.out_args[out_i].v_pointer =
 					temp;
-			out_arg_type[n_out_args] = arg_type;
-			arg_types[i + method_offset] = &ffi_type_pointer;
-			args[i + method_offset] = &in_args[n_in_args];
-			n_in_args++;
-			n_out_args++;
+			iinfo.out_arg_infos[out_i] = arg_type;
+			iinfo.arg_types[i + iinfo.method_offset] = &ffi_type_pointer;
+			iinfo.args[i + iinfo.method_offset] = &iinfo.in_args[in_i];
+			in_i++;
+			out_i++;
 		    }
 			break;
 		}
@@ -2233,32 +2269,27 @@ _invoke (class, basename, namespace, method, ...)
 		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
 
-	if (throws) {
-		args[n_invoke_args - 1] = &local_error_address;
-		arg_types[n_invoke_args - 1] = &ffi_type_pointer;
+	if (iinfo.throws) {
+		iinfo.args[iinfo.n_invoke_args - 1] = &local_error_address;
+		iinfo.arg_types[iinfo.n_invoke_args - 1] = &ffi_type_pointer;
 	}
 
-	/* find the return value type */
-	return_type_info =
-		g_callable_info_get_return_type ((GICallableInfo *) info);
-	return_type_ffi = g_type_info_get_ffi_type (return_type_info);
-
 	/* prepare and call the function */
-	if (FFI_OK != ffi_prep_cif (&cif, FFI_DEFAULT_ABI, n_invoke_args,
-	                            return_type_ffi, arg_types))
+	if (FFI_OK != ffi_prep_cif (&cif, FFI_DEFAULT_ABI, iinfo.n_invoke_args,
+	                            iinfo.return_type_ffi, iinfo.arg_types))
 	{
-		g_base_info_unref ((GIBaseInfo *) return_type_info);
+		clear_invocation_info (&iinfo);
 		ccroak ("Could not prepare a call interface for %s", symbol);
 	}
 
-	ffi_call (&cif, func_pointer, &return_value, args);
+	ffi_call (&cif, func_pointer, &return_value, iinfo.args);
 
 	/* free call-scoped callback infos */
-	g_slist_foreach (invocation_info.free_after_call,
+	g_slist_foreach (iinfo.free_after_call,
 	                 (GFunc) release_callback, NULL);
 
-	g_slist_free (invocation_info.callback_infos);
-	g_slist_free (invocation_info.free_after_call);
+	g_slist_free (iinfo.callback_infos);
+	g_slist_free (iinfo.free_after_call);
 
 	if (local_error) {
 		gperl_croak_gerror (NULL, local_error);
@@ -2267,22 +2298,18 @@ _invoke (class, basename, namespace, method, ...)
 	/*
 	 * place return value and output args on the stack
 	 */
-	has_return_value =
-		GI_TYPE_TAG_VOID != g_type_info_get_tag (return_type_info);
-	if (has_return_value) {
+	if (iinfo.has_return_value) {
 		GITransfer return_type_transfer =
 			g_callable_info_get_caller_owns ((GICallableInfo *) info);
 		SV *value = arg_to_sv (&return_value,
-		                       return_type_info,
+		                       iinfo.return_type_info,
 		                       return_type_transfer);
 		if (value)
 			XPUSHs (sv_2mortal (value));
 	}
 
-	g_base_info_unref ((GIBaseInfo *) return_type_info);
-
 	/* out args */
-	for (i = out_i = 0 ; i < n_args ; i++) {
+	for (i = out_i = 0 ; i < iinfo.n_args ; i++) {
 		GIArgInfo * arg_info =
 			g_callable_info_get_arg ((GICallableInfo *) info, i);
 
@@ -2292,11 +2319,12 @@ _invoke (class, basename, namespace, method, ...)
 		    {
 			GITransfer transfer =
 				g_arg_info_get_ownership_transfer (arg_info);
-			SV *sv = arg_to_sv (out_args[out_i].v_pointer,
-			                    out_arg_type[out_i], transfer);
+			SV *sv = arg_to_sv (iinfo.out_args[out_i].v_pointer,
+			                    iinfo.out_arg_infos[out_i],
+			                    transfer);
 			if (sv)
 				XPUSHs (sv_2mortal (sv));
-			g_base_info_unref ((GIBaseInfo*) out_arg_type[out_i]);
+			g_base_info_unref ((GIBaseInfo*) iinfo.out_arg_infos[out_i]);
 		    }
 			out_i++;
 			break;
@@ -2307,10 +2335,11 @@ _invoke (class, basename, namespace, method, ...)
 		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
 
-	g_base_info_unref ((GIBaseInfo *) info);
-
-	if (has_return_value)
+	if (iinfo.has_return_value)
 		out_i++;
+
+	clear_invocation_info (&iinfo);
+	g_base_info_unref ((GIBaseInfo *) info);
 
 	dwarn ("  number of return values: %d\n", out_i);
 
