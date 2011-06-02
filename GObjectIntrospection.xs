@@ -998,7 +998,7 @@ sv_to_ghash (GIArgInfo *arg_info,
 	}
 
 out:
-	dwarn ("    -> hash %p of size %d\n", list, g_hash_table_size (hash));
+	dwarn ("    -> hash %p of size %d\n", hash, g_hash_table_size (hash));
 
         g_base_info_unref ((GIBaseInfo *) key_param_info);
 	g_base_info_unref ((GIBaseInfo *) value_param_info);
