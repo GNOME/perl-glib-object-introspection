@@ -2233,6 +2233,7 @@ _invoke (class, basename, namespace, method, ...)
 			iinfo.args[i + iinfo.method_offset] = &iinfo.in_args[i];
 			g_base_info_unref ((GIBaseInfo *) arg_type);
 			break;
+
 		    case GI_DIRECTION_OUT:
 			iinfo.out_args[i].v_pointer =
 				gperl_alloc_temp (sizeof (GIArgument));
@@ -2243,20 +2244,20 @@ _invoke (class, basename, namespace, method, ...)
 			 * argument doesn't inadvertedly eat up an in argument. */
 			iinfo.dynamic_stack_offset--;
 			break;
+
 		    case GI_DIRECTION_INOUT:
-		    {
-			GIArgument * temp =
+			iinfo.out_args[i].v_pointer =
 				gperl_alloc_temp (sizeof (GIArgument));
+			iinfo.in_args[i].v_pointer = iinfo.out_args[i].v_pointer;
+			/* We pass iinfo.out_args[i].v_pointer here, not
+			 * &iinfo.out_args[i], so that the value pointed to is
+			 * filled from the SV. */
 			sv_to_arg (ST (perl_stack_pos),
-			           temp, arg_info, arg_type,
+			           iinfo.out_args[i].v_pointer, arg_info, arg_type,
 			           transfer, may_be_null, &iinfo);
-			iinfo.in_args[i].v_pointer =
-				iinfo.out_args[i].v_pointer =
-					temp;
 			iinfo.out_arg_infos[i] = arg_type;
 			iinfo.arg_types[i + iinfo.method_offset] = &ffi_type_pointer;
 			iinfo.args[i + iinfo.method_offset] = &iinfo.in_args[i];
-		    }
 			break;
 		}
 
