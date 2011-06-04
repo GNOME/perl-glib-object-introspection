@@ -76,6 +76,11 @@ typedef struct {
 	gpointer priv; /* perl context */
 } GPerlI11nCallbackInfo;
 
+typedef struct {
+	gsize length;
+	guint length_pos;
+} GPerlI11nArrayInfo;
+
 /* This stores information that one call to sv_to_arg needs to make available
  * to later calls of sv_to_arg. */
 typedef struct {
@@ -91,6 +96,7 @@ typedef struct {
 	GIArgument * in_args;
 	GIArgument * out_args;
 	GITypeInfo ** out_arg_infos;
+	GIArgument * aux_args;
 	gboolean * is_automatic_arg;
 
 	gboolean has_return_value;
@@ -104,6 +110,8 @@ typedef struct {
 
 	GSList * callback_infos;
 	GSList * free_after_call;
+
+	GSList * array_infos;
 } GPerlI11nInvocationInfo;
 
 static GPerlI11nCallbackInfo* create_callback_closure (GITypeInfo *cb_type, SV *code);
@@ -114,7 +122,8 @@ static void release_callback (gpointer data);
 
 static SV * arg_to_sv (GIArgument * arg,
                        GITypeInfo * info,
-                       GITransfer transfer);
+                       GITransfer transfer,
+                       GPerlI11nInvocationInfo * iinfo);
 static SV * interface_to_sv (GITypeInfo* info,
                              GIArgument *arg,
                              gboolean own);
@@ -476,7 +485,8 @@ struct_to_sv (GIBaseInfo* info,
 				const gchar *name;
 				sv = arg_to_sv (&value,
 				                field_type,
-				                GI_TRANSFER_NOTHING);
+				                GI_TRANSFER_NOTHING,
+				                NULL);
 				name = g_base_info_get_name (
 				         (GIBaseInfo *) field_info);
 				gperl_hv_take_sv (hv, name, strlen (name), sv);
@@ -601,9 +611,10 @@ sv_to_struct (GIArgInfo * arg_info,
 /* ------------------------------------------------------------------------- */
 
 static SV *
-array_to_sv (GITypeInfo* info,
+array_to_sv (GITypeInfo *info,
              gpointer pointer,
-             GITransfer transfer)
+             GITransfer transfer,
+             GPerlI11nInvocationInfo *iinfo)
 {
 	GITypeInfo *param_info;
 	gboolean is_zero_terminated;
@@ -632,8 +643,15 @@ array_to_sv (GITypeInfo* info,
 	} else {
                 length = g_type_info_get_array_fixed_size (info);
                 if (length < 0) {
-                        ccroak ("FIXME: dynamic length arrays are not supported yet");
+			guint length_pos = g_type_info_get_array_length (info);
+			g_assert (iinfo != NULL);
+			/* FIXME: Is it OK to always use v_size here? */
+			length = iinfo->aux_args[length_pos].v_size;
                 }
+	}
+
+	if (length < 0) {
+		ccroak ("Could not determine the length of the array");
 	}
 
 	av = newAV ();
@@ -651,7 +669,7 @@ array_to_sv (GITypeInfo* info,
 		GIArgument *arg;
 		SV *value;
 		arg = pointer + i * item_size;
-		value = arg_to_sv (arg, param_info, item_transfer);
+		value = arg_to_sv (arg, param_info, item_transfer, iinfo);
 		if (value)
 			av_push (av, value);
 	}
@@ -667,17 +685,30 @@ array_to_sv (GITypeInfo* info,
 static gpointer
 sv_to_array (GIArgInfo *arg_info,
              GITypeInfo *type_info,
-             SV *sv)
+             SV *sv,
+             GPerlI11nInvocationInfo *iinfo)
 {
 	AV *av;
 	GITransfer transfer, item_transfer;
 	GITypeInfo *param_info;
-	gint i, length;
+	gint i, length, length_pos;
+	GPerlI11nArrayInfo *array_info = NULL;
         GArray *array;
         gboolean is_zero_terminated = FALSE;
         gsize item_size;
 
 	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
+
+	/* Add an array info entry even before the undef check so that the
+	 * corresponding length arg is set to zero later by
+	 * handle_automatic_arg. */
+	length_pos = g_type_info_get_array_length (type_info);
+	if (length_pos >= 0) {
+		array_info = g_new0 (GPerlI11nArrayInfo, 1);
+		array_info->length_pos = length_pos;
+		array_info->length = 0;
+		iinfo->array_infos = g_slist_prepend (iinfo->array_infos, array_info);
+	}
 
 	if (sv == &PL_sv_undef)
 		return NULL;
@@ -720,6 +751,10 @@ sv_to_array (GIArgInfo *arg_info,
 	}
 
 	dwarn ("    -> array %p of size %d\n", array, array->len);
+
+	if (length_pos >= 0) {
+		array_info->length = length;
+	}
 
 	g_base_info_unref ((GIBaseInfo *) param_info);
 
@@ -765,7 +800,7 @@ glist_to_sv (GITypeInfo* info,
 		GIArgument arg = {0,};
 		dwarn ("      converting pointer %p\n", i->data);
 		arg.v_pointer = i->data;
-		value = arg_to_sv (&arg, param_info, item_transfer);
+		value = arg_to_sv (&arg, param_info, item_transfer, NULL);
 		if (value)
 			av_push (av, value);
 	}
@@ -896,13 +931,13 @@ ghash_to_sv (GITypeInfo *info,
 
 		dwarn ("      converting key pointer %p\n", key_p);
 		arg.v_pointer = key_p;
-		key_sv = arg_to_sv (&arg, key_param_info, item_transfer);
+		key_sv = arg_to_sv (&arg, key_param_info, item_transfer, NULL);
 		if (key_sv == NULL)
                         break;
 
                 dwarn ("      converting value pointer %p\n", value_p);
                 arg.v_pointer = value_p;
-                value_sv = arg_to_sv (&arg, value_param_info, item_transfer);
+                value_sv = arg_to_sv (&arg, value_param_info, item_transfer, NULL);
                 if (value_sv == NULL)
                         break;
 
@@ -1305,7 +1340,7 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_ARRAY:
-                arg->v_pointer = sv_to_array (arg_info, type_info, sv);
+                arg->v_pointer = sv_to_array (arg_info, type_info, sv, invocation_info);
 		break;
 
 	    case GI_TYPE_TAG_INTERFACE:
@@ -1348,7 +1383,8 @@ sv_to_arg (SV * sv,
 static SV *
 arg_to_sv (GIArgument * arg,
            GITypeInfo * info,
-           GITransfer transfer)
+           GITransfer transfer,
+           GPerlI11nInvocationInfo *iinfo)
 {
 	GITypeTag tag = g_type_info_get_tag (info);
 	gboolean own = transfer == GI_TRANSFER_EVERYTHING;
@@ -1403,7 +1439,7 @@ arg_to_sv (GIArgument * arg,
 	    }
 
 	    case GI_TYPE_TAG_ARRAY:
-		return array_to_sv (info, arg->v_pointer, transfer);
+		return array_to_sv (info, arg->v_pointer, transfer, iinfo);
 
 	    case GI_TYPE_TAG_INTERFACE:
 		return interface_to_sv (info, arg, own);
@@ -1441,6 +1477,26 @@ arg_to_sv (GIArgument * arg,
 	}
 
 	return NULL;
+}
+
+/* ------------------------------------------------------------------------- */
+
+static void
+handle_automatic_arg (guint pos,
+                      GIArgument * arg,
+                      GPerlI11nInvocationInfo * invocation_info)
+{
+	GSList *l;
+	for (l = invocation_info->array_infos; l != NULL; l = l->next) {
+		GPerlI11nArrayInfo *ainfo = l->data;
+		if (pos == ainfo->length_pos) {
+			dwarn ("  setting automatic arg %d (array length) to %d\n",
+			       pos, ainfo->length);
+			/* FIXME: Is it OK to always use v_size here? */
+			arg->v_size = ainfo->length;
+			break;
+		}
+	}
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1688,7 +1744,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		{
 			GIArgument arg;
 			raw_to_arg (args[i], &arg, arg_type);
-			XPUSHs (sv_2mortal (arg_to_sv (&arg, arg_type, transfer)));
+			XPUSHs (sv_2mortal (arg_to_sv (&arg, arg_type, transfer, NULL)));
 		}
 
 		if (direction == GI_DIRECTION_INOUT ||
@@ -1847,8 +1903,6 @@ release_callback (gpointer data)
 
 	if (info->data)
 		SvREFCNT_dec (info->data);
-
-	g_free (info);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -1988,25 +2042,86 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 		GI_TYPE_TAG_VOID != g_type_info_get_tag (iinfo->return_type_info);
 	iinfo->return_type_ffi = g_type_info_get_ffi_type (iinfo->return_type_info);
 
-	/* to allow us to make only one pass through the arg list, allocate
-	 * enough space for all args in both the out and in lists.  we'll
-	 * only use as much as we need.  since function argument lists are
-	 * typically small, this shouldn't be a big problem. */
+	/* allocate enough space for all args in both the out and in lists.
+	 * we'll only use as much as we need.  since function argument lists
+	 * are typically small, this shouldn't be a big problem. */
 	if (iinfo->n_invoke_args) {
 		iinfo->in_args = gperl_alloc_temp (sizeof (GIArgument) * iinfo->n_invoke_args);
 		iinfo->out_args = gperl_alloc_temp (sizeof (GIArgument) * iinfo->n_invoke_args);
 		iinfo->out_arg_infos = gperl_alloc_temp (sizeof (GITypeInfo*) * iinfo->n_invoke_args);
 		iinfo->arg_types = gperl_alloc_temp (sizeof (ffi_type *) * iinfo->n_invoke_args);
 		iinfo->args = gperl_alloc_temp (sizeof (gpointer) * iinfo->n_invoke_args);
+		iinfo->aux_args = gperl_alloc_temp (sizeof (GIArgument) * iinfo->n_invoke_args);
+		iinfo->is_automatic_arg = gperl_alloc_temp (sizeof (gboolean) * iinfo->n_invoke_args);
 	}
 
 	iinfo->method_offset = iinfo->is_method ? 1 : 0;
 	iinfo->dynamic_stack_offset = 0;
+
+	/* Make a first pass to mark args that are filled in automatically, and
+	 * thus have no counterpart on the Perl side. */
+	for (i = 0 ; i < iinfo->n_args ; i++) {
+		GIArgInfo * arg_info =
+			g_callable_info_get_arg ((GICallableInfo *) info, i);
+		GITypeInfo * arg_type = g_arg_info_get_type (arg_info);
+		GITypeTag arg_tag = g_type_info_get_tag (arg_type);
+
+		if (arg_tag == GI_TYPE_TAG_ARRAY) {
+			gint pos = g_type_info_get_array_length (arg_type);
+			if (pos >= 0) {
+				dwarn ("  pos %d is automatic (array length)\n", pos);
+				iinfo->is_automatic_arg[pos] = TRUE;
+			}
+		}
+
+		else if (arg_tag == GI_TYPE_TAG_INTERFACE) {
+			GIBaseInfo * interface = g_type_info_get_interface (arg_type);
+			GIInfoType info_type = g_base_info_get_type (interface);
+			if (info_type == GI_INFO_TYPE_CALLBACK) {
+				gint pos;
+				pos = g_arg_info_get_closure (arg_info);
+				if (pos >= 0) {
+					dwarn ("  pos %d is automatic (callback closure)\n", pos);
+					iinfo->is_automatic_arg[pos] = FALSE; /* FIXME */
+				}
+				pos = g_arg_info_get_destroy (arg_info);
+				if (pos >= 0) {
+					dwarn ("  pos %d is automatic (callback destroy notify)\n", pos);
+					iinfo->is_automatic_arg[pos] = FALSE; /* FIXME */
+				}
+			}
+		}
+
+		g_base_info_unref ((GIBaseInfo *) arg_type);
+		g_base_info_unref ((GIBaseInfo *) arg_info);
+	}
+
+	/* If the return value is an array which comes with an outbound length
+	 * arg, then mark that length arg as automatic, too. */
+	if (g_type_info_get_tag (iinfo->return_type_info) == GI_TYPE_TAG_ARRAY) {
+		gint pos = g_type_info_get_array_length (iinfo->return_type_info);
+		if (pos >= 0) {
+			GIArgInfo * arg_info =
+				g_callable_info_get_arg ((GICallableInfo *) info, pos);
+			if (GI_DIRECTION_OUT == g_arg_info_get_direction (arg_info)) {
+				dwarn ("  pos %d is automatic (array length)\n", pos);
+				iinfo->is_automatic_arg[pos] = TRUE;
+			}
+		}
+	}
 }
 
 static void
 clear_invocation_info (GPerlI11nInvocationInfo *iinfo)
 {
+	g_slist_free (iinfo->free_after_call);
+
+	g_slist_foreach (iinfo->callback_infos, (GFunc) g_free, NULL);
+	g_slist_free (iinfo->callback_infos);
+
+	g_slist_foreach (iinfo->array_infos, (GFunc) g_free, NULL);
+	g_slist_free (iinfo->array_infos);
+
 	g_base_info_unref ((GIBaseInfo *) iinfo->return_type_info);
 }
 
@@ -2156,7 +2271,7 @@ _fetch_constant (class, basename, constant)
 	/* FIXME: What am I suppossed to do with the return value? */
 	g_constant_info_get_value (info, &value);
 	EXTEND (sp, 1);
-	PUSHs (sv_2mortal (arg_to_sv (&value, type_info, GI_TRANSFER_NOTHING)));
+	PUSHs (sv_2mortal (arg_to_sv (&value, type_info, GI_TRANSFER_NOTHING, NULL)));
 	g_base_info_unref ((GIBaseInfo *) type_info);
 	g_base_info_unref ((GIBaseInfo *) info);
 
@@ -2217,17 +2332,23 @@ _invoke (class, basename, namespace, method, ...)
 		 * point. */
 		iinfo.current_pos = i; /* + method_offset; */
 
-		dwarn ("  arg tag: %d (%s)\n",
+		dwarn ("  arg %d, tag: %d (%s), is_automatic: %d\n",
+		       i,
 		       g_type_info_get_tag (arg_type),
-		       g_type_tag_to_string (g_type_info_get_tag (arg_type)));
+		       g_type_tag_to_string (g_type_info_get_tag (arg_type)),
+		       iinfo.is_automatic_arg[i]);
 
 		/* FIXME: Check that i+method_offset+stack_offset<items before
 		 * calling ST, and generate a usage message otherwise. */
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
-			sv_to_arg (ST (perl_stack_pos),
-			           &iinfo.in_args[i], arg_info, arg_type,
-			           transfer, may_be_null, &iinfo);
+			if (iinfo.is_automatic_arg[i]) {
+				iinfo.dynamic_stack_offset--;
+			} else {
+				sv_to_arg (ST (perl_stack_pos),
+				           &iinfo.in_args[i], arg_info, arg_type,
+				           transfer, may_be_null, &iinfo);
+			}
 			iinfo.arg_types[i + iinfo.method_offset] =
 				g_type_info_get_ffi_type (arg_type);
 			iinfo.args[i + iinfo.method_offset] = &iinfo.in_args[i];
@@ -2235,8 +2356,7 @@ _invoke (class, basename, namespace, method, ...)
 			break;
 
 		    case GI_DIRECTION_OUT:
-			iinfo.out_args[i].v_pointer =
-				gperl_alloc_temp (sizeof (GIArgument));
+			iinfo.out_args[i].v_pointer = &iinfo.aux_args[i];
 			iinfo.out_arg_infos[i] = arg_type;
 			iinfo.arg_types[i + iinfo.method_offset] = &ffi_type_pointer;
 			iinfo.args[i + iinfo.method_offset] = &iinfo.out_args[i];
@@ -2246,15 +2366,19 @@ _invoke (class, basename, namespace, method, ...)
 			break;
 
 		    case GI_DIRECTION_INOUT:
-			iinfo.out_args[i].v_pointer =
-				gperl_alloc_temp (sizeof (GIArgument));
-			iinfo.in_args[i].v_pointer = iinfo.out_args[i].v_pointer;
-			/* We pass iinfo.out_args[i].v_pointer here, not
-			 * &iinfo.out_args[i], so that the value pointed to is
-			 * filled from the SV. */
-			sv_to_arg (ST (perl_stack_pos),
-			           iinfo.out_args[i].v_pointer, arg_info, arg_type,
-			           transfer, may_be_null, &iinfo);
+			iinfo.in_args[i].v_pointer =
+				iinfo.out_args[i].v_pointer =
+					&iinfo.aux_args[i];
+			if (iinfo.is_automatic_arg[i]) {
+				iinfo.dynamic_stack_offset--;
+			} else {
+				/* We pass iinfo.in_args[i].v_pointer here,
+				 * not &iinfo.in_args[i], so that the value
+				 * pointed to is filled from the SV. */
+				sv_to_arg (ST (perl_stack_pos),
+				           iinfo.in_args[i].v_pointer, arg_info, arg_type,
+				           transfer, may_be_null, &iinfo);
+			}
 			iinfo.out_arg_infos[i] = arg_type;
 			iinfo.arg_types[i + iinfo.method_offset] = &ffi_type_pointer;
 			iinfo.args[i + iinfo.method_offset] = &iinfo.in_args[i];
@@ -2262,6 +2386,25 @@ _invoke (class, basename, namespace, method, ...)
 		}
 
 		g_base_info_unref ((GIBaseInfo *) arg_info);
+	}
+
+	/* do another pass to handle automatic args */
+	for (i = 0 ; i < iinfo.n_args ; i++) {
+		GIArgInfo * arg_info;
+		if (!iinfo.is_automatic_arg[i])
+			continue;
+		arg_info = g_callable_info_get_arg ((GICallableInfo *) info, i);
+		switch (g_arg_info_get_direction (arg_info)) {
+		    case GI_DIRECTION_IN:
+			handle_automatic_arg (i, &iinfo.in_args[i], &iinfo);
+			break;
+		    case GI_DIRECTION_INOUT:
+			handle_automatic_arg (i, &iinfo.aux_args[i], &iinfo);
+			break;
+		    case GI_DIRECTION_OUT:
+			/* handled later */
+			break;
+		}
 	}
 
 	if (iinfo.throws) {
@@ -2283,9 +2426,6 @@ _invoke (class, basename, namespace, method, ...)
 	g_slist_foreach (iinfo.free_after_call,
 	                 (GFunc) release_callback, NULL);
 
-	g_slist_free (iinfo.callback_infos);
-	g_slist_free (iinfo.free_after_call);
-
 	if (local_error) {
 		gperl_croak_gerror (NULL, local_error);
 	}
@@ -2301,7 +2441,8 @@ _invoke (class, basename, namespace, method, ...)
 			g_callable_info_get_caller_owns ((GICallableInfo *) info);
 		SV *value = arg_to_sv (&return_value,
 		                       iinfo.return_type_info,
-		                       return_type_transfer);
+		                       return_type_transfer,
+		                       &iinfo);
 		if (value) {
 			XPUSHs (sv_2mortal (value));
 			n_return_values++;
@@ -2310,9 +2451,10 @@ _invoke (class, basename, namespace, method, ...)
 
 	/* out args */
 	for (i = 0 ; i < iinfo.n_args ; i++) {
-		GIArgInfo * arg_info =
-			g_callable_info_get_arg ((GICallableInfo *) info, i);
-
+		GIArgInfo * arg_info;
+		if (iinfo.is_automatic_arg[i])
+			continue;
+		arg_info = g_callable_info_get_arg ((GICallableInfo *) info, i);
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_OUT:
 		    case GI_DIRECTION_INOUT:
@@ -2321,7 +2463,8 @@ _invoke (class, basename, namespace, method, ...)
 				g_arg_info_get_ownership_transfer (arg_info);
 			SV *sv = arg_to_sv (iinfo.out_args[i].v_pointer,
 			                    iinfo.out_arg_infos[i],
-			                    transfer);
+			                    transfer,
+			                    &iinfo);
 			if (sv) {
 				XPUSHs (sv_2mortal (sv));
 				n_return_values++;
