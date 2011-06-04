@@ -2172,8 +2172,9 @@ _invoke (class, basename, namespace, method, ...)
 	ffi_cif cif;
 	gpointer func_pointer = NULL, instance = NULL;
 	const gchar *symbol = NULL;
-	guint i, in_i, out_i;
+	guint i;
 	GPerlI11nInvocationInfo iinfo = {0,};
+	guint n_return_values;
 	GIArgument return_value;
 	GError * local_error = NULL;
 	gpointer local_error_address = &local_error;
@@ -2190,13 +2191,10 @@ _invoke (class, basename, namespace, method, ...)
 
 	prepare_invocation_info (&iinfo, info, items, internal_stack_offset);
 
-	in_i = out_i = 0;
-
 	if (iinfo.is_method) {
 		instance = instance_sv_to_pointer (info, ST (0 + iinfo.stack_offset));
 		iinfo.arg_types[0] = &ffi_type_pointer;
 		iinfo.args[0] = &instance;
-		in_i++;
 	}
 
 	for (i = 0 ; i < iinfo.n_args ; i++) {
@@ -2228,21 +2226,19 @@ _invoke (class, basename, namespace, method, ...)
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
 			sv_to_arg (ST (perl_stack_pos),
-			           &iinfo.in_args[in_i], arg_info, arg_type,
+			           &iinfo.in_args[i], arg_info, arg_type,
 			           transfer, may_be_null, &iinfo);
 			iinfo.arg_types[i + iinfo.method_offset] =
 				g_type_info_get_ffi_type (arg_type);
-			iinfo.args[i + iinfo.method_offset] = &iinfo.in_args[in_i];
+			iinfo.args[i + iinfo.method_offset] = &iinfo.in_args[i];
 			g_base_info_unref ((GIBaseInfo *) arg_type);
-			in_i++;
 			break;
 		    case GI_DIRECTION_OUT:
-			iinfo.out_args[out_i].v_pointer =
+			iinfo.out_args[i].v_pointer =
 				gperl_alloc_temp (sizeof (GIArgument));
-			iinfo.out_arg_infos[out_i] = arg_type;
+			iinfo.out_arg_infos[i] = arg_type;
 			iinfo.arg_types[i + iinfo.method_offset] = &ffi_type_pointer;
-			iinfo.args[i + iinfo.method_offset] = &iinfo.out_args[out_i];
-			out_i++;
+			iinfo.args[i + iinfo.method_offset] = &iinfo.out_args[i];
 			/* Adjust the dynamic stack offset so that this out
 			 * argument doesn't inadvertedly eat up an in argument. */
 			iinfo.dynamic_stack_offset--;
@@ -2254,14 +2250,12 @@ _invoke (class, basename, namespace, method, ...)
 			sv_to_arg (ST (perl_stack_pos),
 			           temp, arg_info, arg_type,
 			           transfer, may_be_null, &iinfo);
-			iinfo.in_args[in_i].v_pointer =
-				iinfo.out_args[out_i].v_pointer =
+			iinfo.in_args[i].v_pointer =
+				iinfo.out_args[i].v_pointer =
 					temp;
-			iinfo.out_arg_infos[out_i] = arg_type;
+			iinfo.out_arg_infos[i] = arg_type;
 			iinfo.arg_types[i + iinfo.method_offset] = &ffi_type_pointer;
-			iinfo.args[i + iinfo.method_offset] = &iinfo.in_args[in_i];
-			in_i++;
-			out_i++;
+			iinfo.args[i + iinfo.method_offset] = &iinfo.in_args[i];
 		    }
 			break;
 		}
@@ -2296,20 +2290,25 @@ _invoke (class, basename, namespace, method, ...)
 	}
 
 	/*
-	 * place return value and output args on the stack
+	 * handle return values
 	 */
+	n_return_values = 0;
+
+	/* place return value and output args on the stack */
 	if (iinfo.has_return_value) {
 		GITransfer return_type_transfer =
 			g_callable_info_get_caller_owns ((GICallableInfo *) info);
 		SV *value = arg_to_sv (&return_value,
 		                       iinfo.return_type_info,
 		                       return_type_transfer);
-		if (value)
+		if (value) {
 			XPUSHs (sv_2mortal (value));
+			n_return_values++;
+		}
 	}
 
 	/* out args */
-	for (i = out_i = 0 ; i < iinfo.n_args ; i++) {
+	for (i = 0 ; i < iinfo.n_args ; i++) {
 		GIArgInfo * arg_info =
 			g_callable_info_get_arg ((GICallableInfo *) info, i);
 
@@ -2319,15 +2318,17 @@ _invoke (class, basename, namespace, method, ...)
 		    {
 			GITransfer transfer =
 				g_arg_info_get_ownership_transfer (arg_info);
-			SV *sv = arg_to_sv (iinfo.out_args[out_i].v_pointer,
-			                    iinfo.out_arg_infos[out_i],
+			SV *sv = arg_to_sv (iinfo.out_args[i].v_pointer,
+			                    iinfo.out_arg_infos[i],
 			                    transfer);
-			if (sv)
+			if (sv) {
 				XPUSHs (sv_2mortal (sv));
-			g_base_info_unref ((GIBaseInfo*) iinfo.out_arg_infos[out_i]);
-		    }
-			out_i++;
+				n_return_values++;
+			}
+			g_base_info_unref ((GIBaseInfo*) iinfo.out_arg_infos[i]);
 			break;
+		    }
+
 		    default:
 			break;
 		}
@@ -2335,17 +2336,14 @@ _invoke (class, basename, namespace, method, ...)
 		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
 
-	if (iinfo.has_return_value)
-		out_i++;
-
 	clear_invocation_info (&iinfo);
 	g_base_info_unref ((GIBaseInfo *) info);
 
-	dwarn ("  number of return values: %d\n", out_i);
+	dwarn ("  number of return values: %d\n", n_return_values);
 
-	if (out_i == 0) {
+	if (n_return_values == 0) {
 		XSRETURN_EMPTY;
-	} else if (out_i == 1) {
+	} else if (n_return_values == 1) {
 		XSRETURN (1);
 	} else {
 		PUTBACK;
