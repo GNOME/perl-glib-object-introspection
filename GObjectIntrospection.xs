@@ -1733,6 +1733,14 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
 		GIDirection direction = g_arg_info_get_direction (arg_info);
 
+		/* the closure argument, which we handle separately, is marked
+		 * by having get_closure == i */
+		if (g_arg_info_get_closure (arg_info) == i) {
+			g_base_info_unref ((GIBaseInfo *) arg_info);
+			g_base_info_unref ((GIBaseInfo *) arg_type);
+			continue;
+		}
+
 		dwarn ("arg info: %p\n"
 		       "  direction: %d\n"
 		       "  is return value: %d\n"
