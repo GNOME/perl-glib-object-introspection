@@ -1925,6 +1925,8 @@ release_callback (gpointer data)
 
 	if (info->data)
 		SvREFCNT_dec (info->data);
+
+	g_free (info);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -2138,7 +2140,8 @@ clear_invocation_info (GPerlI11nInvocationInfo *iinfo)
 {
 	g_slist_free (iinfo->free_after_call);
 
-	g_slist_foreach (iinfo->callback_infos, (GFunc) g_free, NULL);
+	/* The actual callback infos might be needed later, so we cannot free
+	 * them here. */
 	g_slist_free (iinfo->callback_infos);
 
 	g_slist_foreach (iinfo->array_infos, (GFunc) g_free, NULL);
