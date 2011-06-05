@@ -271,23 +271,17 @@ handle_callback_arg (GIArgInfo * arg_info,
 }
 
 static gpointer
-handle_void_arg (GIArgInfo * arg_info,
-                 GITypeInfo * type_info,
-                 SV * sv,
+handle_void_arg (SV * sv,
                  GPerlI11nInvocationInfo * invocation_info)
 {
 	gpointer pointer = NULL;
 	gboolean is_user_data = FALSE;
 	GSList *l;
-	PERL_UNUSED_VAR (arg_info);
-	PERL_UNUSED_VAR (type_info);
-	dwarn ("    type %p -> void pointer at position %d\n",
-	       type_info, invocation_info->current_pos);
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
 		GPerlI11nCallbackInfo *callback_info = l->data;
 		if (callback_info->data_pos == invocation_info->current_pos) {
 			is_user_data = TRUE;
-			dwarn ("      user data for callback %p\n",
+			dwarn ("    user data for callback %p\n",
 			       callback_info);
 			attach_callback_data (callback_info, sv);
 			pointer = callback_info;
@@ -985,7 +979,7 @@ sv_to_ghash (GIArgInfo *arg_info,
 		/* nothing special to do */
 		break;
 	    case GI_TRANSFER_NOTHING:
-		/* FIXME: need to free list after call */
+		/* FIXME: need to free hash after call */
 		break;
 	}
 
@@ -1108,8 +1102,7 @@ sv_to_interface (GIArgInfo * arg_info,
 			arg->v_pointer = gperl_closure_new (sv, NULL, FALSE);
 		} else if (type == G_TYPE_VALUE) {
 			dwarn ("    value type\n");
-			croak ("FIXME - don't know how to convert an arbitrary SV "
-			       "to a GValue");
+			croak ("Cannot convert SV to GValue");
 		} else {
 			dwarn ("    boxed type: %s (%d)\n",
 			       g_type_name (type), type);
@@ -1284,8 +1277,7 @@ sv_to_arg (SV * sv,
 
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
-		arg->v_pointer = handle_void_arg (arg_info, type_info, sv,
-		                                  invocation_info);
+		arg->v_pointer = handle_void_arg (sv, invocation_info);
 		break;
 
 	    case GI_TYPE_TAG_BOOLEAN:
@@ -1501,6 +1493,8 @@ handle_automatic_arg (guint pos,
                       GPerlI11nInvocationInfo * invocation_info)
 {
 	GSList *l;
+
+	/* array length */
 	for (l = invocation_info->array_infos; l != NULL; l = l->next) {
 		GPerlI11nArrayInfo *ainfo = l->data;
 		if (pos == ainfo->length_pos) {
@@ -1508,9 +1502,22 @@ handle_automatic_arg (guint pos,
 			       pos, ainfo->length);
 			/* FIXME: Is it OK to always use v_size here? */
 			arg->v_size = ainfo->length;
-			break;
+			return;
 		}
 	}
+
+	/* callback destroy notify */
+	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
+		GPerlI11nCallbackInfo *cinfo = l->data;
+		if (pos == cinfo->notify_pos) {
+			dwarn ("  setting automatic arg %d (destroy notify for calllback %p)\n",
+			       pos, cinfo);
+			arg->v_pointer = release_callback;
+			return;
+		}
+	}
+
+	ccroak ("Could not handle automatic arg %d", pos);
 }
 
 /* ------------------------------------------------------------------------- */
@@ -2102,18 +2109,13 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 			GIBaseInfo * interface = g_type_info_get_interface (arg_type);
 			GIInfoType info_type = g_base_info_get_type (interface);
 			if (info_type == GI_INFO_TYPE_CALLBACK) {
-				gint pos;
-				pos = g_arg_info_get_closure (arg_info);
-				if (pos >= 0) {
-					dwarn ("  pos %d is automatic (callback closure)\n", pos);
-					iinfo->is_automatic_arg[pos] = FALSE; /* FIXME */
-				}
-				pos = g_arg_info_get_destroy (arg_info);
+				gint pos = g_arg_info_get_destroy (arg_info);
 				if (pos >= 0) {
 					dwarn ("  pos %d is automatic (callback destroy notify)\n", pos);
-					iinfo->is_automatic_arg[pos] = FALSE; /* FIXME */
+					iinfo->is_automatic_arg[pos] = TRUE;
 				}
 			}
+			g_base_info_unref ((GIBaseInfo *) interface);
 		}
 
 		g_base_info_unref ((GIBaseInfo *) arg_type);
