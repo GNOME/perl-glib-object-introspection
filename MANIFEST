@@ -4,6 +4,7 @@ LICENSE
 Makefile.PL
 MANIFEST
 MANIFEST.SKIP
+NEWS
 perl-Glib-Object-Introspection.doap
 README
 t/00-basic-types.t
