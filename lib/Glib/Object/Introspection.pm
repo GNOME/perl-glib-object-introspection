@@ -20,14 +20,13 @@ use strict;
 use warnings;
 use Glib;
 
+our $VERSION = 0.001;
+
 use Carp;
 $Carp::Internal{(__PACKAGE__)}++;
 
-require DynaLoader;
-our @ISA = qw(DynaLoader);
-
-our $VERSION = 0.001;
-Glib::Object::Introspection->bootstrap ($VERSION);
+require XSLoader;
+XSLoader::load();
 
 sub setup {
   my ($class, %params) = @_;
