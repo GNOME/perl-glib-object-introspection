@@ -7,5 +7,6 @@ build
 \.gitignore$
 Makefile$
 Makefile\.old$
+MYMETA\..*$
 \.c$
 \.o$

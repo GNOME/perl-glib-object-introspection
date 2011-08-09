@@ -4,4 +4,16 @@ LICENSE
 Makefile.PL
 MANIFEST
 MANIFEST.SKIP
+perl-Glib-Object-Introspection.doap
 README
+t/00-basic-types.t
+t/arrays.t
+t/cairo-integration.t
+t/callbacks.t
+t/closures.t
+t/constants.t
+t/enums.t
+t/hashes.t
+t/inc/setup.pl
+t/objects.t
+t/values.t
