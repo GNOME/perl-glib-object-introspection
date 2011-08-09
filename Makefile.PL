@@ -29,7 +29,7 @@ my %PREREQ_PM = (
 );
 
 my %BUILD_REQ = (
-  'gobject-introspection-1.0' => '0.6.8',
+  'gobject-introspection-1.0' => '0.10.0',
 );
 
 my $dep_success = eval <<__EOE__;
