@@ -1,11 +1,14 @@
 use Glib::Object::Introspection;
 use Test::More;
 
-unless ($ENV{LD_LIBRARY_PATH} =~ m/\bbuild\b/) {
-  plan skip_all => 'Need "build" in LD_LIBRARY_PATH';
-}
 unless (-e 'build/libregress.so') {
   plan skip_all => 'Need the test libraries';
+}
+
+unless (defined $ENV{LD_LIBRARY_PATH} &&
+        $ENV{LD_LIBRARY_PATH} =~ m/\bbuild\b/)
+{
+  plan skip_all => 'Need "build" in LD_LIBRARY_PATH';
 }
 
 Glib::Object::Introspection->setup(
