@@ -89,7 +89,7 @@ __END__
 
 =head1 NAME
 
-Glib::Object::Introspection - Dynamically create language bindings
+Glib::Object::Introspection - Dynamically create Perl language bindings
 
 =head1 SYNOPSIS
 

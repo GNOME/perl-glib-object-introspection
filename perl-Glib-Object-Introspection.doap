@@ -5,7 +5,7 @@
          xmlns="http://usefulinc.com/ns/doap#">
 
   <name xml:lang="en">Glib::Object::Introspection</name>
-  <shortdesc xml:lang="en">Dynamically create language bindings</shortdesc>
+  <shortdesc xml:lang="en">Dynamically create Perl language bindings</shortdesc>
   <homepage rdf:resource="http://gtk2-perl.sourceforge.net/" />
   <mailing-list rdf:resource="http://mail.gnome.org/mailman/listinfo/gtk-perl-list" />
 
