@@ -4,8 +4,9 @@ BEGIN { require './t/inc/setup.pl' };
 
 use strict;
 use warnings;
+use Scalar::Util qw/weaken/;
 
-plan tests => 36;
+plan tests => 41;
 
 my $obj = TestObj->constructor;
 isa_ok ($obj, 'TestObj');
@@ -14,6 +15,9 @@ isa_ok ($obj, 'Glib::Object');
 $obj = TestObj->new ($obj);
 isa_ok ($obj, 'TestObj');
 isa_ok ($obj, 'Glib::Object');
+
+weaken $obj;
+is ($obj, undef);
 
 $obj = TestObj->new_from_file ($0);
 isa_ok ($obj, 'TestObj');
@@ -82,3 +86,12 @@ isa_ok ($wi, 'Glib::Object');
 $wi->set_testbool (1);
 ok ($wi->get_testbool);
 is (TestWi8021x::static_method (23), 46);
+
+# floating objects
+my $fl = TestFloating->new;
+isa_ok ($fl, 'TestFloating');
+isa_ok ($fl, 'Glib::InitiallyUnowned');
+isa_ok ($fl, 'Glib::Object');
+
+weaken $fl;
+is ($fl, undef);
