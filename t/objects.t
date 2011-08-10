@@ -36,16 +36,16 @@ is ($q, 46);
 is (eval { $obj->torture_signature_1 (23, 'perl', 41); 1 }, undef);
 like ($@, qr/odd/);
 
-SKIP: {
-  skip 'Skipping return values not implemented yet', 3;
+# skipping return values
+{
   my ($b, $d, $sum) = $obj->skip_return_val (23, 42, 57, 13, 17);
   is ($b, 24);
   is ($d, 58);
   is ($sum, 13+170);
 }
 
-SKIP: {
-  skip 'Skipping parameters not implemented yet', 10;
+# skipping parameters
+{
   my ($success, $b, $d, $sum);
 
   ($success, $b, $d, $sum) = $obj->skip_param (23, 57, 13, 17);

@@ -105,8 +105,9 @@ typedef struct {
 
 	guint current_pos;
 	guint method_offset;
-	gint stack_offset;
+	guint stack_offset;
 	gint dynamic_stack_offset;
+	guint skip_offset;
 
 	GSList * callback_infos;
 	GSList * free_after_call;
@@ -2340,17 +2341,24 @@ _invoke (class, basename, namespace, method, ...)
 	}
 
 	for (i = 0 ; i < iinfo.n_args ; i++) {
-		GIArgInfo * arg_info =
-			g_callable_info_get_arg ((GICallableInfo *) info, i);
+		GIArgInfo * arg_info;
+		GITypeInfo * arg_type;
+		GITransfer transfer;
+		gboolean may_be_null;
+		guint perl_stack_pos, ffi_stack_pos;
+
+		arg_info = g_callable_info_get_arg ((GICallableInfo *) info, i);
 		/* In case of out and in-out args, arg_type is unref'ed after
 		 * the function has been invoked */
-		GITypeInfo * arg_type = g_arg_info_get_type (arg_info);
-		GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
-		gboolean may_be_null = g_arg_info_may_be_null (arg_info);
-		guint perl_stack_pos = i
-                                     + iinfo.method_offset
-                                     + iinfo.stack_offset
-                                     + iinfo.dynamic_stack_offset;
+		arg_type = g_arg_info_get_type (arg_info);
+		transfer = g_arg_info_get_ownership_transfer (arg_info);
+		may_be_null = g_arg_info_may_be_null (arg_info);
+		perl_stack_pos = i
+                               + iinfo.method_offset
+                               + iinfo.stack_offset
+                               + iinfo.dynamic_stack_offset;
+		ffi_stack_pos = i
+		              + iinfo.method_offset;
 
 		/* FIXME: Is this right?  I'm confused about the relation of
 		 * the numbers in g_callable_info_get_arg and
@@ -2369,24 +2377,24 @@ _invoke (class, basename, namespace, method, ...)
 		 * calling ST, and generate a usage message otherwise. */
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
-			if (iinfo.is_automatic_arg[i]) {
+			if (iinfo.is_automatic_arg[i] || g_arg_info_is_skip (arg_info)) {
 				iinfo.dynamic_stack_offset--;
 			} else {
 				sv_to_arg (ST (perl_stack_pos),
 				           &iinfo.in_args[i], arg_info, arg_type,
 				           transfer, may_be_null, &iinfo);
 			}
-			iinfo.arg_types[i + iinfo.method_offset] =
+			iinfo.arg_types[ffi_stack_pos] =
 				g_type_info_get_ffi_type (arg_type);
-			iinfo.args[i + iinfo.method_offset] = &iinfo.in_args[i];
+			iinfo.args[ffi_stack_pos] = &iinfo.in_args[i];
 			g_base_info_unref ((GIBaseInfo *) arg_type);
 			break;
 
 		    case GI_DIRECTION_OUT:
 			iinfo.out_args[i].v_pointer = &iinfo.aux_args[i];
 			iinfo.out_arg_infos[i] = arg_type;
-			iinfo.arg_types[i + iinfo.method_offset] = &ffi_type_pointer;
-			iinfo.args[i + iinfo.method_offset] = &iinfo.out_args[i];
+			iinfo.arg_types[ffi_stack_pos] = &ffi_type_pointer;
+			iinfo.args[ffi_stack_pos] = &iinfo.out_args[i];
 			/* Adjust the dynamic stack offset so that this out
 			 * argument doesn't inadvertedly eat up an in argument. */
 			iinfo.dynamic_stack_offset--;
@@ -2396,7 +2404,7 @@ _invoke (class, basename, namespace, method, ...)
 			iinfo.in_args[i].v_pointer =
 				iinfo.out_args[i].v_pointer =
 					&iinfo.aux_args[i];
-			if (iinfo.is_automatic_arg[i]) {
+			if (iinfo.is_automatic_arg[i] || g_arg_info_is_skip (arg_info)) {
 				iinfo.dynamic_stack_offset--;
 			} else {
 				/* We pass iinfo.in_args[i].v_pointer here,
@@ -2407,8 +2415,8 @@ _invoke (class, basename, namespace, method, ...)
 				           transfer, may_be_null, &iinfo);
 			}
 			iinfo.out_arg_infos[i] = arg_type;
-			iinfo.arg_types[i + iinfo.method_offset] = &ffi_type_pointer;
-			iinfo.args[i + iinfo.method_offset] = &iinfo.in_args[i];
+			iinfo.arg_types[ffi_stack_pos] = &ffi_type_pointer;
+			iinfo.args[ffi_stack_pos] = &iinfo.in_args[i];
 			break;
 		}
 
@@ -2464,7 +2472,9 @@ _invoke (class, basename, namespace, method, ...)
 	n_return_values = 0;
 
 	/* place return value and output args on the stack */
-	if (iinfo.has_return_value) {
+	if (iinfo.has_return_value &&
+	    !g_callable_info_skip_return ((GICallableInfo *) info))
+	{
 		GITransfer return_type_transfer =
 			g_callable_info_get_caller_owns ((GICallableInfo *) info);
 		SV *value = arg_to_sv (&return_value,
@@ -2483,6 +2493,8 @@ _invoke (class, basename, namespace, method, ...)
 		if (iinfo.is_automatic_arg[i])
 			continue;
 		arg_info = g_callable_info_get_arg ((GICallableInfo *) info, i);
+		if (g_arg_info_is_skip (arg_info))
+			goto __out__;
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_OUT:
 		    case GI_DIRECTION_INOUT:
@@ -2504,7 +2516,7 @@ _invoke (class, basename, namespace, method, ...)
 		    default:
 			break;
 		}
-
+		__out__:
 		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
 
