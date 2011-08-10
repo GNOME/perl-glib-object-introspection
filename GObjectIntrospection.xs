@@ -2432,6 +2432,7 @@ _invoke (class, basename, namespace, method, ...)
 			/* handled later */
 			break;
 		}
+		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
 
 	if (iinfo.throws) {
