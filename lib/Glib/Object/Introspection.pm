@@ -26,7 +26,7 @@ use Carp;
 $Carp::Internal{(__PACKAGE__)}++;
 
 require XSLoader;
-XSLoader::load();
+XSLoader::load(__PACKAGE__, $VERSION);
 
 sub setup {
   my ($class, %params) = @_;
