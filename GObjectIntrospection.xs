@@ -18,10 +18,10 @@
  *
  */
 
-#include <string.h>
+#include "build/gi-version.h"
 
-#include "gperl.h"
-#include "gperl_marshal.h"
+#include <gperl.h>
+#include <gperl_marshal.h>
 
 #include <girepository.h>
 #include <girffi.h>
@@ -107,7 +107,6 @@ typedef struct {
 	guint method_offset;
 	guint stack_offset;
 	gint dynamic_stack_offset;
-	guint skip_offset;
 
 	GSList * callback_infos;
 	GSList * free_after_call;
@@ -2377,8 +2376,12 @@ _invoke (class, basename, namespace, method, ...)
 		 * calling ST, and generate a usage message otherwise. */
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
-			if (iinfo.is_automatic_arg[i] || g_arg_info_is_skip (arg_info)) {
+			if (iinfo.is_automatic_arg[i]) {
 				iinfo.dynamic_stack_offset--;
+#if GI_CHECK_VERSION (1, 29, 0)
+			} else if (g_arg_info_is_skip (arg_info)) {
+				iinfo.dynamic_stack_offset--;
+#endif
 			} else {
 				sv_to_arg (ST (perl_stack_pos),
 				           &iinfo.in_args[i], arg_info, arg_type,
@@ -2404,8 +2407,12 @@ _invoke (class, basename, namespace, method, ...)
 			iinfo.in_args[i].v_pointer =
 				iinfo.out_args[i].v_pointer =
 					&iinfo.aux_args[i];
-			if (iinfo.is_automatic_arg[i] || g_arg_info_is_skip (arg_info)) {
+			if (iinfo.is_automatic_arg[i]) {
 				iinfo.dynamic_stack_offset--;
+#if GI_CHECK_VERSION (1, 29, 0)
+			} else if (g_arg_info_is_skip (arg_info)) {
+				iinfo.dynamic_stack_offset--;
+#endif
 			} else {
 				/* We pass iinfo.in_args[i].v_pointer here,
 				 * not &iinfo.in_args[i], so that the value
@@ -2472,8 +2479,11 @@ _invoke (class, basename, namespace, method, ...)
 	n_return_values = 0;
 
 	/* place return value and output args on the stack */
-	if (iinfo.has_return_value &&
-	    !g_callable_info_skip_return ((GICallableInfo *) info))
+	if (iinfo.has_return_value
+#if GI_CHECK_VERSION (1, 29, 0)
+	    && !g_callable_info_skip_return ((GICallableInfo *) info)
+#endif
+	   )
 	{
 		GITransfer return_type_transfer =
 			g_callable_info_get_caller_owns ((GICallableInfo *) info);
@@ -2493,8 +2503,12 @@ _invoke (class, basename, namespace, method, ...)
 		if (iinfo.is_automatic_arg[i])
 			continue;
 		arg_info = g_callable_info_get_arg ((GICallableInfo *) info, i);
-		if (g_arg_info_is_skip (arg_info))
-			goto __out__;
+#if GI_CHECK_VERSION (1, 29, 0)
+		if (g_arg_info_is_skip (arg_info)) {
+			g_base_info_unref ((GIBaseInfo *) arg_info);
+			continue;
+		}
+#endif
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_OUT:
 		    case GI_DIRECTION_INOUT:
@@ -2516,7 +2530,6 @@ _invoke (class, basename, namespace, method, ...)
 		    default:
 			break;
 		}
-		__out__:
 		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
 
