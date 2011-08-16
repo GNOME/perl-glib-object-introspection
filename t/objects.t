@@ -88,10 +88,13 @@ ok ($wi->get_testbool);
 is (TestWi8021x::static_method (23), 46);
 
 # floating objects
-my $fl = TestFloating->new;
-isa_ok ($fl, 'TestFloating');
-isa_ok ($fl, 'Glib::InitiallyUnowned');
-isa_ok ($fl, 'Glib::Object');
+SKIP: {
+  my $fl = TestFloating->new;
+  isa_ok ($fl, 'TestFloating');
+  isa_ok ($fl, 'Glib::InitiallyUnowned');
+  isa_ok ($fl, 'Glib::Object');
 
-weaken $fl;
-is ($fl, undef);
+  skip 'floating objects ref counting', 1; # FIXME: Glib->CHECK_VERSION
+  weaken $fl;
+  is ($fl, undef);
+}
