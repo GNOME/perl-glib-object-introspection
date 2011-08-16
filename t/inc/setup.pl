@@ -1,7 +1,7 @@
 use Glib::Object::Introspection;
 use Test::More;
 
-unless (-e 'build/libregress.so') {
+unless (-e 'build/libregress.so' && -e 'build/libgimarshallingtests.so') {
   plan skip_all => 'Need the test libraries';
 }
 
@@ -15,6 +15,12 @@ Glib::Object::Introspection->setup(
   basename => 'Regress',
   version => '1.0',
   package => 'main',
+  search_path => 'build');
+
+Glib::Object::Introspection->setup(
+  basename => 'GIMarshallingTests',
+  version => '1.0',
+  package => 'GI',
   search_path => 'build');
 
 # Inspired by Test::Number::Delta

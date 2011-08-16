@@ -136,22 +136,22 @@ sub compile_test_libraries {
                    1>/dev/null 2>/dev/null))
     && !system (qq(g-ir-compiler Regress-1.0.gir -o Regress-1.0.typelib \\
                    1>/dev/null 2>/dev/null))
-    #&& !system (qq(gcc -shared \\
-    #               $glib_flags{cflags} $glib_flags{libs} \\
-    #               $testsdir/gimarshallingtests.c \\
-    #               -o libgimarshallingtests.so 1>/dev/null 2>/dev/null))
-    #&& !system (qq(LD_LIBRARY_PATH=$build_dir \\
-    #               g-ir-scanner \\
-    #               --include=GObject-2.0 \\
-    #               --namespace=GIMarshallingTests \\
-    #               --symbol-prefix=gi_marshalling_tests --nsversion=1.0 \\
-    #               --quiet --warn-all --warn-error \\
-    #               --library=gimarshallingtests \\
-    #               --output=GIMarshallingTests-1.0.gir \\
-    #               $testsdir/gimarshallingtests.h $testsdir/gimarshallingtests.c \\
-    #               1>/dev/null 2>/dev/null))
-    #&& !system (qq(g-ir-compiler GIMarshallingTests-1.0.gir \\
-    #               -o GIMarshallingTests-1.0.typelib 1>/dev/null 2>/dev/null))
+    && !system (qq(gcc -shared \\
+                   $glib_flags{cflags} $glib_flags{libs} \\
+                   $testsdir/gimarshallingtests.c \\
+                   -o libgimarshallingtests.so 1>/dev/null 2>/dev/null))
+    && !system (qq(LD_LIBRARY_PATH=$build_dir \\
+                   g-ir-scanner \\
+                   --include=GObject-2.0 \\
+                   --namespace=GIMarshallingTests \\
+                   --symbol-prefix=gi_marshalling_tests --nsversion=1.0 \\
+                   --quiet --warn-all --warn-error \\
+                   --library=gimarshallingtests \\
+                   --output=GIMarshallingTests-1.0.gir \\
+                   $testsdir/gimarshallingtests.h $testsdir/gimarshallingtests.c \\
+                   1>/dev/null 2>/dev/null))
+    && !system (qq(g-ir-compiler GIMarshallingTests-1.0.gir \\
+                   -o GIMarshallingTests-1.0.typelib 1>/dev/null 2>/dev/null))
   };
 
   print $success ? "OK\n" : "not OK\n";
