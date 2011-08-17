@@ -586,6 +586,7 @@ sv_to_struct (GITransfer transfer,
 	switch (transfer) {
 	    case GI_TRANSFER_EVERYTHING:
 		field_transfer = GI_TRANSFER_EVERYTHING;
+		/* fall through */
 	    case GI_TRANSFER_CONTAINER:
 		/* FIXME: What if there's a special allocator for the record?
 		 * Like GSlice? */
@@ -1105,7 +1106,6 @@ sv_to_interface (GIArgInfo * arg_info,
 {
 	GIBaseInfo *interface;
 	GIInfoType info_type;
-	GITransfer transfer;
 
 	interface = g_type_info_get_interface (type_info);
 	if (!interface)
@@ -1114,8 +1114,6 @@ sv_to_interface (GIArgInfo * arg_info,
 
 	dwarn ("    interface %p (%s) of type %d\n",
 	       interface, g_base_info_get_name (interface), info_type);
-
-	transfer = g_arg_info_get_ownership_transfer (arg_info);
 
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
@@ -1132,6 +1130,8 @@ sv_to_interface (GIArgInfo * arg_info,
 		GType type = g_registered_type_info_get_g_type (
 		               (GIRegisteredTypeInfo *) interface);
 		if (!type || type == G_TYPE_NONE) {
+			GITransfer transfer =
+				g_arg_info_get_ownership_transfer (arg_info);
 			dwarn ("    unboxed type\n");
 			arg->v_pointer = sv_to_struct (transfer,
 			                               interface,
@@ -1262,6 +1262,8 @@ instance_sv_to_pointer (GIFunctionInfo *function_info, SV *sv)
 	GIInfoType info_type = g_base_info_get_type (container);
 	gpointer pointer = NULL;
 
+	/* FIXME: Much of this code is duplicated in sv_to_interface. */
+
 	dwarn ("  instance_sv_to_pointer: container name: %s, info type: %d\n",
 	       g_base_info_get_name (container),
 	       info_type);
@@ -1279,7 +1281,17 @@ instance_sv_to_pointer (GIFunctionInfo *function_info, SV *sv)
 	    {
 		GType type = g_registered_type_info_get_g_type (
 			       (GIRegisteredTypeInfo *) container);
-		pointer = gperl_get_boxed_check (sv, type);
+		if (!type || type == G_TYPE_NONE) {
+			dwarn ("    unboxed type\n");
+			pointer = sv_to_struct (GI_TRANSFER_NOTHING,
+			                        container,
+			                        info_type,
+			                        sv);
+		} else {
+			dwarn ("    boxed type: %s (%d)\n",
+			       g_type_name (type), type);
+			pointer = gperl_get_boxed_check (sv, type);
+		}
 		dwarn ("    -> boxed pointer: %p\n", pointer);
 		break;
 	    }
@@ -2296,6 +2308,8 @@ _register_types (class, namespace, package)
 		info_type = g_base_info_get_type (info);
 		name = g_base_info_get_name (info);
 
+		dwarn ("setting up %s.%s\n", namespace, name);
+
 		if (info_type == GI_INFO_TYPE_CONSTANT) {
 			av_push (constants, newSVpv (name, PL_na));
 		}
@@ -2316,22 +2330,6 @@ _register_types (class, namespace, package)
 			continue;
 		}
 
-		type = g_registered_type_info_get_g_type (
-			(GIRegisteredTypeInfo *) info);
-		if (!type) {
-			ccroak ("Could not find GType for type %s::%s",
-			       namespace, name);
-		}
-		if (type == G_TYPE_NONE) {
-			g_base_info_unref ((GIBaseInfo *) info);
-			continue;
-		}
-
-		full_package = g_strconcat (package, "::", name, NULL);
-		dwarn ("registering %s, %d => %s\n",
-		       g_type_name (type), type,
-		       full_package);
-
 		if (info_type == GI_INFO_TYPE_OBJECT ||
 		    info_type == GI_INFO_TYPE_INTERFACE ||
 		    info_type == GI_INFO_TYPE_BOXED ||
@@ -2347,6 +2345,20 @@ _register_types (class, namespace, package)
 		{
 			store_fields (fields, info, info_type);
 		}
+
+		type = g_registered_type_info_get_g_type (
+			(GIRegisteredTypeInfo *) info);
+		if (!type) {
+			ccroak ("Could not find GType for type %s::%s",
+			       namespace, name);
+		}
+		if (type == G_TYPE_NONE) {
+			g_base_info_unref ((GIBaseInfo *) info);
+			continue;
+		}
+
+		full_package = g_strconcat (package, "::", name, NULL);
+		dwarn ("  registering as %s\n", full_package);
 
 		switch (info_type) {
 		    case GI_INFO_TYPE_OBJECT:
@@ -2551,6 +2563,8 @@ _invoke (class, basename, namespace, method, ...)
 		       g_type_info_get_tag (arg_type),
 		       g_type_tag_to_string (g_type_info_get_tag (arg_type)),
 		       iinfo.is_automatic_arg[i]);
+
+		/* FIXME: Check g_arg_info_is_caller_allocates. */
 
 		/* FIXME: Check that i+method_offset+stack_offset<items before
 		 * calling ST, and generate a usage message otherwise. */
