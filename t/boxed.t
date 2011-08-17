@@ -6,11 +6,15 @@ use strict;
 use warnings;
 use Scalar::Util qw/weaken/;
 
-plan tests => 33;
+plan tests => 41;
 
 {
   my $boxed = GI::BoxedStruct->new;
   isa_ok ($boxed, 'GI::BoxedStruct');
+  is ($boxed->long_, 0);
+  is ($boxed->g_strv, undef);
+  is ($boxed->long_ (42), 0);
+  $boxed->inv;
   weaken $boxed;
   is ($boxed, undef);
 }
@@ -18,6 +22,8 @@ plan tests => 33;
 {
   my $boxed = GI::BoxedStruct::returnv ();
   isa_ok ($boxed, 'GI::BoxedStruct');
+  is ($boxed->long_, 42);
+  is_deeply ($boxed->g_strv, [qw/0 1 2/]);
   $boxed->inv;
   weaken $boxed;
   is ($boxed, undef);
@@ -29,6 +35,8 @@ plan tests => 33;
 {
   my $boxed = GI::BoxedStruct::out ();
   isa_ok ($boxed, 'GI::BoxedStruct');
+  is ($boxed->long_, 42);
+  # $boxed->g_strv contains garbage
   weaken $boxed;
   is ($boxed, undef);
   # make sure we haven't destroyed the static object
@@ -37,8 +45,12 @@ plan tests => 33;
 }
 
 {
-  my $boxed = GI::BoxedStruct::inout (GI::BoxedStruct::out ());
+  my $boxed_out = GI::BoxedStruct::out ();
+  my $boxed = GI::BoxedStruct::inout ($boxed_out);
   isa_ok ($boxed, 'GI::BoxedStruct');
+  is ($boxed->long_, 0);
+  is ($boxed_out->long_, 42);
+  # $boxed->g_strv contains garbage
   weaken $boxed;
   is ($boxed, undef);
 }

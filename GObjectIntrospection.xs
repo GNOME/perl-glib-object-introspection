@@ -208,6 +208,48 @@ get_function_info (GIRepository *repository,
 	return NULL;
 }
 
+/* Caller owns return value */
+static GIFieldInfo *
+get_field_info (GIBaseInfo *info, const gchar *field_name)
+{
+	GIInfoType info_type;
+	info_type = g_base_info_get_type (info);
+	switch (info_type) {
+	    case GI_INFO_TYPE_BOXED:
+	    case GI_INFO_TYPE_STRUCT:
+	    {
+		gint n_fields, i;
+		n_fields = g_struct_info_get_n_fields ((GIStructInfo *) info);
+		for (i = 0; i < n_fields; i++) {
+			GIFieldInfo *field_info;
+			field_info = g_struct_info_get_field ((GIStructInfo *) info, i);
+			if (0 == strcmp (field_name, g_base_info_get_name (field_info))) {
+				return field_info;
+			}
+			g_base_info_unref (field_info);
+		}
+		break;
+	    }
+	    case GI_INFO_TYPE_UNION:
+	    {
+		gint n_fields, i;
+		n_fields = g_union_info_get_n_fields ((GIStructInfo *) info);
+		for (i = 0; i < n_fields; i++) {
+			GIFieldInfo *field_info;
+			field_info = g_union_info_get_field ((GIStructInfo *) info, i);
+			if (0 == strcmp (field_name, g_base_info_get_name (field_info))) {
+				return field_info;
+			}
+			g_base_info_unref (field_info);
+		}
+		break;
+	    }
+	    default:
+		break;
+	}
+	return NULL;
+}
+
 /* ------------------------------------------------------------------------- */
 
 static gpointer
@@ -508,14 +550,14 @@ struct_to_sv (GIBaseInfo* info,
 }
 
 static gpointer
-sv_to_struct (GIArgInfo * arg_info,
+sv_to_struct (GITransfer transfer,
               GIBaseInfo * info,
               GIInfoType info_type,
               SV * sv)
 {
 	HV *hv;
 	gsize size = 0;
-	GITransfer transfer, field_transfer;
+	GITransfer field_transfer;
 	gpointer pointer = NULL;
 
 	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
@@ -540,7 +582,6 @@ sv_to_struct (GIArgInfo * arg_info,
 	dwarn ("  size: %d\n", size);
 
 	field_transfer = GI_TRANSFER_NOTHING;
-	transfer = g_arg_info_get_ownership_transfer (arg_info);
 	dwarn ("  transfer: %d\n", transfer);
 	switch (transfer) {
 	    case GI_TRANSFER_EVERYTHING:
@@ -677,13 +718,13 @@ array_to_sv (GITypeInfo *info,
 }
 
 static gpointer
-sv_to_array (GIArgInfo *arg_info,
+sv_to_array (GITransfer transfer,
              GITypeInfo *type_info,
              SV *sv,
              GPerlI11nInvocationInfo *iinfo)
 {
 	AV *av;
-	GITransfer transfer, item_transfer;
+	GITransfer item_transfer;
 	GITypeInfo *param_info;
 	gint i, length, length_pos;
 	GPerlI11nArrayInfo *array_info = NULL;
@@ -712,7 +753,6 @@ sv_to_array (GIArgInfo *arg_info,
 
 	av = (AV *) SvRV (sv);
 
-	transfer = g_arg_info_get_ownership_transfer (arg_info);
         item_transfer = transfer == GI_TRANSFER_CONTAINER
                       ? GI_TRANSFER_NOTHING
                       : transfer;
@@ -812,10 +852,10 @@ glist_to_sv (GITypeInfo* info,
 }
 
 static gpointer
-sv_to_glist (GIArgInfo * arg_info, GITypeInfo * type_info, SV * sv)
+sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * sv)
 {
 	AV *av;
-	GITransfer transfer, item_transfer;
+	GITransfer item_transfer;
 	gpointer list = NULL;
 	GITypeInfo *param_info;
 	gboolean is_slist;
@@ -831,7 +871,6 @@ sv_to_glist (GIArgInfo * arg_info, GITypeInfo * type_info, SV * sv)
 	av = (AV *) SvRV (sv);
 
 	item_transfer = GI_TRANSFER_NOTHING;
-	transfer = g_arg_info_get_ownership_transfer (arg_info);
 	switch (transfer) {
 	    case GI_TRANSFER_EVERYTHING:
 		item_transfer = GI_TRANSFER_EVERYTHING;
@@ -945,13 +984,13 @@ ghash_to_sv (GITypeInfo *info,
 }
 
 static gpointer
-sv_to_ghash (GIArgInfo *arg_info,
+sv_to_ghash (GITransfer transfer,
              GITypeInfo *type_info,
              SV *sv)
 {
 	HV *hv;
         HE *he;
-	GITransfer transfer, item_transfer;
+	GITransfer item_transfer;
 	gpointer hash;
 	GITypeInfo *key_param_info, *value_param_info;
         GITypeTag key_type_tag;
@@ -970,7 +1009,6 @@ sv_to_ghash (GIArgInfo *arg_info,
 	hv = (HV *) SvRV (sv);
 
 	item_transfer = GI_TRANSFER_NOTHING;
-	transfer = g_arg_info_get_ownership_transfer (arg_info);
 	switch (transfer) {
 	    case GI_TRANSFER_EVERYTHING:
 		item_transfer = GI_TRANSFER_EVERYTHING;
@@ -1067,6 +1105,7 @@ sv_to_interface (GIArgInfo * arg_info,
 {
 	GIBaseInfo *interface;
 	GIInfoType info_type;
+	GITransfer transfer;
 
 	interface = g_type_info_get_interface (type_info);
 	if (!interface)
@@ -1075,6 +1114,8 @@ sv_to_interface (GIArgInfo * arg_info,
 
 	dwarn ("    interface %p (%s) of type %d\n",
 	       interface, g_base_info_get_name (interface), info_type);
+
+	transfer = g_arg_info_get_ownership_transfer (arg_info);
 
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
@@ -1092,7 +1133,7 @@ sv_to_interface (GIArgInfo * arg_info,
 		               (GIRegisteredTypeInfo *) interface);
 		if (!type || type == G_TYPE_NONE) {
 			dwarn ("    unboxed type\n");
-			arg->v_pointer = sv_to_struct (arg_info,
+			arg->v_pointer = sv_to_struct (transfer,
 			                               interface,
 			                               info_type,
 			                               sv);
@@ -1336,7 +1377,7 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_ARRAY:
-                arg->v_pointer = sv_to_array (arg_info, type_info, sv, invocation_info);
+                arg->v_pointer = sv_to_array (transfer, type_info, sv, invocation_info);
 		break;
 
 	    case GI_TYPE_TAG_INTERFACE:
@@ -1347,11 +1388,11 @@ sv_to_arg (SV * sv,
 
 	    case GI_TYPE_TAG_GLIST:
 	    case GI_TYPE_TAG_GSLIST:
-		arg->v_pointer = sv_to_glist (arg_info, type_info, sv);
+		arg->v_pointer = sv_to_glist (transfer, type_info, sv);
 		break;
 
 	    case GI_TYPE_TAG_GHASH:
-                arg->v_pointer = sv_to_ghash (arg_info, type_info, sv);
+                arg->v_pointer = sv_to_ghash (transfer, type_info, sv);
 		break;
 
 	    case GI_TYPE_TAG_ERROR:
@@ -2028,6 +2069,57 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 /* ------------------------------------------------------------------------- */
 
 static void
+store_fields (HV *fields, GIBaseInfo *info, GIInfoType info_type)
+{
+	const gchar *namespace;
+	AV *av;
+	gint i;
+
+	namespace = g_base_info_get_name (info);
+	av = newAV ();
+
+	switch (info_type) {
+	    case GI_INFO_TYPE_BOXED:
+	    case GI_INFO_TYPE_STRUCT:
+	    {
+		gint n_fields = g_struct_info_get_n_fields (
+		                   (GIStructInfo *) info);
+		for (i = 0; i < n_fields; i++) {
+			GIFieldInfo *field_info;
+			const gchar *field_name;
+			field_info = g_struct_info_get_field ((GIStructInfo *) info, i);
+			field_name = g_base_info_get_name ((GIBaseInfo *) field_info);
+			av_push (av, newSVpv (field_name, PL_na));
+			g_base_info_unref ((GIBaseInfo *) field_info);
+		}
+		break;
+	    }
+
+	    case GI_INFO_TYPE_UNION:
+	    {
+                gint n_fields = g_union_info_get_n_fields ((GIUnionInfo *) info);
+                for (i = 0; i < n_fields; i++) {
+                        GIFieldInfo *field_info;
+                        const gchar *field_name;
+                        field_info = g_union_info_get_field ((GIUnionInfo *) info, i);
+                        field_name = g_base_info_get_name ((GIBaseInfo *) field_info);
+                        av_push (av, newSVpv (field_name, PL_na));
+                        g_base_info_unref ((GIBaseInfo *) field_info);
+                }
+                break;
+	    }
+
+	    default:
+		ccroak ("store_fields: unsupported info type %d", info_type);
+	}
+
+	gperl_hv_take_sv (fields, namespace, strlen (namespace),
+	                  newRV_noinc ((SV *) av));
+}
+
+/* ------------------------------------------------------------------------- */
+
+static void
 prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
                          GIFunctionInfo *info,
                          IV items,
@@ -2183,12 +2275,14 @@ _register_types (class, namespace, package)
 	AV *constants;
 	AV *global_functions;
 	HV *namespaced_functions;
+	HV *fields;
     PPCODE:
 	repository = g_irepository_get_default ();
 
 	constants = newAV ();
 	global_functions = newAV ();
 	namespaced_functions = newHV ();
+	fields = newHV ();
 
 	number = g_irepository_get_n_infos (repository, namespace);
 	for (i = 0; i < number; i++) {
@@ -2247,6 +2341,13 @@ _register_types (class, namespace, package)
 			store_methods (namespaced_functions, info, info_type);
 		}
 
+		if (info_type == GI_INFO_TYPE_BOXED ||
+		    info_type == GI_INFO_TYPE_STRUCT ||
+		    info_type == GI_INFO_TYPE_UNION)
+		{
+			store_fields (fields, info, info_type);
+		}
+
 		switch (info_type) {
 		    case GI_INFO_TYPE_OBJECT:
 		    case GI_INFO_TYPE_INTERFACE:
@@ -2279,8 +2380,9 @@ _register_types (class, namespace, package)
 	EXTEND (SP, 1);
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) namespaced_functions)));
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) constants)));
+	PUSHs (sv_2mortal (newRV_noinc ((SV *) fields)));
 
-void
+SV *
 _fetch_constant (class, basename, constant)
 	const gchar *basename
 	const gchar *constant
@@ -2289,7 +2391,7 @@ _fetch_constant (class, basename, constant)
 	GIConstantInfo *info;
 	GITypeInfo *type_info;
 	GIArgument value = {0,};
-    PPCODE:
+    CODE:
 	repository = g_irepository_get_default ();
 	info = g_irepository_find_by_name (repository, basename, constant);
 	if (!GI_IS_CONSTANT_INFO (info))
@@ -2297,10 +2399,88 @@ _fetch_constant (class, basename, constant)
 	type_info = g_constant_info_get_type (info);
 	/* FIXME: What am I suppossed to do with the return value? */
 	g_constant_info_get_value (info, &value);
-	EXTEND (sp, 1);
-	PUSHs (sv_2mortal (arg_to_sv (&value, type_info, GI_TRANSFER_NOTHING, NULL)));
+	RETVAL = arg_to_sv (&value, type_info, GI_TRANSFER_NOTHING, NULL);
 	g_base_info_unref ((GIBaseInfo *) type_info);
 	g_base_info_unref ((GIBaseInfo *) info);
+    OUTPUT:
+	RETVAL
+
+SV *
+_get_field (class, basename, namespace, field, invocant)
+	const gchar *basename
+	const gchar *namespace
+	const gchar *field
+	SV *invocant
+    PREINIT:
+	GIRepository *repository;
+	GIBaseInfo *namespace_info;
+	GIFieldInfo *field_info;
+	GType invocant_type;
+	gpointer boxed_mem;
+	GITypeInfo *type_info;
+	GIArgument value = {0,};
+    CODE:
+	repository = g_irepository_get_default ();
+	namespace_info = g_irepository_find_by_name (repository, basename, namespace);
+	if (!namespace_info)
+		ccroak ("Could not find information for namespace '%s'",
+		        namespace);
+	field_info = get_field_info (namespace_info, field);
+	if (!field_info)
+		ccroak ("Could not find field '%s' in namespace '%s'",
+		        field, namespace)
+	invocant_type = g_registered_type_info_get_g_type (namespace_info);
+	if (!g_type_is_a (invocant_type, G_TYPE_BOXED))
+		ccroak ("Unable to handle field access for type '%s'",
+		        g_type_name (invocant_type));
+	boxed_mem = gperl_get_boxed_check (invocant, invocant_type);
+	if (!g_field_info_get_field (field_info, boxed_mem, &value))
+		ccroak ("Could not get field '%s'", field);
+	type_info = g_field_info_get_type (field_info);
+	RETVAL = arg_to_sv (&value, type_info, GI_TRANSFER_NOTHING, NULL);
+	g_base_info_unref (type_info);
+	g_base_info_unref (field_info);
+	g_base_info_unref (namespace_info);
+    OUTPUT:
+	RETVAL
+
+void
+_set_field (class, basename, namespace, field, invocant, new_value)
+	const gchar *basename
+	const gchar *namespace
+	const gchar *field
+	SV *invocant
+	SV *new_value
+    PREINIT:
+	GIRepository *repository;
+	GIBaseInfo *namespace_info;
+	GIFieldInfo *field_info;
+	GType invocant_type;
+	gpointer boxed_mem;
+	GITypeInfo *type_info;
+	GIArgument value = {0,};
+    CODE:
+	repository = g_irepository_get_default ();
+	namespace_info = g_irepository_find_by_name (repository, basename, namespace);
+	if (!namespace_info)
+		ccroak ("Could not find information for namespace '%s'",
+		        namespace);
+	field_info = get_field_info (namespace_info, field);
+	if (!field_info)
+		ccroak ("Could not find field '%s' in namespace '%s'",
+		        field, namespace)
+	invocant_type = g_registered_type_info_get_g_type (namespace_info);
+	if (!g_type_is_a (invocant_type, G_TYPE_BOXED))
+		ccroak ("Unable to handle field access for type '%s'",
+		        g_type_name (invocant_type));
+	type_info = g_field_info_get_type (field_info);
+	sv_to_arg (new_value, &value, NULL, type_info, GI_TRANSFER_NOTHING, TRUE, NULL);
+	boxed_mem = gperl_get_boxed_check (invocant, invocant_type);
+	if (!g_field_info_set_field (field_info, boxed_mem, &value))
+		ccroak ("Could not set field '%s'", field);
+	g_base_info_unref (type_info);
+	g_base_info_unref (field_info);
+	g_base_info_unref (namespace_info);
 
 void
 _invoke (class, basename, namespace, method, ...)

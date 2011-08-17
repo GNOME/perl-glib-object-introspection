@@ -41,7 +41,7 @@ sub setup {
 
   __PACKAGE__->_load_library($basename, $version, $search_path);
 
-  my ($functions, $constants) =
+  my ($functions, $constants, $fields) =
     __PACKAGE__->_register_types($basename, $package);
 
   no strict qw(refs);
@@ -80,6 +80,25 @@ sub setup {
       }
       return $value;
     };
+  }
+
+  foreach my $namespace (keys %{$fields}) {
+    foreach my $name (@{$fields->{$namespace}}) {
+      my $auto_name = $package . '::' . $namespace . '::' . $name;
+      my $corrected_name = exists $name_corrections->{$auto_name}
+        ? $name_corrections->{$auto_name}
+        : $auto_name;
+      *{$corrected_name} = sub {
+        my ($invocant, $new_value) = @_;
+        my $old_value = __PACKAGE__->_get_field($basename, $namespace, $name,
+                                                $invocant);
+        if (defined $new_value) {
+          __PACKAGE__->_set_field($basename, $namespace, $name,
+                                  $invocant, $new_value);
+        }
+        return $old_value;
+      };
+    }
   }
 }
 
