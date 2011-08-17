@@ -485,6 +485,89 @@ size_of_type_info (GITypeInfo *type_info)
 /* ------------------------------------------------------------------------- */
 
 static SV *
+get_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer)
+{
+	GITypeInfo *field_type;
+	GIBaseInfo *interface_info;
+	GIArgument value;
+	SV *sv = NULL;
+
+	field_type = g_field_info_get_type (field_info);
+	interface_info = g_type_info_get_interface (field_type);
+
+	/* This case is not handled by g_field_info_set_field. */
+	if (!g_type_info_is_pointer (field_type) &&
+	    g_type_info_get_tag (field_type) == GI_TYPE_TAG_INTERFACE &&
+	    g_base_info_get_type (interface_info) == GI_INFO_TYPE_STRUCT)
+	{
+		gsize offset;
+		offset = g_field_info_get_offset (field_info);
+		value.v_pointer = mem + offset;
+		sv = arg_to_sv (&value,
+		                field_type,
+		                GI_TRANSFER_NOTHING,
+		                NULL);
+	} else if (g_field_info_get_field (field_info, mem, &value)) {
+		sv = arg_to_sv (&value,
+		                field_type,
+		                transfer,
+		                NULL);
+	} else {
+		warn ("*** Could not get field '%s'",
+		      g_base_info_get_name (field_info));
+	}
+
+	if (interface_info)
+		g_base_info_unref (interface_info);
+	g_base_info_unref ((GIBaseInfo *) field_type);
+
+	return sv;
+}
+
+static void
+set_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer, SV *value)
+{
+	GITypeInfo *field_type;
+	GIBaseInfo *interface_info;
+	GIArgument arg;
+
+	field_type = g_field_info_get_type (field_info);
+	interface_info = g_type_info_get_interface (field_type);
+
+	/* FIXME: No GIArgInfo and no
+	 * GPerlI11nInvocationInfo here.  What if the
+	 * struct contains an object pointer, or a
+	 * callback field?  And is it OK to always
+	 * allow undef? */
+
+	/* This case is not handled by g_field_info_set_field. */
+	if (!g_type_info_is_pointer (field_type) &&
+	    g_type_info_get_tag (field_type) == GI_TYPE_TAG_INTERFACE &&
+	    g_base_info_get_type (interface_info) == GI_INFO_TYPE_STRUCT)
+	{
+		gsize offset;
+		gssize size;
+		/* Enforce GI_TRANSFER_NOTHING since we will copy into the
+		 * memory that has already been allocated inside 'mem' */
+		sv_to_arg (value, &arg, NULL, field_type,
+		           GI_TRANSFER_NOTHING, TRUE, NULL);
+		offset = g_field_info_get_offset (field_info);
+		size = g_struct_info_get_size (interface_info);
+		g_memmove (mem + offset, arg.v_pointer, size);
+	} else {
+		sv_to_arg (value, &arg, NULL, field_type,
+		           transfer, TRUE, NULL);
+		if (!g_field_info_set_field (field_info, mem, &arg))
+			warn ("*** Could not set field '%s'",
+			      g_base_info_get_name (field_info));
+	}
+
+	if (interface_info)
+		g_base_info_unref (interface_info);
+	g_base_info_unref (field_type);
+}
+
+static SV *
 struct_to_sv (GIBaseInfo* info,
               GIInfoType info_type,
               gpointer pointer,
@@ -508,26 +591,20 @@ struct_to_sv (GIBaseInfo* info,
 			g_struct_info_get_n_fields ((GIStructInfo *) info);
 		for (i = 0; i < n_fields; i++) {
 			GIFieldInfo *field_info;
-			GITypeInfo *field_type;
-			GIArgument value;
+			SV *sv;
 			field_info =
 				g_struct_info_get_field ((GIStructInfo *) info, i);
-			field_type = g_field_info_get_type (field_info);
 			/* FIXME: Check GIFieldInfoFlags. */
-			if (g_field_info_get_field (field_info, pointer, &value)) {
-				/* FIXME: Is it right to use
-				 * GI_TRANSFER_NOTHING here? */
-				SV *sv;
+			/* FIXME: Is it right to use GI_TRANSFER_NOTHING
+			 * here? */
+			sv = get_field (field_info, pointer,
+			                GI_TRANSFER_NOTHING);
+			if (gperl_sv_is_defined (sv)) {
 				const gchar *name;
-				sv = arg_to_sv (&value,
-				                field_type,
-				                GI_TRANSFER_NOTHING,
-				                NULL);
 				name = g_base_info_get_name (
 				         (GIBaseInfo *) field_info);
 				gperl_hv_take_sv (hv, name, strlen (name), sv);
 			}
-			g_base_info_unref ((GIBaseInfo *) field_type);
 			g_base_info_unref ((GIBaseInfo *) field_info);
 		}
 		break;
@@ -615,19 +692,8 @@ sv_to_struct (GITransfer transfer,
 			               (GIBaseInfo *) field_info);
 			svp = hv_fetch (hv, field_name, strlen (field_name), 0);
 			if (svp && gperl_sv_is_defined (*svp)) {
-				GITypeInfo *field_type;
-				GIArgument arg;
-				field_type = g_field_info_get_type (field_info);
-				/* FIXME: No GIArgInfo and no
-				 * GPerlI11nInvocationInfo here.  What if the
-				 * struct contains an object pointer, or a
-				 * callback field?  And is it OK to always
-				 * allow undef? */
-				sv_to_arg (*svp, &arg, NULL, field_type,
-				           field_transfer, TRUE, NULL);
-				g_field_info_set_field (field_info, pointer,
-				                        &arg);
-				g_base_info_unref ((GIBaseInfo *) field_type);
+				set_field (field_info, pointer,
+				           field_transfer, *svp);
 			}
 			g_base_info_unref ((GIBaseInfo *) field_info);
 		}
@@ -1130,8 +1196,9 @@ sv_to_interface (GIArgInfo * arg_info,
 		GType type = g_registered_type_info_get_g_type (
 		               (GIRegisteredTypeInfo *) interface);
 		if (!type || type == G_TYPE_NONE) {
-			GITransfer transfer =
-				g_arg_info_get_ownership_transfer (arg_info);
+			GITransfer transfer = arg_info
+				? g_arg_info_get_ownership_transfer (arg_info)
+				: GI_TRANSFER_NOTHING;
 			dwarn ("    unboxed type\n");
 			arg->v_pointer = sv_to_struct (transfer,
 			                               interface,
@@ -1207,23 +1274,20 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own)
 	    case GI_INFO_TYPE_STRUCT:
 	    case GI_INFO_TYPE_BOXED:
 	    {
+		/* FIXME: What about pass-by-value here? */
 		GType type;
-		gpointer pointer;
 		type = g_registered_type_info_get_g_type (
 		               (GIRegisteredTypeInfo *) interface);
-		pointer = g_type_info_is_pointer (info)
-			? arg->v_pointer
-			: &arg->v_pointer;
 		if (!type || type == G_TYPE_NONE) {
 			dwarn ("    unboxed type\n");
-			sv = struct_to_sv (interface, info_type, pointer, own);
+			sv = struct_to_sv (interface, info_type, arg->v_pointer, own);
 		} else if (type == G_TYPE_VALUE) {
 			dwarn ("    value type\n");
-			sv = gperl_sv_from_value (pointer);
+			sv = gperl_sv_from_value (arg->v_pointer);
 		} else {
 			dwarn ("    boxed type: %d (%s)\n",
 			       type, g_type_name (type));
-			sv = gperl_new_boxed (pointer, type, own);
+			sv = gperl_new_boxed (arg->v_pointer, type, own);
 		}
 		break;
 	    }
@@ -2429,8 +2493,6 @@ _get_field (class, basename, namespace, field, invocant)
 	GIFieldInfo *field_info;
 	GType invocant_type;
 	gpointer boxed_mem;
-	GITypeInfo *type_info;
-	GIArgument value = {0,};
     CODE:
 	repository = g_irepository_get_default ();
 	namespace_info = g_irepository_find_by_name (repository, basename, namespace);
@@ -2446,11 +2508,7 @@ _get_field (class, basename, namespace, field, invocant)
 		ccroak ("Unable to handle field access for type '%s'",
 		        g_type_name (invocant_type));
 	boxed_mem = gperl_get_boxed_check (invocant, invocant_type);
-	if (!g_field_info_get_field (field_info, boxed_mem, &value))
-		ccroak ("Could not get field '%s'", field);
-	type_info = g_field_info_get_type (field_info);
-	RETVAL = arg_to_sv (&value, type_info, GI_TRANSFER_NOTHING, NULL);
-	g_base_info_unref (type_info);
+	RETVAL = get_field (field_info, boxed_mem, GI_TRANSFER_NOTHING);
 	g_base_info_unref (field_info);
 	g_base_info_unref (namespace_info);
     OUTPUT:
@@ -2469,8 +2527,6 @@ _set_field (class, basename, namespace, field, invocant, new_value)
 	GIFieldInfo *field_info;
 	GType invocant_type;
 	gpointer boxed_mem;
-	GITypeInfo *type_info;
-	GIArgument value = {0,};
     CODE:
 	repository = g_irepository_get_default ();
 	namespace_info = g_irepository_find_by_name (repository, basename, namespace);
@@ -2485,12 +2541,9 @@ _set_field (class, basename, namespace, field, invocant, new_value)
 	if (!g_type_is_a (invocant_type, G_TYPE_BOXED))
 		ccroak ("Unable to handle field access for type '%s'",
 		        g_type_name (invocant_type));
-	type_info = g_field_info_get_type (field_info);
-	sv_to_arg (new_value, &value, NULL, type_info, GI_TRANSFER_NOTHING, TRUE, NULL);
 	boxed_mem = gperl_get_boxed_check (invocant, invocant_type);
-	if (!g_field_info_set_field (field_info, boxed_mem, &value))
-		ccroak ("Could not set field '%s'", field);
-	g_base_info_unref (type_info);
+	/* FIXME: GI_TRANSFER_EVERYTHING, right? */
+	set_field (field_info, boxed_mem, GI_TRANSFER_NOTHING, new_value);
 	g_base_info_unref (field_info);
 	g_base_info_unref (namespace_info);
 
