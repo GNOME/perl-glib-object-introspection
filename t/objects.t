@@ -8,24 +8,24 @@ use Scalar::Util qw/weaken/;
 
 plan tests => 41;
 
-my $obj = TestObj->constructor;
-isa_ok ($obj, 'TestObj');
+my $obj = Regress::TestObj->constructor;
+isa_ok ($obj, 'Regress::TestObj');
 isa_ok ($obj, 'Glib::Object');
 
-$obj = TestObj->new ($obj);
-isa_ok ($obj, 'TestObj');
+$obj = Regress::TestObj->new ($obj);
+isa_ok ($obj, 'Regress::TestObj');
 isa_ok ($obj, 'Glib::Object');
 
 weaken $obj;
 is ($obj, undef);
 
-$obj = TestObj->new_from_file ($0);
-isa_ok ($obj, 'TestObj');
+$obj = Regress::TestObj->new_from_file ($0);
+isa_ok ($obj, 'Regress::TestObj');
 isa_ok ($obj, 'Glib::Object');
 
-$obj->set_bare (TestObj->constructor);
+$obj->set_bare (Regress::TestObj->constructor);
 is ($obj->instance_method, -1);
-is (TestObj::static_method (23), 23);
+is (Regress::TestObj::static_method (23), 23);
 $obj->forced_method;
 
 my ($y, $z, $q) = $obj->torture_signature_0 (23, 'perl', 42);
@@ -67,30 +67,30 @@ like ($@, qr/odd/);
 
 is ($obj->do_matrix ('perl'), 42);
 
-func_obj_null_in ($obj);
-func_obj_null_in (undef);
-is (TestObj::null_out (), undef);
+Regress::func_obj_null_in ($obj);
+Regress::func_obj_null_in (undef);
+is (Regress::TestObj::null_out (), undef);
 
 # inheritance
-my $sub = TestSubObj->new;
-isa_ok ($sub, 'TestSubObj');
-isa_ok ($sub, 'TestObj');
+my $sub = Regress::TestSubObj->new;
+isa_ok ($sub, 'Regress::TestSubObj');
+isa_ok ($sub, 'Regress::TestObj');
 isa_ok ($sub, 'Glib::Object');
 $sub->unset_bare;
 is ($sub->instance_method, 0);
 
 # unusual prefix
-my $wi = TestWi8021x->new;
-isa_ok ($wi, 'TestWi8021x');
+my $wi = Regress::TestWi8021x->new;
+isa_ok ($wi, 'Regress::TestWi8021x');
 isa_ok ($wi, 'Glib::Object');
 $wi->set_testbool (1);
 ok ($wi->get_testbool);
-is (TestWi8021x::static_method (23), 46);
+is (Regress::TestWi8021x::static_method (23), 46);
 
 # floating objects
 SKIP: {
-  my $fl = TestFloating->new;
-  isa_ok ($fl, 'TestFloating');
+  my $fl = Regress::TestFloating->new;
+  isa_ok ($fl, 'Regress::TestFloating');
   isa_ok ($fl, 'Glib::InitiallyUnowned');
   isa_ok ($fl, 'Glib::Object');
 

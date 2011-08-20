@@ -14,7 +14,7 @@ unless (defined $ENV{LD_LIBRARY_PATH} &&
 Glib::Object::Introspection->setup(
   basename => 'Regress',
   version => '1.0',
-  package => 'main',
+  package => 'Regress',
   search_path => 'build');
 
 Glib::Object::Introspection->setup(

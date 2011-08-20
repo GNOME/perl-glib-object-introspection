@@ -58,8 +58,8 @@ plan tests => 41;
 # --------------------------------------------------------------------------- #
 
 {
-  my $boxed = TestSimpleBoxedA::const_return ();
-  isa_ok ($boxed, 'TestSimpleBoxedA');
+  my $boxed = Regress::TestSimpleBoxedA::const_return ();
+  isa_ok ($boxed, 'Regress::TestSimpleBoxedA');
   isa_ok ($boxed, 'Glib::Boxed');
   my $copy = $boxed->copy;
   ok ($boxed->equals ($copy));
@@ -70,11 +70,11 @@ plan tests => 41;
 }
 
 {
-  my $boxed = TestBoxed->new;
-  isa_ok ($boxed, 'TestBoxed');
+  my $boxed = Regress::TestBoxed->new;
+  isa_ok ($boxed, 'Regress::TestBoxed');
   isa_ok ($boxed, 'Glib::Boxed');
   my $copy = $boxed->copy;
-  isa_ok ($boxed, 'TestBoxed');
+  isa_ok ($boxed, 'Regress::TestBoxed');
   isa_ok ($boxed, 'Glib::Boxed');
   ok ($boxed->equals ($copy));
   weaken $boxed;
@@ -82,20 +82,20 @@ plan tests => 41;
   weaken $copy;
   is ($copy, undef);
 
-  $boxed = TestBoxed->new_alternative_constructor1 (23);
-  isa_ok ($boxed, 'TestBoxed');
+  $boxed = Regress::TestBoxed->new_alternative_constructor1 (23);
+  isa_ok ($boxed, 'Regress::TestBoxed');
   isa_ok ($boxed, 'Glib::Boxed');
   weaken $boxed;
   is ($boxed, undef);
 
-  $boxed = TestBoxed->new_alternative_constructor2 (23, 42);
-  isa_ok ($boxed, 'TestBoxed');
+  $boxed = Regress::TestBoxed->new_alternative_constructor2 (23, 42);
+  isa_ok ($boxed, 'Regress::TestBoxed');
   isa_ok ($boxed, 'Glib::Boxed');
   weaken $boxed;
   is ($boxed, undef);
 
-  $boxed = TestBoxed->new_alternative_constructor3 ("perl");
-  isa_ok ($boxed, 'TestBoxed');
+  $boxed = Regress::TestBoxed->new_alternative_constructor3 ("perl");
+  isa_ok ($boxed, 'Regress::TestBoxed');
   isa_ok ($boxed, 'Glib::Boxed');
   weaken $boxed;
   is ($boxed, undef);

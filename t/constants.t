@@ -7,7 +7,7 @@ use warnings;
 
 plan tests => 4;
 
-is (INT_CONSTANT, 4422);
-delta_ok (DOUBLE_CONSTANT, 44.22);
-is (STRING_CONSTANT, "Some String");
-is (Mixed_Case_Constant, 4423);
+is (Regress::INT_CONSTANT, 4422);
+delta_ok (Regress::DOUBLE_CONSTANT, 44.22);
+is (Regress::STRING_CONSTANT, "Some String");
+is (Regress::Mixed_Case_Constant, 4423);

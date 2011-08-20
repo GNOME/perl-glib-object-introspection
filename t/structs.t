@@ -29,7 +29,7 @@ plan tests => 6;
 {
   my $expected_struct = {
     some_int => 23, some_int8 => 42, some_double => 11, some_enum => 'value1'};
-  is_deeply (TestStructA::clone ($expected_struct), $expected_struct);
+  is_deeply (Regress::TestStructA::clone ($expected_struct), $expected_struct);
 }
 
 {
@@ -38,5 +38,5 @@ plan tests => 6;
     nested_a => {
       some_int => 23, some_int8 => 42,
       some_double => 11, some_enum => 'value1'}};
-  is_deeply (TestStructB::clone ($expected_struct), $expected_struct);
+  is_deeply (Regress::TestStructB::clone ($expected_struct), $expected_struct);
 }
