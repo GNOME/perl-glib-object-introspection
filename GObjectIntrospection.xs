@@ -2589,8 +2589,14 @@ _set_field (class, basename, namespace, field, invocant, new_value)
 		ccroak ("Unable to handle field access for type '%s'",
 		        g_type_name (invocant_type));
 	boxed_mem = gperl_get_boxed_check (invocant, invocant_type);
-	/* FIXME: GI_TRANSFER_EVERYTHING, right? */
-	set_field (field_info, boxed_mem, GI_TRANSFER_NOTHING, new_value);
+	/* Conceptually, we need to always transfer ownership to the boxed
+	 * object for things like strings.  The memory would then be freed by
+	 * the boxed free func.  But to do this correctly, we would need to
+	 * free the memory that we are about to abandon by installing a new
+	 * pointer.  We can't know what free function to use, though.  So
+	 * g_field_info_set_field, and by extension set_field, simply refuse to
+	 * set any member that would require such memory management. */
+	set_field (field_info, boxed_mem, GI_TRANSFER_EVERYTHING, new_value);
 	g_base_info_unref (field_info);
 	g_base_info_unref (namespace_info);
 
