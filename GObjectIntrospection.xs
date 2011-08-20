@@ -2245,13 +2245,14 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	 * we'll only use as much as we need.  since function argument lists
 	 * are typically small, this shouldn't be a big problem. */
 	if (iinfo->n_invoke_args) {
-		iinfo->in_args = gperl_alloc_temp (sizeof (GIArgument) * iinfo->n_invoke_args);
-		iinfo->out_args = gperl_alloc_temp (sizeof (GIArgument) * iinfo->n_invoke_args);
-		iinfo->out_arg_infos = gperl_alloc_temp (sizeof (GITypeInfo*) * iinfo->n_invoke_args);
-		iinfo->arg_types = gperl_alloc_temp (sizeof (ffi_type *) * iinfo->n_invoke_args);
-		iinfo->args = gperl_alloc_temp (sizeof (gpointer) * iinfo->n_invoke_args);
-		iinfo->aux_args = gperl_alloc_temp (sizeof (GIArgument) * iinfo->n_invoke_args);
-		iinfo->is_automatic_arg = gperl_alloc_temp (sizeof (gboolean) * iinfo->n_invoke_args);
+		gint n = iinfo->n_invoke_args;
+		iinfo->in_args = gperl_alloc_temp (sizeof (GIArgument) * n);
+		iinfo->out_args = gperl_alloc_temp (sizeof (GIArgument) * n);
+		iinfo->out_arg_infos = gperl_alloc_temp (sizeof (GITypeInfo*) * n);
+		iinfo->arg_types = gperl_alloc_temp (sizeof (ffi_type *) * n);
+		iinfo->args = gperl_alloc_temp (sizeof (gpointer) * n);
+		iinfo->aux_args = gperl_alloc_temp (sizeof (GIArgument) * n);
+		iinfo->is_automatic_arg = gperl_alloc_temp (sizeof (gboolean) * n);
 	}
 
 	iinfo->method_offset = iinfo->is_method ? 1 : 0;
@@ -2318,6 +2319,52 @@ clear_invocation_info (GPerlI11nInvocationInfo *iinfo)
 	g_slist_free (iinfo->array_infos);
 
 	g_base_info_unref ((GIBaseInfo *) iinfo->return_type_info);
+}
+
+/* ------------------------------------------------------------------------- */
+
+static gpointer
+allocate_out_mem (GITypeInfo *arg_type)
+{
+	GIBaseInfo *interface_info;
+	GIInfoType type;
+
+	interface_info = g_type_info_get_interface (arg_type);
+	g_assert (interface_info);
+	type = g_base_info_get_type (interface_info);
+	g_base_info_unref (interface_info);
+
+	switch (type) {
+	    case GI_INFO_TYPE_STRUCT:
+	    {
+		gsize size = g_struct_info_get_size (interface_info);
+		return g_malloc0 (size);
+	    }
+	    default:
+		g_assert_not_reached ();
+		return NULL;
+	}
+}
+
+static void
+free_out_mem (GITypeInfo *arg_type, gpointer mem)
+{
+	GIBaseInfo *interface_info;
+	GIInfoType type;
+
+	interface_info = g_type_info_get_interface (arg_type);
+	g_assert (interface_info);
+	type = g_base_info_get_type (interface_info);
+	g_base_info_unref (interface_info);
+
+	switch (type) {
+	    case GI_INFO_TYPE_STRUCT:
+	    {
+		return g_free (mem);
+	    }
+	    default:
+		g_assert_not_reached ();
+	}
 }
 
 /* ------------------------------------------------------------------------- */
@@ -2611,13 +2658,12 @@ _invoke (class, basename, namespace, method, ...)
 		 * point. */
 		iinfo.current_pos = i; /* + method_offset; */
 
-		dwarn ("  arg %d, tag: %d (%s), is_automatic: %d\n",
+		dwarn ("  arg %d, tag: %d (%s), is_pointer: %d, is_automatic: %d\n",
 		       i,
 		       g_type_info_get_tag (arg_type),
 		       g_type_tag_to_string (g_type_info_get_tag (arg_type)),
+		       g_type_info_is_pointer (arg_type),
 		       iinfo.is_automatic_arg[i]);
-
-		/* FIXME: Check g_arg_info_is_caller_allocates. */
 
 		/* FIXME: Check that i+method_offset+stack_offset<items before
 		 * calling ST, and generate a usage message otherwise. */
@@ -2641,10 +2687,17 @@ _invoke (class, basename, namespace, method, ...)
 			break;
 
 		    case GI_DIRECTION_OUT:
-			iinfo.out_args[i].v_pointer = &iinfo.aux_args[i];
+			if (g_arg_info_is_caller_allocates (arg_info)) {
+				iinfo.aux_args[i].v_pointer =
+					allocate_out_mem (arg_type);
+				iinfo.out_args[i].v_pointer = &iinfo.aux_args[i];
+				iinfo.args[ffi_stack_pos] = &iinfo.aux_args[i];
+			} else {
+				iinfo.out_args[i].v_pointer = &iinfo.aux_args[i];
+				iinfo.args[ffi_stack_pos] = &iinfo.out_args[i];
+			}
 			iinfo.out_arg_infos[i] = arg_type;
 			iinfo.arg_types[ffi_stack_pos] = &ffi_type_pointer;
-			iinfo.args[ffi_stack_pos] = &iinfo.out_args[i];
 			/* Adjust the dynamic stack offset so that this out
 			 * argument doesn't inadvertedly eat up an in argument. */
 			iinfo.dynamic_stack_offset--;
@@ -2769,6 +2822,16 @@ _invoke (class, basename, namespace, method, ...)
 			if (sv) {
 				XPUSHs (sv_2mortal (sv));
 				n_return_values++;
+			}
+			/* if we own the thing, then arg_to_sv has already
+			 * taken care of the memory. */
+			if (g_arg_info_is_caller_allocates (arg_info) &&
+			    transfer == GI_TRANSFER_NOTHING)
+			{
+				GITypeInfo *arg_type =
+					g_arg_info_get_type (arg_info);
+				free_out_mem (arg_type, iinfo.aux_args[i].v_pointer);
+				g_base_info_unref (arg_type);
 			}
 			g_base_info_unref ((GIBaseInfo*) iinfo.out_arg_infos[i]);
 			break;
