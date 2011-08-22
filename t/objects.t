@@ -94,7 +94,6 @@ SKIP: {
   isa_ok ($fl, 'Glib::InitiallyUnowned');
   isa_ok ($fl, 'Glib::Object');
 
-  skip 'floating objects ref counting', 1; # FIXME: Glib->CHECK_VERSION
   weaken $fl;
   is ($fl, undef);
 }
