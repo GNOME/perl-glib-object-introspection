@@ -399,7 +399,15 @@ size_of_interface (GITypeInfo *type_info)
 		if (g_type_info_is_pointer (type_info)) {
 			size = sizeof (gpointer);
 		} else {
-			size = g_struct_info_get_size ((GIStructInfo *) info);
+			/* FIXME: Remove this workaround once
+			 * gobject-introspection is fixed:
+			 * <https://bugzilla.gnome.org/show_bug.cgi?id=657040>. */
+			GType type = g_registered_type_info_get_g_type (info);
+			if (type == G_TYPE_VALUE) {
+				size = sizeof (GValue);
+			} else {
+				size = g_struct_info_get_size ((GIStructInfo *) info);
+			}
 		}
 		break;
 
@@ -2355,7 +2363,9 @@ allocate_out_mem (GITypeInfo *arg_type)
 	switch (type) {
 	    case GI_INFO_TYPE_STRUCT:
 	    {
-		gsize size = g_struct_info_get_size (interface_info);
+		/* No plain g_struct_info_get_size (interface_info) here so
+		 * that we get the GValue override. */
+		gsize size = size_of_interface (arg_type);
 		return g_malloc0 (size);
 	    }
 	    default:
