@@ -59,6 +59,28 @@ call_carp_croak (const char *msg)
 
 /* ------------------------------------------------------------------------- */
 
+/* Semi-private package for marshalling into GValues. */
+#define GVALUE_WRAPPER_PACKAGE "Glib::Object::Introspection::GValueWrapper"
+
+static GValue *
+SvGValueWrapper (SV *sv)
+{
+	return sv_derived_from (sv, GVALUE_WRAPPER_PACKAGE)
+		? INT2PTR (GValue*, SvIV (SvRV (sv)))
+		: NULL;
+}
+
+static SV *
+newSVGValueWrapper (GValue *v)
+{
+	SV *sv;
+	sv = newSV (0);
+	sv_setref_pv (sv, GVALUE_WRAPPER_PACKAGE, v);
+	return sv;
+}
+
+/* ------------------------------------------------------------------------- */
+
 typedef struct {
 	ffi_cif *cif;
 	ffi_closure *closure;
@@ -1236,7 +1258,9 @@ sv_to_interface (GIArgInfo * arg_info,
 			arg->v_pointer = gperl_closure_new (sv, NULL, FALSE);
 		} else if (type == G_TYPE_VALUE) {
 			dwarn ("    value type\n");
-			croak ("Cannot convert SV to GValue");
+			arg->v_pointer = SvGValueWrapper (sv);
+			if (!arg->v_pointer)
+				croak ("Cannot convert arbitrary SV to GValue");
 		} else {
 			dwarn ("    boxed type: %s (%d)\n",
 			       g_type_name (type), type);
@@ -1310,6 +1334,7 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own)
 		} else if (type == G_TYPE_VALUE) {
 			dwarn ("    value type\n");
 			sv = gperl_sv_from_value (arg->v_pointer);
+			/* FIXME: Check 'own'. */
 		} else {
 			dwarn ("    boxed type: %d (%s)\n",
 			       type, g_type_name (type));
@@ -2863,3 +2888,32 @@ _invoke (class, basename, namespace, method, ...)
 		PUTBACK;
 		return;
 	}
+
+# --------------------------------------------------------------------------- #
+
+MODULE = Glib::Object::Introspection	PACKAGE = Glib::Object::Introspection::GValueWrapper
+
+SV *
+new (class, const gchar *type_package, SV *perl_value)
+    PREINIT:
+	GType type;
+	GValue *v;
+    CODE:
+	type = gperl_type_from_package (type_package);
+	if (!type)
+		croak ("Could not find GType for '%s'", type_package);
+	v = g_new0 (GValue, 1);
+	g_value_init (v, type);
+	gperl_value_from_sv (v, perl_value);
+	RETVAL = newSVGValueWrapper (v);
+    OUTPUT:
+	RETVAL
+
+void
+DESTROY (SV *sv)
+    PREINIT:
+	GValue *v;
+    CODE:
+	v = SvGValueWrapper (sv);
+	g_value_unset (v);
+	g_free (v);
