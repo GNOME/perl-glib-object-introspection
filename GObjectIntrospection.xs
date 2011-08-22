@@ -1503,14 +1503,14 @@ sv_to_arg (SV * sv,
 
 	    case GI_TYPE_TAG_UTF8:
 		arg->v_string = gperl_sv_is_defined (sv) ? SvGChar (sv) : NULL;
-		if (transfer == GI_TRANSFER_EVERYTHING)
+		if (transfer >= GI_TRANSFER_CONTAINER)
 			arg->v_string = g_strdup (arg->v_string);
 		break;
 
 	    case GI_TYPE_TAG_FILENAME:
 		/* FIXME: Is it correct to use gperl_filename_from_sv here? */
 		arg->v_string = gperl_sv_is_defined (sv) ? gperl_filename_from_sv (sv) : NULL;
-		if (transfer == GI_TRANSFER_EVERYTHING)
+		if (transfer >= GI_TRANSFER_CONTAINER)
 			arg->v_string = g_strdup (arg->v_string);
 		break;
 
@@ -1526,7 +1526,7 @@ arg_to_sv (GIArgument * arg,
            GPerlI11nInvocationInfo *iinfo)
 {
 	GITypeTag tag = g_type_info_get_tag (info);
-	gboolean own = transfer == GI_TRANSFER_EVERYTHING;
+	gboolean own = transfer >= GI_TRANSFER_CONTAINER;
 
 	dwarn ("  arg_to_sv: info %p with type tag %d (%s)\n",
 	       info, tag, g_type_tag_to_string (tag));
@@ -2374,27 +2374,6 @@ allocate_out_mem (GITypeInfo *arg_type)
 	}
 }
 
-static void
-free_out_mem (GITypeInfo *arg_type, gpointer mem)
-{
-	GIBaseInfo *interface_info;
-	GIInfoType type;
-
-	interface_info = g_type_info_get_interface (arg_type);
-	g_assert (interface_info);
-	type = g_base_info_get_type (interface_info);
-	g_base_info_unref (interface_info);
-
-	switch (type) {
-	    case GI_INFO_TYPE_STRUCT:
-	    {
-		return g_free (mem);
-	    }
-	    default:
-		g_assert_not_reached ();
-	}
-}
-
 /* ------------------------------------------------------------------------- */
 
 MODULE = Glib::Object::Introspection	PACKAGE = Glib::Object::Introspection
@@ -2847,25 +2826,19 @@ _invoke (class, basename, namespace, method, ...)
 		    case GI_DIRECTION_OUT:
 		    case GI_DIRECTION_INOUT:
 		    {
-			GITransfer transfer =
-				g_arg_info_get_ownership_transfer (arg_info);
-			SV *sv = arg_to_sv (iinfo.out_args[i].v_pointer,
-			                    iinfo.out_arg_infos[i],
-			                    transfer,
-			                    &iinfo);
+			GITransfer transfer;
+			SV *sv;
+			/* If we allocated the memory ourselves, we always own it. */
+			transfer = g_arg_info_is_caller_allocates (arg_info)
+			         ? GI_TRANSFER_CONTAINER
+			         : g_arg_info_get_ownership_transfer (arg_info);
+			sv = arg_to_sv (iinfo.out_args[i].v_pointer,
+			                iinfo.out_arg_infos[i],
+			                transfer,
+			                &iinfo);
 			if (sv) {
 				XPUSHs (sv_2mortal (sv));
 				n_return_values++;
-			}
-			/* if we own the thing, then arg_to_sv has already
-			 * taken care of the memory. */
-			if (g_arg_info_is_caller_allocates (arg_info) &&
-			    transfer == GI_TRANSFER_NOTHING)
-			{
-				GITypeInfo *arg_type =
-					g_arg_info_get_type (arg_info);
-				free_out_mem (arg_type, iinfo.aux_args[i].v_pointer);
-				g_base_info_unref (arg_type);
 			}
 			g_base_info_unref ((GIBaseInfo*) iinfo.out_arg_infos[i]);
 			break;
