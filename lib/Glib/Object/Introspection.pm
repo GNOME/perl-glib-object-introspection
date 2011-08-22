@@ -49,6 +49,7 @@ sub setup {
 
   foreach my $namespace (keys %{$functions}) {
     my $is_namespaced = $namespace ne "";
+    NAME:
     foreach my $name (@{$functions->{$namespace}}) {
       my $auto_name = $is_namespaced
         ? $package . '::' . $namespace . '::' . $name
@@ -56,6 +57,9 @@ sub setup {
       my $corrected_name = exists $name_corrections->{$auto_name}
         ? $name_corrections->{$auto_name}
         : $auto_name;
+      if (defined *{$corrected_name}) {
+        next NAME;
+      }
       *{$corrected_name} = sub {
         shift if $shift_package_name_for{$corrected_name};
         __PACKAGE__->_invoke($basename,
