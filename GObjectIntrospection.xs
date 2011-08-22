@@ -793,11 +793,13 @@ sv_to_array (GITransfer transfer,
 	AV *av;
 	GITransfer item_transfer;
 	GITypeInfo *param_info;
+	GITypeTag param_tag;
 	gint i, length, length_pos;
 	GPerlI11nArrayInfo *array_info = NULL;
         GArray *array;
         gboolean is_zero_terminated = FALSE;
         gsize item_size;
+	gboolean need_struct_value_semantics;
 
 	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
 
@@ -825,9 +827,9 @@ sv_to_array (GITransfer transfer,
                       : transfer;
 
 	param_info = g_type_info_get_param_type (type_info, 0);
+	param_tag = g_type_info_get_tag (param_info);
 	dwarn ("  GArray: param_info %p with type tag %d (%s) and transfer %d\n",
-	       param_info,
-	       g_type_info_get_tag (param_info),
+	       param_info, param_tag,
 	       g_type_tag_to_string (g_type_info_get_tag (param_info)),
 	       transfer);
 
@@ -836,6 +838,14 @@ sv_to_array (GITransfer transfer,
 	length = av_len (av) + 1;
         array = g_array_sized_new (is_zero_terminated, FALSE, item_size, length);
 
+	/* Arrays containing non-basic types as non-pointers need to be treated
+	 * specially.  Prime example: GValue *values = g_new0 (GValue, n);
+	 */
+	need_struct_value_semantics =
+		/* is a compound type, and... */
+		!G_TYPE_TAG_IS_BASIC (param_tag) &&
+		/* ... a non-pointer is wanted */
+		!g_type_info_is_pointer (param_info);
 	for (i = 0; i < length; i++) {
 		SV **svp;
 		svp = av_fetch (av, i, 0);
@@ -847,7 +857,15 @@ sv_to_array (GITransfer transfer,
 			sv_to_arg (*svp, &arg, NULL, param_info,
 			           item_transfer, TRUE, NULL);
 
-                        g_array_insert_val (array, i, arg);
+                        if (need_struct_value_semantics) {
+				/* Copy from the memory area pointed to by
+				 * arg.v_pointer. */
+				g_array_insert_vals (array, i, arg.v_pointer, 1);
+			} else {
+				/* Copy from &arg, i.e. the memory area that is
+				 * arg. */
+				g_array_insert_val (array, i, arg);
+			}
 		}
 	}
 
