@@ -2675,6 +2675,7 @@ _invoke (class, basename, namespace, method, ...)
 		GITransfer transfer;
 		gboolean may_be_null;
 		guint perl_stack_pos, ffi_stack_pos;
+		SV *current_sv;
 
 		arg_info = g_callable_info_get_arg ((GICallableInfo *) info, i);
 		/* In case of out and in-out args, arg_type is unref'ed after
@@ -2703,8 +2704,10 @@ _invoke (class, basename, namespace, method, ...)
 		       g_type_info_is_pointer (arg_type),
 		       iinfo.is_automatic_arg[i]);
 
-		/* FIXME: Check that i+method_offset+stack_offset<items before
-		 * calling ST, and generate a usage message otherwise. */
+		/* FIXME: Generate a proper usage message if the user did not
+		 * supply enough arguments. */
+		current_sv = perl_stack_pos < items ? ST (perl_stack_pos) : &PL_sv_undef;
+
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
 			if (iinfo.is_automatic_arg[i]) {
@@ -2714,7 +2717,7 @@ _invoke (class, basename, namespace, method, ...)
 				iinfo.dynamic_stack_offset--;
 #endif
 			} else {
-				sv_to_arg (ST (perl_stack_pos),
+				sv_to_arg (current_sv,
 				           &iinfo.in_args[i], arg_info, arg_type,
 				           transfer, may_be_null, &iinfo);
 			}
@@ -2755,7 +2758,7 @@ _invoke (class, basename, namespace, method, ...)
 				/* We pass iinfo.in_args[i].v_pointer here,
 				 * not &iinfo.in_args[i], so that the value
 				 * pointed to is filled from the SV. */
-				sv_to_arg (ST (perl_stack_pos),
+				sv_to_arg (current_sv,
 				           iinfo.in_args[i].v_pointer, arg_info, arg_type,
 				           transfer, may_be_null, &iinfo);
 			}
