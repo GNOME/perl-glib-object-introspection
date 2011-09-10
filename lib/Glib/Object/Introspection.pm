@@ -224,6 +224,41 @@ include the package name.
 C<< Glib::Object::Introspection->invoke >> returns whatever the function being
 invoked returns.
 
+=head2 Overrides
+
+To override the behavior of a specific function or method, create an
+appropriately named sub in the correct package and have it call C<<
+Glib::Object::Introspection->invoke >>.  Say you want to override
+C<Gtk3::Window::list_toplevels>, then do this:
+
+  sub Gtk3::Window::list_toplevels {
+    # ...do something...
+    my $ref = Glib::Object::Introspection->invoke (
+                'Gtk', 'Window', 'list_toplevels',
+                @_);
+    # ...do something...
+    return wantarray ? @$ref : $ref->[$#$ref];
+  }
+
+The sub's name and package must be those after name corrections.
+
+=head2 Converting a Perl variable to a GValue
+
+If you need to marshal into a GValue, then Glib::Object::Introspection cannot
+do this automatically because the type information is missing.  If you do have
+this information in your module, however, you can use
+Glib::Object::Introspection::GValueWrapper to do the conversion.  In the
+wrapper for a function that expects a GValue, do this:
+
+  ...
+  my $type = ...; # somehow get the package name that
+                  # corresponds to the correct GType
+  my $real_value =
+    Glib::Object::Introspection::GValueWrapper->new ($type, $value);
+  # now use Glib::Object::Introspection->invoke and
+  # substitute $real_value where you'd use $value
+  ...
+
 =head1 SEE ALSO
 
 =over
