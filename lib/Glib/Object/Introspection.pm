@@ -77,7 +77,7 @@ sub setup {
       my $corrected_name = exists $name_corrections->{$auto_name}
         ? $name_corrections->{$auto_name}
         : $auto_name;
-      if (defined *{$corrected_name}) {
+      if (defined &{$corrected_name}) {
         next NAME;
       }
       *{$corrected_name} = _create_invoker_sub (
