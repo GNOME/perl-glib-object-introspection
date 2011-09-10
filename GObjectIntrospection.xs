@@ -2633,7 +2633,7 @@ _set_field (class, basename, namespace, field, invocant, new_value)
 	g_base_info_unref (namespace_info);
 
 void
-_invoke (class, basename, namespace, method, ...)
+invoke (class, basename, namespace, method, ...)
 	const gchar *basename
 	const gchar_ornull *namespace
 	const gchar *method

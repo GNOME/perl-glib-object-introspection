@@ -62,7 +62,7 @@ sub setup {
       }
       *{$corrected_name} = sub {
         shift if $shift_package_name_for{$corrected_name};
-        __PACKAGE__->_invoke($basename,
+        __PACKAGE__->invoke($basename,
                              $is_namespaced ? $namespace : undef,
                              $name,
                              @_);
@@ -131,6 +131,8 @@ include gtk+, webkit, libsoup and many more.
 
 =head1 DESCRIPTION
 
+=head2 C<< Glib::Object::Introspection->setup >>
+
 To allow Glib::Object::Introspection to create bindings for a library, it must
 have installed a typelib file, for example
 C<$prefix/lib/girepository-1.0/Gtk-3.0.typelib>.  In your code you then simply
@@ -194,6 +196,33 @@ pass
 The function names refer to those after name corrections.
 
 =back
+
+=head2 C<< Glib::Object::Introspection->invoke >>
+
+To invoke specific functions manually, you can use the low-level C<<
+Glib::Object::Introspection->invoke >>.
+
+  Glib::Object::Introspection->invoke(
+    $basename, $namespace, $function, @args)
+
+=over
+
+=item * $basename is the basename of a library, like 'Gtk'.
+
+=item * $namespace refers to a namespace inside that library, like 'Window'.  Use
+undef here if you want to call a library-global function.
+
+=item * $function is the name of the function you want to invoke.  It can also
+refer to the name of a constant.
+
+=item * @args are the arguments that should be passed to the function.  For a
+method, this should include the invocant.  For a constructor, this should
+include the package name.
+
+=back
+
+C<< Glib::Object::Introspection->invoke >> returns whatever the function being
+invoked returns.
 
 =head1 SEE ALSO
 
