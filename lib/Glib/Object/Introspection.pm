@@ -30,12 +30,21 @@ XSLoader::load(__PACKAGE__, $VERSION);
 
 sub _create_invoker_sub {
   my ($basename, $namespace, $name,
-      $shift_package_name, $flatten_array_ref_return) = @_;
+      $shift_package_name, $flatten_array_ref_return,
+      $handle_sentinel_boolean) = @_;
   if ($flatten_array_ref_return) {
     return sub {
       shift if $shift_package_name;
       my $ref = __PACKAGE__->invoke($basename, $namespace, $name, @_);
       return wantarray ? @$ref : $ref->[$#$ref];
+    };
+  } elsif ($handle_sentinel_boolean) {
+    return sub {
+      shift if $shift_package_name;
+      my ($bool, @stuff) = __PACKAGE__->invoke($basename, $namespace, $name, @_);
+      return $bool
+        ? @stuff[0..$#stuff] # slice to correctly behave in scalar context
+        : ();
     };
   } else {
     return sub {
@@ -52,12 +61,14 @@ sub setup {
   my $package = $params{package};
   my $search_path = $params{search_path} || undef;
   my $name_corrections = $params{name_corrections} || {};
-  my $class_static_methods = $params{class_static_methods} || [];
-  my $flatten_array_ref_return_for_list =
-    $params{flatten_array_ref_return_for} || [];
 
-  my %shift_package_name_for = map { $_ => 1 } @$class_static_methods;
-  my %flatten_array_ref_return_for = map { $_ => 1 } @$flatten_array_ref_return_for_list;
+  local $@;
+  my %shift_package_name_for = eval {
+    map { $_ => 1 } @{$params{class_static_methods}} };
+  my %flatten_array_ref_return_for = eval {
+    map { $_ => 1 } @{$params{flatten_array_ref_return_for}} };
+  my %handle_sentinel_boolean_for = eval {
+    map { $_ => 1 } @{$params{handle_sentinel_boolean_for}} };
 
   __PACKAGE__->_load_library($basename, $version, $search_path);
 
@@ -83,7 +94,8 @@ sub setup {
       *{$corrected_name} = _create_invoker_sub (
         $basename, $is_namespaced ? $namespace : undef, $name,
         $shift_package_name_for{$corrected_name},
-        $flatten_array_ref_return_for{$corrected_name});
+        $flatten_array_ref_return_for{$corrected_name},
+        $handle_sentinel_boolean_for{$corrected_name});
     }
   }
 
@@ -223,6 +235,25 @@ flattened so that they return plain lists.  For example
 
 The function names refer to those after name corrections.  Functions occuring
 in C<flatten_array_ref_return_for> may also occur in C<class_static_methods>.
+
+=back
+
+=item handle_sentinel_boolean_for => [ function1, ... ]
+
+An array ref of function names that return multiple values, the first of which
+is to be interpreted as indicating whether the rest of the returned values are
+valid.  This frequently occurs with functions that have out arguments; the
+boolean then indicates whether the out arguments have been written.  With
+C<handle_sentinel_boolean_for>, the first return value is taken to be the
+sentinel boolean.  If it is true, the rest of the original return values will
+be returned, and otherwise an empty list will be returned.
+
+  handle_sentinel_boolean_for => [
+    'Gtk3::TreeSelection::get_selected'
+  ]
+
+The function names refer to those after name corrections.  Functions occuring
+in C<handle_sentinel_boolean_for> may also occur in C<class_static_methods>.
 
 =back
 
