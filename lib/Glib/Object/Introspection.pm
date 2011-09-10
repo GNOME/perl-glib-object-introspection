@@ -28,6 +28,23 @@ $Carp::Internal{(__PACKAGE__)}++;
 require XSLoader;
 XSLoader::load(__PACKAGE__, $VERSION);
 
+sub _create_invoker_sub {
+  my ($basename, $namespace, $name,
+      $shift_package_name, $flatten_array_ref_return) = @_;
+  if ($flatten_array_ref_return) {
+    return sub {
+      shift if $shift_package_name;
+      my $ref = __PACKAGE__->invoke($basename, $namespace, $name, @_);
+      return wantarray ? @$ref : $ref->[$#$ref];
+    };
+  } else {
+    return sub {
+      shift if $shift_package_name;
+      return __PACKAGE__->invoke($basename, $namespace, $name, @_);
+    };
+  }
+}
+
 sub setup {
   my ($class, %params) = @_;
   my $basename = $params{basename};
@@ -36,8 +53,11 @@ sub setup {
   my $search_path = $params{search_path} || undef;
   my $name_corrections = $params{name_corrections} || {};
   my $class_static_methods = $params{class_static_methods} || [];
+  my $flatten_array_ref_return_for_list =
+    $params{flatten_array_ref_return_for} || [];
 
   my %shift_package_name_for = map { $_ => 1 } @$class_static_methods;
+  my %flatten_array_ref_return_for = map { $_ => 1 } @$flatten_array_ref_return_for_list;
 
   __PACKAGE__->_load_library($basename, $version, $search_path);
 
@@ -60,13 +80,10 @@ sub setup {
       if (defined *{$corrected_name}) {
         next NAME;
       }
-      *{$corrected_name} = sub {
-        shift if $shift_package_name_for{$corrected_name};
-        __PACKAGE__->invoke($basename,
-                             $is_namespaced ? $namespace : undef,
-                             $name,
-                             @_);
-      };
+      *{$corrected_name} = _create_invoker_sub (
+        $basename, $is_namespaced ? $namespace : undef, $name,
+        $shift_package_name_for{$corrected_name},
+        $flatten_array_ref_return_for{$corrected_name});
     }
   }
 
@@ -182,7 +199,7 @@ C<Glib::IO::file_hash> but you want C<Glib::IO::File::hash> then pass
     'Glib::IO::file_hash' => 'Glib::IO::File::hash'
   }
 
-=item class_static_methods => [ functions1, ... ]
+=item class_static_methods => [ function1, ... ]
 
 An array ref of function names that you want to be treated as class-static
 methods.  That is, if you want be able to call
@@ -194,6 +211,18 @@ pass
   ]
 
 The function names refer to those after name corrections.
+
+=item flatten_array_ref_return_for => [ function1, ... ]
+
+An array ref of function names that return an array ref that you want to be
+flattened so that they return plain lists.  For example
+
+  flatten_array_ref_return_for => [
+    'Gtk3::Window::list_toplevels'
+  ]
+
+The function names refer to those after name corrections.  Functions occuring
+in C<flatten_array_ref_return_for> may also occur in C<class_static_methods>.
 
 =back
 
