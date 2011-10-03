@@ -1545,7 +1545,7 @@ sv_to_arg (SV * sv,
 		break;
 
 	    default:
-		ccroak ("Unhandled info tag %d", tag);
+		ccroak ("Unhandled info tag %d in sv_to_arg", tag);
 	}
 }
 
@@ -1652,7 +1652,7 @@ arg_to_sv (GIArgument * arg,
 	    }
 
 	    default:
-		ccroak ("Unhandled info tag %d", tag);
+		ccroak ("Unhandled info tag %d in arg_to_sv", tag);
 	}
 
 	return NULL;
@@ -1751,6 +1751,10 @@ raw_to_arg (gpointer raw, GIArgument *arg, GITypeInfo *info)
 		arg->v_double = CAST_RAW (raw, gdouble);
 		break;
 
+	    case GI_TYPE_TAG_GTYPE:
+		arg->v_size = CAST_RAW (raw, GType);
+		break;
+
 	    case GI_TYPE_TAG_ARRAY:
 	    case GI_TYPE_TAG_INTERFACE:
 	    case GI_TYPE_TAG_GLIST:
@@ -1766,7 +1770,7 @@ raw_to_arg (gpointer raw, GIArgument *arg, GITypeInfo *info)
 		break;
 
 	    default:
-		ccroak ("Unhandled info tag %d", tag);
+		ccroak ("Unhandled info tag %d in raw_to_arg", tag);
 	}
 }
 
@@ -1824,6 +1828,10 @@ arg_to_raw (GIArgument *arg, gpointer raw, GITypeInfo *info)
 		* (gdouble *) raw = arg->v_double;
 		break;
 
+	    case GI_TYPE_TAG_GTYPE:
+		* (GType *) raw = arg->v_size;
+		break;
+
 	    case GI_TYPE_TAG_ARRAY:
 	    case GI_TYPE_TAG_INTERFACE:
 	    case GI_TYPE_TAG_GLIST:
@@ -1839,7 +1847,7 @@ arg_to_raw (GIArgument *arg, gpointer raw, GITypeInfo *info)
 		break;
 
 	    default:
-		ccroak ("Unhandled info tag %d", tag);
+		ccroak ("Unhandled info tag %d in arg_to_raw", tag);
 	}
 }
 
