@@ -2692,7 +2692,7 @@ invoke (class, basename, namespace, method, ...)
 		GITypeInfo * arg_type;
 		GITransfer transfer;
 		gboolean may_be_null;
-		guint perl_stack_pos, ffi_stack_pos;
+		gint perl_stack_pos, ffi_stack_pos;
 		SV *current_sv;
 
 		arg_info = g_callable_info_get_arg ((GICallableInfo *) info, i);
