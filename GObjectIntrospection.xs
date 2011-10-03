@@ -87,8 +87,12 @@ typedef struct {
 
 	GICallableInfo *interface;
 
+	/* either we have a code and data pair, ... */
 	SV *code;
 	SV *data;
+
+	/* ... or a sub name to be looked up in the first args' package */
+	gchar *sub_name;
 
 	guint data_pos;
 	guint notify_pos;
@@ -1856,6 +1860,7 @@ create_callback_closure (GITypeInfo *cb_type, SV *code)
 	/* FIXME: This should most likely use SvREFCNT_inc instead of
 	 * newSVsv. */
 	info->code = newSVsv (code);
+	info->sub_name = NULL;
 
 #ifdef PERL_IMPLICIT_CONTEXT
 	info->priv = aTHX;
@@ -1870,6 +1875,30 @@ attach_callback_data (GPerlI11nCallbackInfo *info, SV *data)
 	info->data = newSVsv (data);
 }
 
+/* assumes ownership of sub_name */
+static GPerlI11nCallbackInfo *
+create_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name)
+{
+	GPerlI11nCallbackInfo *info;
+
+	info = g_new0 (GPerlI11nCallbackInfo, 1);
+	info->interface =
+		(GICallableInfo *) g_type_info_get_interface (cb_type);
+	info->cif = g_new0 (ffi_cif, 1);
+	info->closure =
+		g_callable_info_prepare_closure (info->interface, info->cif,
+		                                 invoke_callback, info);
+	info->sub_name = sub_name;
+	info->code = NULL;
+	info->data = NULL;
+
+#ifdef PERL_IMPLICIT_CONTEXT
+	info->priv = aTHX;
+#endif
+
+	return info;
+}
+
 static void
 invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 {
@@ -1879,8 +1908,9 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	int in_inout;
 	GITypeInfo *return_type;
 	gboolean have_return_type;
-	int n_return_values;
+	int n_return_values, n_returned;
 	I32 context;
+	SV *code_sv;
 	dGPERL_CALLBACK_MARSHAL_SP;
 
 	PERL_UNUSED_VAR (cif);
@@ -1980,19 +2010,40 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		}
 	}
 
+	if (info->sub_name) {
+		/* ASSUMPTION: for a named sub, we expect the first argument to
+		 * be an object with a Perl implementation whose package is
+		 * supposed to contain the sub. */
+		GObject *object;
+		HV *stash;
+		GV *slot;
+		object = * (GObject **) args[0];
+		g_assert (G_IS_OBJECT (object));
+		stash = gperl_object_stash_from_type (G_OBJECT_TYPE (object));
+		g_assert (stash);
+		slot = gv_fetchmethod (stash, info->sub_name);
+		if (!slot || !GvCV (slot)) {
+			ccroak ("Could not find a sub called '%s' in package '%s'",
+			        info->sub_name,
+			        gperl_object_package_from_type (G_OBJECT_TYPE (object)));
+		}
+		dwarn ("calling '%s' in '%s'",
+		       info->sub_name,
+		       gperl_object_package_from_type (G_OBJECT_TYPE (object)));
+		code_sv = (SV *) GvCV (slot);
+	} else {
+		code_sv = info->code;
+	}
+
 	/* do the call, demand #in-out+#out+#return-value return values */
 	n_return_values = have_return_type
 	  ? in_inout + 1
 	  : in_inout;
-	if (n_return_values == 0) {
-		call_sv (info->code, context);
-	} else {
-		int n_returned = call_sv (info->code, context);
-		if (n_returned != n_return_values) {
-			ccroak ("callback returned %d values "
-			       "but is supposed to return %d values",
-			       n_returned, n_return_values);
-		}
+	n_returned = call_sv (code_sv, context);
+	if (n_return_values != 0 && n_returned != n_return_values) {
+		ccroak ("callback returned %d values "
+		        "but is supposed to return %d values",
+		        n_returned, n_return_values);
 	}
 
 	SPAGAIN;
@@ -2098,9 +2149,10 @@ release_callback (gpointer data)
 
 	if (info->code)
 		SvREFCNT_dec (info->code);
-
 	if (info->data)
 		SvREFCNT_dec (info->data);
+	if (info->sub_name)
+		g_free (info->sub_name);
 
 	g_free (info);
 }
@@ -2419,6 +2471,66 @@ allocate_out_mem (GITypeInfo *arg_type)
 
 /* ------------------------------------------------------------------------- */
 
+static void
+generic_interface_init (gpointer iface, gpointer data)
+{
+	GIInterfaceInfo *info = data;
+	GIStructInfo *struct_info;
+	gint n, i, n_fields, i_fields;
+	struct_info = g_interface_info_get_iface_struct (info);
+	n_fields = g_struct_info_get_n_fields (struct_info);
+	n = g_interface_info_get_n_vfuncs (info);
+	for (i = 0; i < n; i++) {
+		GIVFuncInfo *vfunc_info;
+		const gchar *vfunc_name;
+		GIFieldInfo *field_info;
+		gint field_offset;
+		GITypeInfo *field_type_info;
+		gchar *perl_method_name;
+		GPerlI11nCallbackInfo *callback_info;
+
+		vfunc_info = g_interface_info_get_vfunc (info, i);
+		vfunc_name = g_base_info_get_name (vfunc_info);
+		/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
+		for (i_fields = 0; i_fields < n_fields; i_fields++) {
+			field_info = g_struct_info_get_field (struct_info, i_fields);
+			if (strEQ (g_base_info_get_name (field_info), vfunc_name))
+			{
+				break;
+			}
+			g_base_info_unref (field_info);
+			field_info = NULL;
+		}
+		g_assert (field_info);
+
+		field_offset = g_field_info_get_offset (field_info);
+		field_type_info = g_field_info_get_type (field_info);
+		perl_method_name = g_ascii_strup (vfunc_name, -1);
+		callback_info = create_callback_closure_for_named_sub (field_type_info, perl_method_name);
+		dwarn ("installing vfunc %s as %s at offset %d (vs. %d) inside %p\n",
+		       vfunc_name, perl_method_name,
+		       field_offset, g_vfunc_info_get_offset (vfunc_info),
+		       iface);
+		G_STRUCT_MEMBER (gpointer, iface, field_offset) = callback_info->closure;
+
+		g_base_info_unref (field_type_info);
+		g_base_info_unref (field_info);
+		g_base_info_unref (vfunc_info);
+	}
+	g_base_info_unref (struct_info);
+}
+
+static void
+generic_interface_finalize (gpointer iface, gpointer data)
+{
+	GIInterfaceInfo *info = data;
+	PERL_UNUSED_VAR (iface);
+	dwarn ("releasing interface info\n");
+	g_base_info_unref ((GIBaseInfo *) info);
+}
+
+/* ------------------------------------------------------------------------- */
+
 MODULE = Glib::Object::Introspection	PACKAGE = Glib::Object::Introspection
 
 void
@@ -2449,6 +2561,7 @@ _register_types (class, namespace, package)
 	AV *global_functions;
 	HV *namespaced_functions;
 	HV *fields;
+	AV *interfaces;
     PPCODE:
 	repository = g_irepository_get_default ();
 
@@ -2456,6 +2569,7 @@ _register_types (class, namespace, package)
 	global_functions = newAV ();
 	namespaced_functions = newHV ();
 	fields = newHV ();
+	interfaces = newAV ();
 
 	number = g_irepository_get_n_infos (repository, namespace);
 	for (i = 0; i < number; i++) {
@@ -2477,6 +2591,10 @@ _register_types (class, namespace, package)
 
 		if (info_type == GI_INFO_TYPE_FUNCTION) {
 			av_push (global_functions, newSVpv (name, PL_na));
+		}
+
+		if (info_type == GI_INFO_TYPE_INTERFACE) {
+			av_push (interfaces, newSVpv (name, PL_na));
 		}
 
 		if (info_type != GI_INFO_TYPE_OBJECT &&
@@ -2550,10 +2668,11 @@ _register_types (class, namespace, package)
 	gperl_hv_take_sv (namespaced_functions, "", 0,
 	                  newRV_noinc ((SV *) global_functions));
 
-	EXTEND (SP, 1);
+	EXTEND (SP, 4);
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) namespaced_functions)));
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) constants)));
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) fields)));
+	PUSHs (sv_2mortal (newRV_noinc ((SV *) interfaces)));
 
 SV *
 _fetch_constant (class, basename, constant)
@@ -2649,6 +2768,30 @@ _set_field (class, basename, namespace, field, invocant, new_value)
 	set_field (field_info, boxed_mem, GI_TRANSFER_EVERYTHING, new_value);
 	g_base_info_unref (field_info);
 	g_base_info_unref (namespace_info);
+
+void
+_add_interface (class, basename, interface_name, target_package)
+	const gchar *basename
+	const gchar *interface_name
+	const gchar *target_package
+    PREINIT:
+	GIRepository *repository;
+	GIInterfaceInfo *info;
+	GInterfaceInfo iface_info;
+	GType gtype;
+    CODE:
+	repository = g_irepository_get_default ();
+	info = g_irepository_find_by_name (repository, basename, interface_name);
+	if (!GI_IS_INTERFACE_INFO (info))
+		ccroak ("not an interface");
+	iface_info.interface_init = generic_interface_init;
+	iface_info.interface_finalize = generic_interface_finalize,
+	iface_info.interface_data = info;
+	gtype = gperl_object_type_from_package (target_package);
+	g_type_add_interface_static (gtype,
+	                             g_registered_type_info_get_g_type (info),
+	                             &iface_info);
+	/* info is unref'd in generic_interface_finalize */
 
 void
 invoke (class, basename, namespace, method, ...)

@@ -73,7 +73,7 @@ sub setup {
 
   __PACKAGE__->_load_library($basename, $version, $search_path);
 
-  my ($functions, $constants, $fields) =
+  my ($functions, $constants, $fields, $interfaces) =
     __PACKAGE__->_register_types($basename, $package);
 
   no strict qw(refs);
@@ -133,6 +133,14 @@ sub setup {
         return $old_value;
       };
     }
+  }
+
+  foreach my $name (@{$interfaces}) {
+    my $adder_name = $package . '::' . $name . '::_ADD_INTERFACE';
+    *{$adder_name} = sub {
+      my ($class, $target_package) = @_;
+      __PACKAGE__->_add_interface($basename, $name, $target_package);
+    };
   }
 }
 
