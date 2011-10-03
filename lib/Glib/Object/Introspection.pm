@@ -36,6 +36,7 @@ sub _create_invoker_sub {
     return sub {
       shift if $shift_package_name;
       my $ref = __PACKAGE__->invoke($basename, $namespace, $name, @_);
+      return if not defined $ref;
       return wantarray ? @$ref : $ref->[$#$ref];
     };
   } elsif ($handle_sentinel_boolean) {
