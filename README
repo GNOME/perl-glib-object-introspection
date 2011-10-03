@@ -28,7 +28,7 @@ and these Perl modules:
 
   ExtUtils::Depends   >= 0.300
   ExtUtils::PkgConfig >= 1.000
-  Glib                >= 1.220
+  Glib                >= 1.233
 
 
 BUG REPORTS

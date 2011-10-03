@@ -124,6 +124,7 @@ typedef struct {
 	gboolean has_return_value;
 	ffi_type * return_type_ffi;
 	GITypeInfo * return_type_info;
+	GITransfer return_type_transfer;
 
 	guint current_pos;
 	guint method_offset;
@@ -2291,6 +2292,7 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	iinfo->has_return_value =
 		GI_TYPE_TAG_VOID != g_type_info_get_tag (iinfo->return_type_info);
 	iinfo->return_type_ffi = g_type_info_get_ffi_type (iinfo->return_type_info);
+	iinfo->return_type_transfer = g_callable_info_get_caller_owns ((GICallableInfo *) info);
 
 	/* allocate enough space for all args in both the out and in lists.
 	 * we'll only use as much as we need.  since function argument lists
@@ -2354,6 +2356,22 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 				iinfo->is_automatic_arg[pos] = TRUE;
 			}
 		}
+	}
+
+	/* We need to undo the special handling that GInitiallyUnowned
+	 * descendants receive from gobject-introspection: values of this type
+	 * are always marked transfer=none, even for constructors. */
+	if (iinfo->is_constructor &&
+	    g_type_info_get_tag (iinfo->return_type_info) == GI_TYPE_TAG_INTERFACE)
+	{
+		GIBaseInfo * interface = g_type_info_get_interface (iinfo->return_type_info);
+		if (GI_IS_REGISTERED_TYPE_INFO (interface) &&
+		    g_type_is_a (g_registered_type_info_get_g_type (interface),
+		                 G_TYPE_INITIALLY_UNOWNED))
+		{
+			iinfo->return_type_transfer = GI_TRANSFER_EVERYTHING;
+		}
+		g_base_info_unref ((GIBaseInfo *) interface);
 	}
 }
 
@@ -2826,11 +2844,9 @@ invoke (class, basename, namespace, method, ...)
 #endif
 	   )
 	{
-		GITransfer return_type_transfer =
-			g_callable_info_get_caller_owns ((GICallableInfo *) info);
 		SV *value = arg_to_sv (&return_value,
 		                       iinfo.return_type_info,
-		                       return_type_transfer,
+		                       iinfo.return_type_transfer,
 		                       &iinfo);
 		if (value) {
 			XPUSHs (sv_2mortal (value));

@@ -25,7 +25,7 @@ use Cwd;
 my %PREREQ_PM = (
   'ExtUtils::Depends'   => 0.300,
   'ExtUtils::PkgConfig' => 1.000,
-  'Glib'                => 1.231, # FIXME: 1.232
+  'Glib'                => 1.233,
 );
 
 my %BUILD_REQ = (
