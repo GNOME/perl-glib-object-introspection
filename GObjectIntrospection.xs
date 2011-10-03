@@ -543,8 +543,8 @@ get_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer)
 		                transfer,
 		                NULL);
 	} else {
-		warn ("*** Could not get field '%s'",
-		      g_base_info_get_name (field_info));
+		ccroak ("Could not get field '%s'",
+		        g_base_info_get_name (field_info));
 	}
 
 	if (interface_info)
@@ -588,8 +588,8 @@ set_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer, SV *value
 		sv_to_arg (value, &arg, NULL, field_type,
 		           transfer, TRUE, NULL);
 		if (!g_field_info_set_field (field_info, mem, &arg))
-			warn ("*** Could not set field '%s'",
-			      g_base_info_get_name (field_info));
+			ccroak ("Could not set field '%s'",
+			        g_base_info_get_name (field_info));
 	}
 
 	if (interface_info)
@@ -1260,7 +1260,7 @@ sv_to_interface (GIArgInfo * arg_info,
 			dwarn ("    value type\n");
 			arg->v_pointer = SvGValueWrapper (sv);
 			if (!arg->v_pointer)
-				croak ("Cannot convert arbitrary SV to GValue");
+				ccroak ("Cannot convert arbitrary SV to GValue");
 		} else {
 			dwarn ("    boxed type: %s (%d)\n",
 			       g_type_name (type), type);
@@ -2904,7 +2904,7 @@ new (class, const gchar *type_package, SV *perl_value)
     CODE:
 	type = gperl_type_from_package (type_package);
 	if (!type)
-		croak ("Could not find GType for '%s'", type_package);
+		ccroak ("Could not find GType for '%s'", type_package);
 	v = g_new0 (GValue, 1);
 	g_value_init (v, type);
 	gperl_value_from_sv (v, perl_value);
