@@ -8,5 +8,5 @@ build
 Makefile$
 Makefile\.old$
 MYMETA\..*$
-\.c$
+GObjectIntrospection.c$
 \.o$
