@@ -1,8 +1,8 @@
 static gpointer
-handle_callback_arg (GIArgInfo * arg_info,
-                     GITypeInfo * type_info,
-                     SV * sv,
-                     GPerlI11nInvocationInfo * invocation_info)
+sv_to_callback (GIArgInfo * arg_info,
+                GITypeInfo * type_info,
+                SV * sv,
+                GPerlI11nInvocationInfo * invocation_info)
 {
 	GPerlI11nCallbackInfo *callback_info;
 
@@ -59,24 +59,20 @@ handle_callback_arg (GIArgInfo * arg_info,
 }
 
 static gpointer
-handle_void_arg (SV * sv,
-                 GPerlI11nInvocationInfo * invocation_info)
+sv_to_callback_data (SV * sv,
+                     GPerlI11nInvocationInfo * invocation_info)
 {
-	gpointer pointer = NULL;
-	gboolean is_user_data = FALSE;
 	GSList *l;
+	if (!invocation_info)
+		return NULL;
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
 		GPerlI11nCallbackInfo *callback_info = l->data;
 		if (callback_info->data_pos == invocation_info->current_pos) {
-			is_user_data = TRUE;
 			dwarn ("    user data for callback %p\n",
 			       callback_info);
 			attach_callback_data (callback_info, sv);
-			pointer = callback_info;
-			break; /* out of the for loop */
+			return callback_info;
 		}
 	}
-	if (!is_user_data)
-		ccroak ("encountered void pointer that is not callback user data");
-	return pointer;
+	return NULL;
 }

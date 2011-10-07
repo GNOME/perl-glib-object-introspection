@@ -153,8 +153,8 @@ static SV * arg_to_sv (GIArgument * arg,
                        GITransfer transfer,
                        GPerlI11nInvocationInfo *iinfo);
 
-static gpointer handle_callback_arg (GIArgInfo * arg_info, GITypeInfo * type_info, SV * sv, GPerlI11nInvocationInfo * invocation_info);
-static gpointer handle_void_arg (SV * sv, GPerlI11nInvocationInfo * invocation_info);
+static gpointer sv_to_callback (GIArgInfo * arg_info, GITypeInfo * type_info, SV * sv, GPerlI11nInvocationInfo * invocation_info);
+static gpointer sv_to_callback_data (SV * sv, GPerlI11nInvocationInfo * invocation_info);
 
 static SV * struct_to_sv (GIBaseInfo* info, GIInfoType info_type, gpointer pointer, gboolean own);
 static gpointer sv_to_struct (GITransfer transfer, GIBaseInfo * info, GIInfoType info_type, SV * sv);

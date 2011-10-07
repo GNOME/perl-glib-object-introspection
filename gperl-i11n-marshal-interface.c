@@ -123,8 +123,8 @@ sv_to_interface (GIArgInfo * arg_info,
 	    }
 
 	    case GI_INFO_TYPE_CALLBACK:
-		arg->v_pointer = handle_callback_arg (arg_info, type_info, sv,
-		                                      invocation_info);
+		arg->v_pointer = sv_to_callback (arg_info, type_info, sv,
+		                                 invocation_info);
 		break;
 
 	    default:

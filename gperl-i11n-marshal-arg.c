@@ -23,7 +23,9 @@ sv_to_arg (SV * sv,
 
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
-		arg->v_pointer = handle_void_arg (sv, invocation_info);
+		arg->v_pointer = sv_to_callback_data (sv, invocation_info);
+		if (!arg->v_pointer)
+			ccroak ("encountered void pointer that is not callback user data");
 		break;
 
 	    case GI_TYPE_TAG_BOOLEAN:
