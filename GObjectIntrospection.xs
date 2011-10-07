@@ -91,8 +91,13 @@ typedef struct {
 	SV *code;
 	SV *data;
 
-	/* ... or a sub name to be called as a method on the invocant */
+	/* ... or a sub name to be called as a method on the invocant, plus the
+	 * name of the package that is the originator of the sub.  we will use
+	 * call_method so that Perl subclasses can override.  but we still need
+	 * the package name so that we can chain up properly in the fallback
+	 * implementations. */
 	gchar *sub_name;
+	gchar *package_name;
 
 	guint data_pos;
 	guint notify_pos;
@@ -1374,11 +1379,10 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own)
 }
 
 static gpointer
-instance_sv_to_pointer (GIFunctionInfo *function_info, SV *sv)
+instance_sv_to_pointer (GICallableInfo *info, SV *sv)
 {
 	// We do *not* own container.
-	GIBaseInfo *container = g_base_info_get_container (
-				  (GIBaseInfo *) function_info);
+	GIBaseInfo *container = g_base_info_get_container (info);
 	GIInfoType info_type = g_base_info_get_type (container);
 	gpointer pointer = NULL;
 
@@ -1853,6 +1857,10 @@ arg_to_raw (GIArgument *arg, gpointer raw, GITypeInfo *info)
 
 /* ------------------------------------------------------------------------- */
 
+/* FIXME: this is not safe if we want to support unloading G:O:I. */
+#define VFUNC_TARGET_PACKAGE_QUARK	g_quark_from_static_string ("__gperl_vfunc_target_package")
+#define VFUNC_PERL_TYPE_QUARK		g_quark_from_static_string ("__gperl_vfunc_perl_type")
+
 static GPerlI11nCallbackInfo *
 create_callback_closure (GITypeInfo *cb_type, SV *code)
 {
@@ -1869,6 +1877,7 @@ create_callback_closure (GITypeInfo *cb_type, SV *code)
 	 * newSVsv. */
 	info->code = newSVsv (code);
 	info->sub_name = NULL;
+	info->package_name = NULL;
 
 #ifdef PERL_IMPLICIT_CONTEXT
 	info->priv = aTHX;
@@ -1883,9 +1892,9 @@ attach_callback_data (GPerlI11nCallbackInfo *info, SV *data)
 	info->data = newSVsv (data);
 }
 
-/* assumes ownership of sub_name */
+/* assumes ownership of sub_name and package_name */
 static GPerlI11nCallbackInfo *
-create_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name)
+create_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name, gchar *package_name)
 {
 	GPerlI11nCallbackInfo *info;
 
@@ -1897,6 +1906,7 @@ create_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name)
 		g_callable_info_prepare_closure (info->interface, info->cif,
 		                                 invoke_callback, info);
 	info->sub_name = sub_name;
+	info->package_name = package_name;
 	info->code = NULL;
 	info->data = NULL;
 
@@ -1998,6 +2008,14 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 
 	PUTBACK;
 
+	/* put the target package name into the invocant so that the vfunc
+	 * fallback code knows whose parent to chain up to. */
+	if (info->package_name) {
+		GObject *object = * (GObject **) args[0];
+		g_assert (G_IS_OBJECT (object));
+		g_object_set_qdata (object, VFUNC_TARGET_PACKAGE_QUARK, info->package_name);
+	}
+
 	/* determine suitable Perl call context; return_type is freed further
 	 * below */
 	return_type = g_callable_info_get_return_type (cb_interface);
@@ -2028,6 +2046,12 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		ccroak ("callback returned %d values "
 		        "but is supposed to return %d values",
 		        n_returned, n_return_values);
+	}
+
+	if (info->package_name) {
+		GObject *object = * (GObject **) args[0];
+		g_assert (G_IS_OBJECT (object));
+		g_object_set_qdata (object, VFUNC_TARGET_PACKAGE_QUARK, NULL);
 	}
 
 	SPAGAIN;
@@ -2137,6 +2161,8 @@ release_callback (gpointer data)
 		SvREFCNT_dec (info->data);
 	if (info->sub_name)
 		g_free (info->sub_name);
+	if (info->package_name)
+		g_free (info->package_name);
 
 	g_free (info);
 }
@@ -2233,6 +2259,40 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 /* ------------------------------------------------------------------------- */
 
 static void
+store_vfuncs (HV *objects_with_vfuncs, GIObjectInfo *info)
+{
+	const gchar *object_name;
+	AV *vfuncs_av;
+	gint n_vfuncs, i;
+
+	n_vfuncs = g_object_info_get_n_vfuncs (info);
+	if (n_vfuncs <= 0)
+		return;
+
+	object_name = g_base_info_get_name (info);
+	vfuncs_av = newAV ();
+
+	for (i = 0; i < n_vfuncs; i++) {
+		GIVFuncInfo *vfunc_info =
+			g_object_info_get_vfunc (info, i);
+		const gchar *vfunc_name =
+			g_base_info_get_name (vfunc_info);
+		gchar *vfunc_perl_name = g_ascii_strup (vfunc_name, -1);
+		AV *vfunc_av = newAV ();
+		av_push (vfunc_av, newSVpv (vfunc_name, PL_na));
+		av_push (vfunc_av, newSVpv (vfunc_perl_name, PL_na));
+		av_push (vfuncs_av, newRV_noinc ((SV *) vfunc_av));
+		g_free (vfunc_perl_name);
+		g_base_info_unref (vfunc_info);
+	}
+
+	gperl_hv_take_sv (objects_with_vfuncs, object_name, strlen (object_name),
+	                  newRV_noinc ((SV *) vfuncs_av));
+}
+
+/* ------------------------------------------------------------------------- */
+
+static void
 store_fields (HV *fields, GIBaseInfo *info, GIInfoType info_type)
 {
 	const gchar *namespace;
@@ -2285,16 +2345,20 @@ store_fields (HV *fields, GIBaseInfo *info, GIInfoType info_type)
 
 static void
 prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
-                         GIFunctionInfo *info,
+                         GICallableInfo *info,
                          IV items,
                          UV internal_stack_offset)
 {
+	gboolean is_vfunc;
 	guint i;
+
+	is_vfunc = GI_IS_VFUNC_INFO (info);
 
 	iinfo->stack_offset = internal_stack_offset;
 
-	iinfo->is_constructor =
-		g_function_info_get_flags (info) & GI_FUNCTION_IS_CONSTRUCTOR;
+	iinfo->is_constructor = is_vfunc
+		? FALSE
+		: g_function_info_get_flags (info) & GI_FUNCTION_IS_CONSTRUCTOR;
 	if (iinfo->is_constructor) {
 		iinfo->stack_offset++;
 	}
@@ -2304,14 +2368,21 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	iinfo->n_invoke_args = iinfo->n_args =
 		g_callable_info_get_n_args ((GICallableInfo *) info);
 
-	iinfo->throws = g_function_info_get_flags (info) & GI_FUNCTION_THROWS;
+	/* FIXME: can a vfunc not throw? */
+	iinfo->throws = is_vfunc
+		? FALSE
+		: g_function_info_get_flags (info) & GI_FUNCTION_THROWS;
 	if (iinfo->throws) {
 		iinfo->n_invoke_args++;
 	}
 
-	iinfo->is_method =
-		(g_function_info_get_flags (info) & GI_FUNCTION_IS_METHOD)
-	    && !iinfo->is_constructor;
+	if (is_vfunc) {
+		iinfo->is_method = TRUE;
+	} else {
+		iinfo->is_method =
+			(g_function_info_get_flags (info) & GI_FUNCTION_IS_METHOD)
+			&& !iinfo->is_constructor;
+	}
 	if (iinfo->is_method) {
 		iinfo->n_invoke_args++;
 	}
@@ -2319,7 +2390,7 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	dwarn ("invoke: %s\n"
 	       "  n_args: %d, n_invoke_args: %d, n_given_args: %d\n"
 	       "  is_constructor: %d, is_method: %d\n",
-	       g_function_info_get_symbol (info),
+	       is_vfunc ? g_base_info_get_name (info) : g_function_info_get_symbol (info),
 	       iinfo->n_args, iinfo->n_invoke_args, iinfo->n_given_args,
 	       iinfo->is_constructor, iinfo->is_method);
 
@@ -2455,14 +2526,32 @@ allocate_out_mem (GITypeInfo *arg_type)
 
 /* ------------------------------------------------------------------------- */
 
+/* caller owns returned info */
+static GIFieldInfo *
+find_field (GIStructInfo *struct_info, const gchar *name)
+{
+	gint n, i;
+	n = g_struct_info_get_n_fields (struct_info);
+	for (i = 0; i < n; i++) {
+		GIFieldInfo *field_info =
+			g_struct_info_get_field (struct_info, i);
+		if (strEQ (g_base_info_get_name (field_info), name)) {
+			return field_info;
+		}
+		g_base_info_unref (field_info);
+	}
+	return NULL;
+}
+
+/* ------------------------------------------------------------------------- */
+
 static void
 generic_interface_init (gpointer iface, gpointer data)
 {
 	GIInterfaceInfo *info = data;
 	GIStructInfo *struct_info;
-	gint n, i, n_fields, i_fields;
+	gint n, i;
 	struct_info = g_interface_info_get_iface_struct (info);
-	n_fields = g_struct_info_get_n_fields (struct_info);
 	n = g_interface_info_get_n_vfuncs (info);
 	for (i = 0; i < n; i++) {
 		GIVFuncInfo *vfunc_info;
@@ -2475,22 +2564,16 @@ generic_interface_init (gpointer iface, gpointer data)
 
 		vfunc_info = g_interface_info_get_vfunc (info, i);
 		vfunc_name = g_base_info_get_name (vfunc_info);
-		/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
-		for (i_fields = 0; i_fields < n_fields; i_fields++) {
-			field_info = g_struct_info_get_field (struct_info, i_fields);
-			if (strEQ (g_base_info_get_name (field_info), vfunc_name))
-			{
-				break;
-			}
-			g_base_info_unref (field_info);
-			field_info = NULL;
-		}
-		g_assert (field_info);
 
+		/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
+		field_info = find_field (struct_info, vfunc_name);
+		g_assert (field_info);
 		field_offset = g_field_info_get_offset (field_info);
 		field_type_info = g_field_info_get_type (field_info);
+
 		perl_method_name = g_ascii_strup (vfunc_name, -1);
-		callback_info = create_callback_closure_for_named_sub (field_type_info, perl_method_name);
+		callback_info = create_callback_closure_for_named_sub (
+		                  field_type_info, perl_method_name, NULL);
 		dwarn ("installing vfunc %s as %s at offset %d (vs. %d) inside %p\n",
 		       vfunc_name, perl_method_name,
 		       field_offset, g_vfunc_info_get_offset (vfunc_info),
@@ -2515,8 +2598,51 @@ generic_interface_finalize (gpointer iface, gpointer data)
 
 /* ------------------------------------------------------------------------- */
 
+static void
+generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer class)
+{
+	GIStructInfo *struct_info;
+	gint n, i;
+	struct_info = g_object_info_get_class_struct (info);
+	n = g_object_info_get_n_vfuncs (info);
+	for (i = 0; i < n; i++) {
+		GIVFuncInfo *vfunc_info;
+		const gchar *vfunc_name;
+		GIFieldInfo *field_info;
+		gint field_offset;
+		GITypeInfo *field_type_info;
+		gchar *perl_method_name;
+		GPerlI11nCallbackInfo *callback_info;
+
+		vfunc_info = g_object_info_get_vfunc (info, i);
+		vfunc_name = g_base_info_get_name (vfunc_info);
+
+		/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
+		field_info = find_field (struct_info, vfunc_name);
+		g_assert (field_info);
+		field_offset = g_field_info_get_offset (field_info);
+		field_type_info = g_field_info_get_type (field_info);
+
+		perl_method_name = g_ascii_strup (vfunc_name, -1);
+		callback_info = create_callback_closure_for_named_sub (
+		                  field_type_info, perl_method_name, g_strdup (target_package));
+		dwarn ("installing vfunc %s as %s at offset %d (vs. %d) inside %p\n",
+		       vfunc_name, perl_method_name,
+		       field_offset, g_vfunc_info_get_offset (vfunc_info),
+		       class);
+		G_STRUCT_MEMBER (gpointer, class, field_offset) = callback_info->closure;
+
+		g_base_info_unref (field_type_info);
+		g_base_info_unref (field_info);
+		g_base_info_unref (vfunc_info);
+	}
+	g_base_info_unref (struct_info);
+}
+
+/* ------------------------------------------------------------------------- */
+
 void
-invoke_function (GIFunctionInfo *info,
+invoke_callable (GICallableInfo *info,
                  gpointer func_pointer,
                  SV **sp, I32 ax, SV **mark, I32 items, /* these correspond to dXSARGS */
                  UV internal_stack_offset)
@@ -2785,6 +2911,7 @@ _register_types (class, namespace, package)
 	HV *namespaced_functions;
 	HV *fields;
 	AV *interfaces;
+	HV *objects_with_vfuncs;
     PPCODE:
 	repository = g_irepository_get_default ();
 
@@ -2793,6 +2920,7 @@ _register_types (class, namespace, package)
 	namespaced_functions = newHV ();
 	fields = newHV ();
 	interfaces = newAV ();
+	objects_with_vfuncs = newHV ();
 
 	number = g_irepository_get_n_infos (repository, namespace);
 	for (i = 0; i < number; i++) {
@@ -2848,6 +2976,10 @@ _register_types (class, namespace, package)
 			store_fields (fields, info, info_type);
 		}
 
+		if (info_type == GI_INFO_TYPE_OBJECT) {
+			store_vfuncs (objects_with_vfuncs, info);
+		}
+
 		type = g_registered_type_info_get_g_type (
 			(GIRegisteredTypeInfo *) info);
 		if (!type) {
@@ -2896,6 +3028,7 @@ _register_types (class, namespace, package)
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) constants)));
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) fields)));
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) interfaces)));
+	PUSHs (sv_2mortal (newRV_noinc ((SV *) objects_with_vfuncs)));
 
 SV *
 _fetch_constant (class, basename, constant)
@@ -3011,10 +3144,112 @@ _add_interface (class, basename, interface_name, target_package)
 	iface_info.interface_finalize = generic_interface_finalize,
 	iface_info.interface_data = info;
 	gtype = gperl_object_type_from_package (target_package);
+	if (!gtype)
+		ccroak ("package '%s' is not registered with Glib-Perl",
+		        target_package);
 	g_type_add_interface_static (gtype,
 	                             g_registered_type_info_get_g_type (info),
 	                             &iface_info);
 	/* info is unref'd in generic_interface_finalize */
+
+void
+_install_overrides (class, basename, object_name, target_package)
+	const gchar *basename
+	const gchar *object_name
+	const gchar *target_package
+    PREINIT:
+	GIRepository *repository;
+	GIObjectInfo *info;
+	GType gtype;
+	gpointer klass;
+    PPCODE:
+	dwarn ("_install_overrides: %s.%s for %s\n", basename, object_name, target_package);
+	repository = g_irepository_get_default ();
+	info = g_irepository_find_by_name (repository, basename, object_name);
+	if (!GI_IS_OBJECT_INFO (info))
+		ccroak ("not an object");
+	gtype = gperl_object_type_from_package (target_package);
+	if (!gtype)
+		ccroak ("package '%s' is not registered with Glib-Perl",
+		        target_package);
+	klass = g_type_class_peek (gtype);
+	if (!klass)
+		ccroak ("internal problem: can't peek at type class for %s (%d)",
+		        g_type_name (gtype), gtype);
+	/* mark the type as belonging to us */
+	g_type_set_qdata (gtype, VFUNC_PERL_TYPE_QUARK, (gpointer) TRUE);
+	generic_class_init (info, target_package, klass);
+	g_base_info_unref (info);
+
+void
+_invoke_parent_vfunc (class, basename, object_name, vfunc_name, ...)
+	const gchar *basename
+	const gchar *object_name
+	const gchar *vfunc_name
+    PREINIT:
+	UV internal_stack_offset = 4;
+	GIRepository *repository;
+	GIObjectInfo *info;
+	GObject *object;
+	const gchar *target_package;
+	GType gtype;
+	gpointer klass;
+	GIStructInfo *struct_info;
+	GIVFuncInfo *vfunc_info;
+	GIFieldInfo *field_info;
+	gint field_offset;
+	gpointer func_pointer;
+    PPCODE:
+	dwarn ("_invoke_parent_vfunc: %s\n", vfunc_name);
+	repository = g_irepository_get_default ();
+	info = g_irepository_find_by_name (repository, basename, object_name);
+	if (!GI_IS_OBJECT_INFO (info))
+		ccroak ("not an object");
+	object = gperl_get_object (ST (internal_stack_offset));
+	g_assert (G_IS_OBJECT (object));
+	target_package = g_object_get_qdata (object, VFUNC_TARGET_PACKAGE_QUARK);
+	g_assert (target_package);
+	gtype = gperl_object_type_from_package (target_package);
+	dwarn ("  target: %s\n", target_package);
+	/* find the first non-Perl parent of this type */
+	while ((gtype = g_type_parent (gtype))) {
+		if (!g_type_get_qdata (gtype, VFUNC_PERL_TYPE_QUARK)) {
+			break;
+		}
+	}
+	if (!gtype)
+		ccroak ("package '%s' is not registered with Glib-Perl",
+		        target_package);
+	dwarn ("  parent: %s\n", g_type_name (gtype));
+	klass = g_type_class_peek (gtype);
+	if (!klass)
+		ccroak ("internal problem: can't peek at type class for %s (%d)",
+		        g_type_name (gtype), gtype);
+	struct_info = g_object_info_get_class_struct (info);
+	g_assert (struct_info);
+	vfunc_info = g_object_info_find_vfunc (info, vfunc_name);
+	g_assert (vfunc_info);
+	/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
+	field_info = find_field (struct_info, vfunc_name);
+	g_assert (field_info);
+	field_offset = g_field_info_get_offset (field_info);
+	func_pointer = G_STRUCT_MEMBER (gpointer, klass, field_offset);
+	if (!func_pointer) {
+		ccroak ("cannot find implementation for vfunc '%s'", vfunc_name);
+		g_base_info_unref (field_info);
+		g_base_info_unref (vfunc_info);
+		g_base_info_unref (info);
+	}
+	invoke_callable (vfunc_info, func_pointer,
+	                 sp, ax, mark, items,
+	                 internal_stack_offset);
+	/* SPAGAIN since invoke_callable probably modified the stack pointer.
+	 * so we need to make sure that our implicit local variable 'sp' is
+	 * correct before the implicit PUTBACK happens. */
+	SPAGAIN;
+	g_base_info_unref (field_info);
+	g_base_info_unref (vfunc_info);
+	g_base_info_unref (info);
 
 void
 invoke (class, basename, namespace, method, ...)
@@ -3036,7 +3271,7 @@ invoke (class, basename, namespace, method, ...)
 	{
 		ccroak ("Could not locate symbol %s", symbol);
 	}
-	invoke_function (info, func_pointer,
+	invoke_callable (info, func_pointer,
 	                 sp, ax, mark, items,
 	                 internal_stack_offset);
 	/* SPAGAIN since invoke_callable probably modified the stack pointer.

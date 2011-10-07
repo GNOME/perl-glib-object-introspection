@@ -73,7 +73,7 @@ sub setup {
 
   __PACKAGE__->_load_library($basename, $version, $search_path);
 
-  my ($functions, $constants, $fields, $interfaces) =
+  my ($functions, $constants, $fields, $interfaces, $objects_with_vfuncs) =
     __PACKAGE__->_register_types($basename, $package);
 
   no strict qw(refs);
@@ -141,6 +141,29 @@ sub setup {
       my ($class, $target_package) = @_;
       __PACKAGE__->_add_interface($basename, $name, $target_package);
     };
+  }
+
+  my %forbidden_sub_names = map { $_ => 1 } qw/AUTOLOAD CLONE DESTROY
+                                               BEGIN UNITCHECK CHECK INIT END/;
+
+  foreach my $object_name (keys %{$objects_with_vfuncs}) {
+    my $object_package = $package . '::' . $object_name;
+    my $installer_name = $object_package . '::_INSTALL_OVERRIDES';
+    *{$installer_name} = sub {
+      my ($target_package) = @_;
+      __PACKAGE__->_install_overrides($basename, $object_name, $target_package);
+    };
+    foreach my $vfunc_names (@{$objects_with_vfuncs->{$object_name}}) {
+      my $vfunc_name = $vfunc_names->[0];
+      my $perl_vfunc_name = $vfunc_names->[1];
+      if (exists $forbidden_sub_names{$perl_vfunc_name}) {
+        $perl_vfunc_name .= '_VFUNC';
+      }
+      my $full_perl_vfunc_name = $object_package . '::' . $perl_vfunc_name;
+      *{$full_perl_vfunc_name} = sub {
+        __PACKAGE__->_invoke_parent_vfunc($basename, $object_name, $vfunc_name, @_);
+      }
+    }
   }
 }
 
