@@ -91,7 +91,7 @@ typedef struct {
 	SV *code;
 	SV *data;
 
-	/* ... or a sub name to be looked up in the first args' package */
+	/* ... or a sub name to be called as a method on the invocant */
 	gchar *sub_name;
 
 	guint data_pos;
@@ -1918,7 +1918,6 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	gboolean have_return_type;
 	int n_return_values, n_returned;
 	I32 context;
-	SV *code_sv;
 	dGPERL_CALLBACK_MARSHAL_SP;
 
 	PERL_UNUSED_VAR (cif);
@@ -2018,36 +2017,13 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		}
 	}
 
-	if (info->sub_name) {
-		/* ASSUMPTION: for a named sub, we expect the first argument to
-		 * be an object with a Perl implementation whose package is
-		 * supposed to contain the sub. */
-		GObject *object;
-		HV *stash;
-		GV *slot;
-		object = * (GObject **) args[0];
-		g_assert (G_IS_OBJECT (object));
-		stash = gperl_object_stash_from_type (G_OBJECT_TYPE (object));
-		g_assert (stash);
-		slot = gv_fetchmethod (stash, info->sub_name);
-		if (!slot || !GvCV (slot)) {
-			ccroak ("Could not find a sub called '%s' in package '%s'",
-			        info->sub_name,
-			        gperl_object_package_from_type (G_OBJECT_TYPE (object)));
-		}
-		dwarn ("calling '%s' in '%s'",
-		       info->sub_name,
-		       gperl_object_package_from_type (G_OBJECT_TYPE (object)));
-		code_sv = (SV *) GvCV (slot);
-	} else {
-		code_sv = info->code;
-	}
-
 	/* do the call, demand #in-out+#out+#return-value return values */
 	n_return_values = have_return_type
 	  ? in_inout + 1
 	  : in_inout;
-	n_returned = call_sv (code_sv, context);
+	n_returned = info->sub_name
+		? call_method (info->sub_name, context)
+		: call_sv (info->code, context);
 	if (n_return_values != 0 && n_returned != n_return_values) {
 		ccroak ("callback returned %d values "
 		        "but is supposed to return %d values",

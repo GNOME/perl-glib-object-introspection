@@ -5,36 +5,47 @@ BEGIN { require './t/inc/setup.pl' };
 use strict;
 use warnings;
 
-plan tests => 4;
+plan tests => 7;
 
 {
-  package Foo;
+  package NoImplementation;
   use Glib::Object::Subclass
     'Glib::Object',
-      interfaces => [ 'GI::Interface' ];
+    interfaces => [ 'GI::Interface' ];
 }
 
 {
-  my $foo = Foo->new;
+  my $foo = NoImplementation->new;
   local $@;
   eval { $foo->test_int8_in (23) };
   like ($@, qr/TEST_INT8_IN/);
 }
 
 {
-  package Bar;
+  package GoodImplementation;
   use Glib::Object::Subclass
     'Glib::Object',
-      interfaces => [ 'GI::Interface' ];
+    interfaces => [ 'GI::Interface' ];
   sub TEST_INT8_IN {
     my ($self, $int8) = @_;
-    Test::More::isa_ok ($self, 'Bar');
+    Test::More::isa_ok ($self, __PACKAGE__);
     Test::More::isa_ok ($self, 'GI::Interface');
   }
 }
 
 {
-  my $bar = Bar->new;
-  $bar->test_int8_in (23);
-  ok (1);
+  my $foo = GoodImplementation->new;
+  $foo->test_int8_in (23);
+  pass;
+}
+
+{
+  package InheritedImplementation;
+  use Glib::Object::Subclass 'GoodImplementation';
+}
+
+{
+  my $foo = InheritedImplementation->new;
+  $foo->test_int8_in (23);
+  pass;
 }
