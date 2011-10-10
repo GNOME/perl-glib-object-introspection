@@ -144,6 +144,12 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 			GIArgInfo *arg_info = g_callable_info_get_arg (cb_interface, i);
 			GITypeInfo *arg_type = g_arg_info_get_type (arg_info);
 			GIDirection direction = g_arg_info_get_direction (arg_info);
+			gpointer out_pointer = * (gpointer *) args[i];
+
+			if (!out_pointer) {
+				dwarn ("skipping out arg %d\n", i);
+				continue;
+			}
 
 			if (direction == GI_DIRECTION_INOUT ||
 			    direction == GI_DIRECTION_OUT)
@@ -154,7 +160,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 				sv_to_arg (returned_values[out_index], &tmp_arg,
 				           arg_info, arg_type,
 				           transfer, may_be_null, NULL);
-				arg_to_raw (&tmp_arg, args[i], arg_type);
+				arg_to_raw (&tmp_arg, out_pointer, arg_type);
 				out_index++;
 			}
 		}
