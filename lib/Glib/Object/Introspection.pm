@@ -151,19 +151,28 @@ sub setup {
     my $installer_name = $object_package . '::_INSTALL_OVERRIDES';
     *{$installer_name} = sub {
       my ($target_package) = @_;
-      __PACKAGE__->_install_overrides($basename, $object_name, $target_package);
+      my @non_perl_parent_packages =
+        __PACKAGE__->_install_overrides($basename, $object_name,
+                                        $target_package);
+      foreach my $parent_package (@non_perl_parent_packages) {
+        VFUNC:
+        foreach my $vfunc_names (@{$objects_with_vfuncs->{$object_name}}) {
+          my $vfunc_name = $vfunc_names->[0];
+          my $perl_vfunc_name = $vfunc_names->[1];
+          if (exists $forbidden_sub_names{$perl_vfunc_name}) {
+            $perl_vfunc_name .= '_VFUNC';
+          }
+          my $full_perl_vfunc_name = $parent_package . '::' . $perl_vfunc_name;
+          if (defined &{$full_perl_vfunc_name}) {
+            next VFUNC;
+          }
+          *{$full_perl_vfunc_name} = sub {
+            __PACKAGE__->_invoke_fallback_vfunc($basename, $object_name, $vfunc_name,
+                                                $parent_package, @_);
+          }
+        }
+      }
     };
-    foreach my $vfunc_names (@{$objects_with_vfuncs->{$object_name}}) {
-      my $vfunc_name = $vfunc_names->[0];
-      my $perl_vfunc_name = $vfunc_names->[1];
-      if (exists $forbidden_sub_names{$perl_vfunc_name}) {
-        $perl_vfunc_name .= '_VFUNC';
-      }
-      my $full_perl_vfunc_name = $object_package . '::' . $perl_vfunc_name;
-      *{$full_perl_vfunc_name} = sub {
-        __PACKAGE__->_invoke_parent_vfunc($basename, $object_name, $vfunc_name, @_);
-      }
-    }
   }
 }
 

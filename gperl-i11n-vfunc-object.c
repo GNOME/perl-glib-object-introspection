@@ -1,5 +1,5 @@
 static void
-generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer class)
+generic_class_init (GIObjectInfo *info, gpointer class)
 {
 	GIStructInfo *struct_info;
 	gint n, i;
@@ -25,7 +25,7 @@ generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer cl
 
 		perl_method_name = g_ascii_strup (vfunc_name, -1);
 		callback_info = create_callback_closure_for_named_sub (
-		                  field_type_info, perl_method_name, g_strdup (target_package));
+		                  field_type_info, perl_method_name);
 		dwarn ("installing vfunc %s as %s at offset %d (vs. %d) inside %p\n",
 		       vfunc_name, perl_method_name,
 		       field_offset, g_vfunc_info_get_offset (vfunc_info),

@@ -14,7 +14,6 @@ create_callback_closure (GITypeInfo *cb_type, SV *code)
 	 * newSVsv. */
 	info->code = newSVsv (code);
 	info->sub_name = NULL;
-	info->package_name = NULL;
 
 #ifdef PERL_IMPLICIT_CONTEXT
 	info->priv = aTHX;
@@ -31,7 +30,7 @@ attach_callback_data (GPerlI11nCallbackInfo *info, SV *data)
 
 /* assumes ownership of sub_name and package_name */
 static GPerlI11nCallbackInfo *
-create_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name, gchar *package_name)
+create_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name)
 {
 	GPerlI11nCallbackInfo *info;
 
@@ -43,7 +42,6 @@ create_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name, gch
 		g_callable_info_prepare_closure (info->interface, info->cif,
 		                                 invoke_callback, info);
 	info->sub_name = sub_name;
-	info->package_name = package_name;
 	info->code = NULL;
 	info->data = NULL;
 
@@ -75,8 +73,6 @@ release_callback (gpointer data)
 		SvREFCNT_dec (info->data);
 	if (info->sub_name)
 		g_free (info->sub_name);
-	if (info->package_name)
-		g_free (info->package_name);
 
 	g_free (info);
 }

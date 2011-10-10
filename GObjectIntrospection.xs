@@ -38,13 +38,8 @@ typedef struct {
 	SV *code;
 	SV *data;
 
-	/* ... or a sub name to be called as a method on the invocant, plus the
-	 * name of the package that is the originator of the sub.  we will use
-	 * call_method so that Perl subclasses can override.  but we still need
-	 * the package name so that we can chain up properly in the fallback
-	 * implementations. */
+	/* ... or a sub name to be called as a method on the invocant. */
 	gchar *sub_name;
-	gchar *package_name;
 
 	guint data_pos;
 	guint notify_pos;
@@ -96,7 +91,7 @@ typedef struct {
 /* callbacks */
 static GPerlI11nCallbackInfo* create_callback_closure (GITypeInfo *cb_type, SV *code);
 static void attach_callback_data (GPerlI11nCallbackInfo *info, SV *data);
-static GPerlI11nCallbackInfo * create_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name, gchar *package_name);
+static GPerlI11nCallbackInfo * create_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name);
 static void release_callback (gpointer data);
 
 /* invocation */
@@ -189,11 +184,7 @@ static void generic_interface_init (gpointer iface, gpointer data);
 static void generic_interface_finalize (gpointer iface, gpointer data);
 
 /* object vfuncs */
-static void generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer class);
-
-/* FIXME: this is not safe if we want to support unloading G:O:I. */
-#define VFUNC_TARGET_PACKAGE_QUARK g_quark_from_static_string ("__gperl_vfunc_target_package")
-#define VFUNC_PERL_TYPE_QUARK      g_quark_from_static_string ("__gperl_vfunc_perl_type")
+static void generic_class_init (GIObjectInfo *info, gpointer class);
 
 /* misc. */
 #define ccroak(...) call_carp_croak (form (__VA_ARGS__));
@@ -511,7 +502,7 @@ _install_overrides (class, basename, object_name, target_package)
     PREINIT:
 	GIRepository *repository;
 	GIObjectInfo *info;
-	GType gtype;
+	GType gtype, object_gtype;
 	gpointer klass;
     PPCODE:
 	dwarn ("_install_overrides: %s.%s for %s\n", basename, object_name, target_package);
@@ -527,22 +518,29 @@ _install_overrides (class, basename, object_name, target_package)
 	if (!klass)
 		ccroak ("internal problem: can't peek at type class for %s (%d)",
 		        g_type_name (gtype), gtype);
-	/* mark the type as belonging to us */
-	g_type_set_qdata (gtype, VFUNC_PERL_TYPE_QUARK, (gpointer) TRUE);
-	generic_class_init (info, target_package, klass);
+	generic_class_init (info, klass);
+	/* find all non-Perl parents up to and including the object type */
+	object_gtype = g_registered_type_info_get_g_type (info);
+	while ((gtype = g_type_parent (gtype))) {
+		if (!g_type_get_qdata (gtype, g_quark_from_static_string ("__gperl_type_reg"))) {
+			XPUSHs (sv_2mortal (newSVpv (gperl_object_package_from_type (gtype), PL_na)));
+		}
+		if (gtype == object_gtype) {
+			break;
+		}
+	}
 	g_base_info_unref (info);
 
 void
-_invoke_parent_vfunc (class, basename, object_name, vfunc_name, ...)
+_invoke_fallback_vfunc (class, basename, object_name, vfunc_name, target_package, ...)
 	const gchar *basename
 	const gchar *object_name
 	const gchar *vfunc_name
+	const gchar *target_package
     PREINIT:
-	UV internal_stack_offset = 4;
+	UV internal_stack_offset = 5;
 	GIRepository *repository;
 	GIObjectInfo *info;
-	GObject *object;
-	const gchar *target_package;
 	GType gtype;
 	gpointer klass;
 	GIStructInfo *struct_info;
@@ -554,24 +552,9 @@ _invoke_parent_vfunc (class, basename, object_name, vfunc_name, ...)
 	dwarn ("_invoke_parent_vfunc: %s\n", vfunc_name);
 	repository = g_irepository_get_default ();
 	info = g_irepository_find_by_name (repository, basename, object_name);
-	if (!GI_IS_OBJECT_INFO (info))
-		ccroak ("not an object");
-	object = gperl_get_object (ST (internal_stack_offset));
-	g_assert (G_IS_OBJECT (object));
-	target_package = g_object_get_qdata (object, VFUNC_TARGET_PACKAGE_QUARK);
-	g_assert (target_package);
+	g_assert (info);
 	gtype = gperl_object_type_from_package (target_package);
 	dwarn ("  target: %s\n", target_package);
-	/* find the first non-Perl parent of this type */
-	while ((gtype = g_type_parent (gtype))) {
-		if (!g_type_get_qdata (gtype, VFUNC_PERL_TYPE_QUARK)) {
-			break;
-		}
-	}
-	if (!gtype)
-		ccroak ("package '%s' is not registered with Glib-Perl",
-		        target_package);
-	dwarn ("  parent: %s\n", g_type_name (gtype));
 	klass = g_type_class_peek (gtype);
 	if (!klass)
 		ccroak ("internal problem: can't peek at type class for %s (%d)",

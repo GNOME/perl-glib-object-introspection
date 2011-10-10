@@ -89,14 +89,6 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 
 	PUTBACK;
 
-	/* put the target package name into the invocant so that the vfunc
-	 * fallback code knows whose parent to chain up to. */
-	if (info->package_name) {
-		GObject *object = * (GObject **) args[0];
-		g_assert (G_IS_OBJECT (object));
-		g_object_set_qdata (object, VFUNC_TARGET_PACKAGE_QUARK, info->package_name);
-	}
-
 	/* determine suitable Perl call context; return_type is freed further
 	 * below */
 	return_type = g_callable_info_get_return_type (cb_interface);
@@ -127,12 +119,6 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		ccroak ("callback returned %d values "
 		        "but is supposed to return %d values",
 		        n_returned, n_return_values);
-	}
-
-	if (info->package_name) {
-		GObject *object = * (GObject **) args[0];
-		g_assert (G_IS_OBJECT (object));
-		g_object_set_qdata (object, VFUNC_TARGET_PACKAGE_QUARK, NULL);
 	}
 
 	SPAGAIN;

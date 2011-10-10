@@ -26,7 +26,7 @@ generic_interface_init (gpointer iface, gpointer data)
 
 		perl_method_name = g_ascii_strup (vfunc_name, -1);
 		callback_info = create_callback_closure_for_named_sub (
-		                  field_type_info, perl_method_name, NULL);
+		                  field_type_info, perl_method_name);
 		dwarn ("installing vfunc %s as %s at offset %d (vs. %d) inside %p\n",
 		       vfunc_name, perl_method_name,
 		       field_offset, g_vfunc_info_get_offset (vfunc_info),
