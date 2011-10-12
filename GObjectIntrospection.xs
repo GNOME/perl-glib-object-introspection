@@ -522,6 +522,7 @@ _install_overrides (class, basename, object_name, target_package)
 	/* find all non-Perl parents up to and including the object type */
 	object_gtype = g_registered_type_info_get_g_type (info);
 	while ((gtype = g_type_parent (gtype))) {
+		/* FIXME: we should export gperl_type_reg_quark from Glib */
 		if (!g_type_get_qdata (gtype, g_quark_from_static_string ("__gperl_type_reg"))) {
 			XPUSHs (sv_2mortal (newSVpv (gperl_object_package_from_type (gtype), PL_na)));
 		}
@@ -568,19 +569,15 @@ _invoke_fallback_vfunc (class, basename, object_name, vfunc_name, target_package
 	g_assert (field_info);
 	field_offset = g_field_info_get_offset (field_info);
 	func_pointer = G_STRUCT_MEMBER (gpointer, klass, field_offset);
-	if (!func_pointer) {
-		ccroak ("cannot find implementation for vfunc '%s'", vfunc_name);
-		g_base_info_unref (field_info);
-		g_base_info_unref (vfunc_info);
-		g_base_info_unref (info);
+	if (func_pointer) {
+		invoke_callable (vfunc_info, func_pointer,
+		                 sp, ax, mark, items,
+		                 internal_stack_offset);
+		/* SPAGAIN since invoke_callable probably modified the stack
+		 * pointer.  so we need to make sure that our local variable
+		 * 'sp' is correct before the implicit PUTBACK happens. */
+		SPAGAIN;
 	}
-	invoke_callable (vfunc_info, func_pointer,
-	                 sp, ax, mark, items,
-	                 internal_stack_offset);
-	/* SPAGAIN since invoke_callable probably modified the stack pointer.
-	 * so we need to make sure that our implicit local variable 'sp' is
-	 * correct before the implicit PUTBACK happens. */
-	SPAGAIN;
 	g_base_info_unref (field_info);
 	g_base_info_unref (vfunc_info);
 	g_base_info_unref (info);
