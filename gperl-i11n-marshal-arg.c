@@ -11,8 +11,6 @@ sv_to_arg (SV * sv,
 {
 	GITypeTag tag = g_type_info_get_tag (type_info);
 
-        memset (arg, 0, sizeof (GIArgument));
-
 	if (!gperl_sv_is_defined (sv))
 		/* Interfaces and void types need to be able to handle undef
 		 * separately. */

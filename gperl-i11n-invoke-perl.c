@@ -157,10 +157,16 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 				GIArgument tmp_arg;
 				GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
 				gboolean may_be_null = g_arg_info_may_be_null (arg_info);
+				gboolean is_caller_allocated = g_arg_info_is_caller_allocates (arg_info);
+				if (is_caller_allocated) {
+					tmp_arg.v_pointer = out_pointer;
+				}
 				sv_to_arg (returned_values[out_index], &tmp_arg,
 				           arg_info, arg_type,
 				           transfer, may_be_null, NULL);
-				arg_to_raw (&tmp_arg, out_pointer, arg_type);
+				if (!is_caller_allocated) {
+					arg_to_raw (&tmp_arg, out_pointer, arg_type);
+				}
 				out_index++;
 			}
 

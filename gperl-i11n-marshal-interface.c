@@ -76,7 +76,9 @@ sv_to_interface (GIArgInfo * arg_info,
 	    case GI_INFO_TYPE_STRUCT:
 	    case GI_INFO_TYPE_BOXED:
 	    {
-		/* FIXME: What about pass-by-value here? */
+		gboolean need_value_semantics =
+			arg_info && g_arg_info_is_caller_allocates (arg_info)
+			&& !g_type_info_is_pointer (type_info);
 		GType type = g_registered_type_info_get_g_type (
 		               (GIRegisteredTypeInfo *) interface);
 		if (!type || type == G_TYPE_NONE) {
@@ -84,6 +86,7 @@ sv_to_interface (GIArgInfo * arg_info,
 				? g_arg_info_get_ownership_transfer (arg_info)
 				: GI_TRANSFER_NOTHING;
 			dwarn ("    unboxed type\n");
+			g_assert (!need_value_semantics);
 			arg->v_pointer = sv_to_struct (transfer,
 			                               interface,
 			                               info_type,
@@ -91,17 +94,28 @@ sv_to_interface (GIArgInfo * arg_info,
 		} else if (type == G_TYPE_CLOSURE) {
 			/* FIXME: User cannot supply user data. */
 			dwarn ("    closure type\n");
+			g_assert (!need_value_semantics);
 			arg->v_pointer = gperl_closure_new (sv, NULL, FALSE);
 		} else if (type == G_TYPE_VALUE) {
 			dwarn ("    value type\n");
+			g_assert (!need_value_semantics);
 			arg->v_pointer = SvGValueWrapper (sv);
 			if (!arg->v_pointer)
 				ccroak ("Cannot convert arbitrary SV to GValue");
 		} else {
-			dwarn ("    boxed type: %s (%d)\n",
-			       g_type_name (type), type);
-			/* FIXME: Check transfer setting. */
-			arg->v_pointer = gperl_get_boxed_check (sv, type);
+			dwarn ("    boxed type: %s, name=%s, caller-allocates=%d, is-pointer=%d\n",
+			       g_type_name (type),
+			       g_base_info_get_name (interface),
+			       g_arg_info_is_caller_allocates (arg_info),
+			       g_type_info_is_pointer (type_info));
+			if (need_value_semantics) {
+				gsize n_bytes = g_struct_info_get_size (interface);
+				gpointer mem = gperl_get_boxed_check (sv, type);
+				g_memmove (arg->v_pointer, mem, n_bytes);
+			} else {
+				/* FIXME: Check transfer setting. */
+				arg->v_pointer = gperl_get_boxed_check (sv, type);
+			}
 		}
 		break;
 	    }
