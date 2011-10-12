@@ -50,6 +50,7 @@ instance_sv_to_pointer (GICallableInfo *info, SV *sv)
 static void
 sv_to_interface (GIArgInfo * arg_info,
                  GITypeInfo * type_info,
+                 GITransfer transfer,
                  SV * sv,
                  GIArgument * arg,
                  GPerlI11nInvocationInfo * invocation_info)
@@ -68,8 +69,13 @@ sv_to_interface (GIArgInfo * arg_info,
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
 	    case GI_INFO_TYPE_INTERFACE:
-		/* FIXME: Check transfer setting. */
 		arg->v_pointer = gperl_get_object (sv);
+		if (arg->v_pointer && transfer == GI_TRANSFER_EVERYTHING) {
+			g_object_ref (arg->v_pointer);
+			if (G_IS_INITIALLY_UNOWNED (arg->v_pointer)) {
+				g_object_force_floating (arg->v_pointer);
+			}
+		}
 		break;
 
 	    case GI_INFO_TYPE_UNION:
@@ -82,9 +88,6 @@ sv_to_interface (GIArgInfo * arg_info,
 		GType type = g_registered_type_info_get_g_type (
 		               (GIRegisteredTypeInfo *) interface);
 		if (!type || type == G_TYPE_NONE) {
-			GITransfer transfer = arg_info
-				? g_arg_info_get_ownership_transfer (arg_info)
-				: GI_TRANSFER_NOTHING;
 			dwarn ("    unboxed type\n");
 			g_assert (!need_value_semantics);
 			arg->v_pointer = sv_to_struct (transfer,

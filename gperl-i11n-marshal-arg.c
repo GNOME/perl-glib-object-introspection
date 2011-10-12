@@ -87,7 +87,7 @@ sv_to_arg (SV * sv,
 
 	    case GI_TYPE_TAG_INTERFACE:
 		dwarn ("    type %p -> interface\n", type_info);
-		sv_to_interface (arg_info, type_info, sv, arg,
+		sv_to_interface (arg_info, type_info, transfer, sv, arg,
 		                 invocation_info);
 		break;
 

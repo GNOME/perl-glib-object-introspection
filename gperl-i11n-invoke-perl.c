@@ -195,6 +195,23 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		       g_type_info_is_pointer (type_info),
 		       g_type_info_get_tag (type_info));
 
+		/* If the callback is supposed to return a GInitiallyUnowned
+		 * object then we must enforce GI_TRANSFER_EVERYTHING.
+		 * Otherwise, if the Perl code returns a newly created object,
+		 * FREETMPS below would finalize it. */
+		if (g_type_info_get_tag (type_info) == GI_TYPE_TAG_INTERFACE &&
+		    transfer == GI_TRANSFER_NOTHING)
+		{
+			GIBaseInfo *interface = g_type_info_get_interface (type_info);
+			if (GI_IS_REGISTERED_TYPE_INFO (interface) &&
+			    g_type_is_a (g_registered_type_info_get_g_type (interface),
+			                 G_TYPE_INITIALLY_UNOWNED))
+			{
+				transfer = GI_TRANSFER_EVERYTHING;
+			}
+			g_base_info_unref (interface);
+		}
+
 		sv_to_arg (POPs, &arg, NULL, type_info,
 		           transfer, may_be_null, NULL);
 		arg_to_raw (&arg, resp, type_info);

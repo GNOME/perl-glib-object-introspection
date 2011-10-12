@@ -130,6 +130,7 @@ static SV * interface_to_sv (GITypeInfo* info,
                              gboolean own);
 static void sv_to_interface (GIArgInfo * arg_info,
                              GITypeInfo * type_info,
+                             GITransfer transfer,
                              SV * sv,
                              GIArgument * arg,
                              GPerlI11nInvocationInfo * invocation_info);
