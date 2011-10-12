@@ -134,9 +134,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		 * reverse the order since POPs pops items off of the end of
 		 * the stack. */
 		for (i = 0; i < in_inout; i++) {
-			/* FIXME: Does this leak the sv?  Should we check the
-			 * transfer setting? */
-			returned_values[in_inout - i - 1] = newSVsv (POPs);
+			returned_values[in_inout - i - 1] = POPs;
 		}
 
 		out_index = 0;
@@ -148,6 +146,8 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 
 			if (!out_pointer) {
 				dwarn ("skipping out arg %d\n", i);
+				g_base_info_unref (arg_info);
+				g_base_info_unref (arg_type);
 				continue;
 			}
 
@@ -163,6 +163,9 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 				arg_to_raw (&tmp_arg, out_pointer, arg_type);
 				out_index++;
 			}
+
+			g_base_info_unref (arg_info);
+			g_base_info_unref (arg_type);
 		}
 
 		g_free (returned_values);
@@ -186,8 +189,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		       g_type_info_is_pointer (type_info),
 		       g_type_info_get_tag (type_info));
 
-		/* FIXME: Does this leak the sv? */
-		sv_to_arg (newSVsv (POPs), &arg, NULL, type_info,
+		sv_to_arg (POPs, &arg, NULL, type_info,
 		           transfer, may_be_null, NULL);
 		arg_to_raw (&arg, resp, type_info);
 
