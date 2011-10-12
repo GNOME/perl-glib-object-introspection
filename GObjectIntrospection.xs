@@ -100,10 +100,10 @@ static void invoke_callback (ffi_cif* cif,
                              gpointer* args,
                              gpointer userdata);
 
-void invoke_callable (GICallableInfo *info,
-                      gpointer func_pointer,
-                      SV **sp, I32 ax, SV **mark, I32 items, /* these correspond to dXSARGS */
-                      UV internal_stack_offset);
+static void invoke_callable (GICallableInfo *info,
+                             gpointer func_pointer,
+                             SV **sp, I32 ax, SV **mark, I32 items, /* these correspond to dXSARGS */
+                             UV internal_stack_offset);
 
 /* invocation info */
 static void prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,

@@ -1,4 +1,4 @@
-void
+static void
 invoke_callable (GICallableInfo *info,
                  gpointer func_pointer,
                  SV **sp, I32 ax, SV **mark, I32 items, /* these correspond to dXSARGS */
