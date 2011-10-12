@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 /* transfer and may_be_null can be gotten from arg_info, but sv_to_arg is also
  * called from places which don't have access to a GIArgInfo. */
 static void

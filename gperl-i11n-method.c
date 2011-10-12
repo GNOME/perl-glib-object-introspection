@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 static void
 store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 {

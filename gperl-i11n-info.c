@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 /* Caller owns return value */
 static GIFunctionInfo *
 get_function_info (GIRepository *repository,

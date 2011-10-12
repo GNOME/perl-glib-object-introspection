@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 static GPerlI11nCallbackInfo *
 create_callback_closure (GITypeInfo *cb_type, SV *code)
 {

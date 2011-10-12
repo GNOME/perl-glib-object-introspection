@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 static void
 invoke_callable (GICallableInfo *info,
                  gpointer func_pointer,

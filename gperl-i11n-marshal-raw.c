@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 #define CAST_RAW(raw, type) (*((type *) raw))
 
 static void

@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 static void
 generic_class_init (GIObjectInfo *info, gpointer class)
 {

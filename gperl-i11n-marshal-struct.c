@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 static SV *
 struct_to_sv (GIBaseInfo* info,
               GIInfoType info_type,

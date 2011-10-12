@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 static gpointer
 sv_to_callback (GIArgInfo * arg_info,
                 GITypeInfo * type_info,

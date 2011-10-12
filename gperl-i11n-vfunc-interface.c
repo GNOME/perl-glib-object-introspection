@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 static void
 generic_interface_init (gpointer iface, gpointer data)
 {

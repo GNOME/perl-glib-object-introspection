@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 /* Call Carp's croak() so that errors are reported at their location in the
  * user's program, not in Introspection.pm.  Adapted from
  * <http://www.perlmonks.org/?node_id=865159>. */

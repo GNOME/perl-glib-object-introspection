@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 /* Semi-private package for marshalling into GValues. */
 #define GVALUE_WRAPPER_PACKAGE "Glib::Object::Introspection::GValueWrapper"
 

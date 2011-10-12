@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 /* These three are basically copied from pygi's pygi-info.c. :-( */
 
 static gsize

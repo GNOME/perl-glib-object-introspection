@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 static gpointer
 instance_sv_to_pointer (GICallableInfo *info, SV *sv)
 {

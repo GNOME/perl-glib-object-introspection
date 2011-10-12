@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 static void
 invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 {

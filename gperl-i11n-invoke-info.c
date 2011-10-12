@@ -1,3 +1,5 @@
+/* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
+
 static void
 prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
                          GICallableInfo *info,
