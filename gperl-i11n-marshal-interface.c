@@ -147,14 +147,16 @@ sv_to_interface (GIArgInfo * arg_info,
 		break;
 
 	    default:
-		ccroak ("sv_to_interface: Don't know how to handle info type %d", info_type);
+		ccroak ("sv_to_interface: Don't know how to handle info type %s (%d)",
+		        g_info_type_to_string (info_type),
+		        info_type);
 	}
 
 	g_base_info_unref ((GIBaseInfo *) interface);
 }
 
 static SV *
-interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own)
+interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvocationInfo *iinfo)
 {
 	GIBaseInfo *interface;
 	GIInfoType info_type;
@@ -214,8 +216,14 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own)
 		break;
 	    }
 
+	    case GI_INFO_TYPE_CALLBACK:
+		sv = callback_to_sv (interface, arg->v_pointer, iinfo);
+		break;
+
 	    default:
-		ccroak ("interface_to_sv: Don't know how to handle info type %d", info_type);
+		ccroak ("interface_to_sv: Don't know how to handle info type %s (%d)",
+		        g_info_type_to_string (info_type),
+		        info_type);
 	}
 
 	g_base_info_unref ((GIBaseInfo *) interface);

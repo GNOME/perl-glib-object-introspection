@@ -176,6 +176,17 @@ sub setup {
   }
 }
 
+package Glib::Object::Introspection::_FuncWrapper;
+
+use overload
+      '&{}' => sub {
+                 my ($func) = @_;
+                 return sub { Glib::Object::Introspection::_FuncWrapper::_invoke($func, @_) }
+               },
+      fallback => 1;
+
+package Glib::Object::Introspection;
+
 1;
 __END__
 
@@ -276,8 +287,6 @@ flattened so that they return plain lists.  For example
 
 The function names refer to those after name corrections.  Functions occuring
 in C<flatten_array_ref_return_for> may also occur in C<class_static_methods>.
-
-=back
 
 =item handle_sentinel_boolean_for => [ function1, ... ]
 

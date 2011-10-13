@@ -93,7 +93,7 @@ WriteMakefile(
     configure_requires => \%PREREQ_PM,
     no_index => {
       file => \@xs_files,
-      package => 'MY',
+      package => [ 'MY', 'Glib::Object::Introspection::_FuncWrapper' ],
     },
   },
 

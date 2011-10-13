@@ -23,9 +23,8 @@ sv_to_arg (SV * sv,
 
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
+		/* returns NULL if no match is found */
 		arg->v_pointer = sv_to_callback_data (sv, invocation_info);
-		if (!arg->v_pointer)
-			ccroak ("encountered void pointer that is not callback user data");
 		break;
 
 	    case GI_TYPE_TAG_BOOLEAN:
@@ -138,8 +137,12 @@ arg_to_sv (GIArgument * arg,
 
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
-		dwarn ("    argument with no type information -> undef\n");
-		return &PL_sv_undef;
+	    {
+		SV *sv = callback_data_to_sv (arg->v_pointer, iinfo);
+		dwarn ("    argument with no type information -> %s\n",
+		       sv ? "callback data" : "undef");
+		return sv ? SvREFCNT_inc (sv) : &PL_sv_undef;
+	    }
 
 	    case GI_TYPE_TAG_BOOLEAN:
 		return boolSV (arg->v_boolean);
@@ -196,7 +199,7 @@ arg_to_sv (GIArgument * arg,
 		return array_to_sv (info, arg->v_pointer, transfer, iinfo);
 
 	    case GI_TYPE_TAG_INTERFACE:
-		return interface_to_sv (info, arg, own);
+		return interface_to_sv (info, arg, own, iinfo);
 
 	    case GI_TYPE_TAG_GLIST:
 	    case GI_TYPE_TAG_GSLIST:

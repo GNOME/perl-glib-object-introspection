@@ -9,7 +9,11 @@ raw_to_arg (gpointer raw, GIArgument *arg, GITypeInfo *info)
 
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
-		/* do nothing */
+		if (g_type_info_is_pointer (info)) {
+			arg->v_pointer = CAST_RAW (raw, gpointer);
+		} else {
+			/* do nothing */
+		}
 		break;
 
 	    case GI_TYPE_TAG_BOOLEAN:
@@ -66,12 +70,12 @@ raw_to_arg (gpointer raw, GIArgument *arg, GITypeInfo *info)
 	    case GI_TYPE_TAG_GSLIST:
 	    case GI_TYPE_TAG_GHASH:
 	    case GI_TYPE_TAG_ERROR:
-		arg->v_pointer = * (gpointer *) raw;
+		arg->v_pointer = CAST_RAW (raw, gpointer);
 		break;
 
 	    case GI_TYPE_TAG_UTF8:
 	    case GI_TYPE_TAG_FILENAME:
-		arg->v_string = * (gchar **) raw;
+		arg->v_string = CAST_RAW (raw, gchar*);
 		break;
 
 	    default:

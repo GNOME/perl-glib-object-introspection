@@ -3,21 +3,22 @@
 static void
 invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 {
-	GPerlI11nCallbackInfo *info;
+	GPerlI11nPerlCallbackInfo *info;
 	GICallableInfo *cb_interface;
-	int n_args, i;
-	int in_inout;
-	GITypeInfo *return_type;
-	gboolean have_return_type;
-	int n_return_values, n_returned;
+	GPerlI11nInvocationInfo iinfo = {0,};
+	guint i;
+	guint in_inout;
+	guint n_return_values, n_returned;
 	I32 context;
 	dGPERL_CALLBACK_MARSHAL_SP;
 
 	PERL_UNUSED_VAR (cif);
 
 	/* unwrap callback info struct from userdata */
-	info = (GPerlI11nCallbackInfo *) userdata;
+	info = (GPerlI11nPerlCallbackInfo *) userdata;
 	cb_interface = (GICallableInfo *) info->interface;
+
+	prepare_perl_invocation_info (&iinfo, cb_interface);
 
 	/* set perl context */
 	GPERL_CALLBACK_MARSHAL_INIT (info);
@@ -32,28 +33,29 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	 * suitable converters; push in and in-out arguments onto the perl
 	 * stack */
 	in_inout = 0;
-	n_args = g_callable_info_get_n_args (cb_interface);
-	for (i = 0; i < n_args; i++) {
+	for (i = 0; i < iinfo.n_args; i++) {
 		GIArgInfo *arg_info = g_callable_info_get_arg (cb_interface, i);
 		GITypeInfo *arg_type = g_arg_info_get_type (arg_info);
 		GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
 		GIDirection direction = g_arg_info_get_direction (arg_info);
 
+		iinfo.current_pos = i;
+
 		/* the closure argument, which we handle separately, is marked
 		 * by having get_closure == i */
-		if (g_arg_info_get_closure (arg_info) == i) {
+		if (g_arg_info_get_closure (arg_info) == (gint) i) {
 			g_base_info_unref ((GIBaseInfo *) arg_info);
 			g_base_info_unref ((GIBaseInfo *) arg_type);
 			continue;
 		}
 
-		dwarn ("arg info: %p\n"
+		dwarn ("arg info: %s (%p)\n"
 		       "  direction: %d\n"
 		       "  is return value: %d\n"
 		       "  is optional: %d\n"
 		       "  may be null: %d\n"
 		       "  transfer: %d\n",
-		       arg_info,
+		       g_base_info_get_name (arg_info), arg_info,
 		       g_arg_info_get_direction (arg_info),
 		       g_arg_info_is_return_value (arg_info),
 		       g_arg_info_is_optional (arg_info),
@@ -62,17 +64,23 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 
 		dwarn ("arg type: %p\n"
 		       "  is pointer: %d\n"
-		       "  tag: %d\n",
+		       "  tag: %s (%d)\n",
 		       arg_type,
 		       g_type_info_is_pointer (arg_type),
-		       g_type_info_get_tag (arg_type));
+		       g_type_tag_to_string (g_type_info_get_tag (arg_type)), g_type_info_get_tag (arg_type));
 
 		if (direction == GI_DIRECTION_IN ||
 		    direction == GI_DIRECTION_INOUT)
 		{
 			GIArgument arg;
+			SV *sv;
 			raw_to_arg (args[i], &arg, arg_type);
-			XPUSHs (sv_2mortal (arg_to_sv (&arg, arg_type, transfer, NULL)));
+			sv = arg_to_sv (&arg, arg_type, transfer, &iinfo);
+			/* If arg_to_sv returns NULL, we take that as 'skip
+			 * this argument'; happens for GDestroyNotify, for
+			 * example. */
+			if (sv)
+				XPUSHs (sv_2mortal (sv));
 		}
 
 		if (direction == GI_DIRECTION_INOUT ||
@@ -91,14 +99,9 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 
 	PUTBACK;
 
-	/* determine suitable Perl call context; return_type is freed further
-	 * below */
-	return_type = g_callable_info_get_return_type (cb_interface);
-	have_return_type =
-		GI_TYPE_TAG_VOID != g_type_info_get_tag (return_type);
-
+	/* determine suitable Perl call context */
 	context = G_VOID | G_DISCARD;
-	if (have_return_type) {
+	if (iinfo.has_return_value) {
 		context = in_inout > 0
 		  ? G_ARRAY
 		  : G_SCALAR;
@@ -111,7 +114,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	}
 
 	/* do the call, demand #in-out+#out+#return-value return values */
-	n_return_values = have_return_type
+	n_return_values = iinfo.has_return_value
 	  ? in_inout + 1
 	  : in_inout;
 	n_returned = info->sub_name
@@ -122,6 +125,10 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		        "but is supposed to return %d values",
 		        n_returned, n_return_values);
 	}
+
+	/* free call-scoped callback infos */
+	g_slist_foreach (iinfo.free_after_call,
+	                 (GFunc) release_c_callback, NULL);
 
 	SPAGAIN;
 
@@ -140,7 +147,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		}
 
 		out_index = 0;
-		for (i = 0; i < n_args; i++) {
+		for (i = 0; i < iinfo.n_args; i++) {
 			GIArgInfo *arg_info = g_callable_info_get_arg (cb_interface, i);
 			GITypeInfo *arg_type = g_arg_info_get_type (arg_info);
 			GIDirection direction = g_arg_info_get_direction (arg_info);
@@ -165,7 +172,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 				}
 				sv_to_arg (returned_values[out_index], &tmp_arg,
 				           arg_info, arg_type,
-				           transfer, may_be_null, NULL);
+				           transfer, may_be_null, &iinfo);
 				if (!is_caller_allocated) {
 					arg_to_raw (&tmp_arg, out_pointer, arg_type);
 				}
@@ -180,15 +187,15 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	}
 
 	/* store return value in resp, if any */
-	if (have_return_type) {
+	if (iinfo.has_return_value) {
 		GIArgument arg;
 		GITypeInfo *type_info;
 		GITransfer transfer;
 		gboolean may_be_null;
 
-		type_info = g_callable_info_get_return_type (cb_interface);
-		transfer = g_callable_info_get_caller_owns (cb_interface);
-		may_be_null = g_callable_info_may_return_null (cb_interface);
+		type_info = iinfo.return_type_info;
+		transfer = iinfo.return_type_transfer;
+		may_be_null = g_callable_info_may_return_null (cb_interface); /* FIXME */
 
 		dwarn ("ret type: %p\n"
 		       "  is pointer: %d\n"
@@ -197,33 +204,14 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		       g_type_info_is_pointer (type_info),
 		       g_type_info_get_tag (type_info));
 
-		/* If the callback is supposed to return a GInitiallyUnowned
-		 * object then we must enforce GI_TRANSFER_EVERYTHING.
-		 * Otherwise, if the Perl code returns a newly created object,
-		 * FREETMPS below would finalize it. */
-		if (g_type_info_get_tag (type_info) == GI_TYPE_TAG_INTERFACE &&
-		    transfer == GI_TRANSFER_NOTHING)
-		{
-			GIBaseInfo *interface = g_type_info_get_interface (type_info);
-			if (GI_IS_REGISTERED_TYPE_INFO (interface) &&
-			    g_type_is_a (g_registered_type_info_get_g_type (interface),
-			                 G_TYPE_INITIALLY_UNOWNED))
-			{
-				transfer = GI_TRANSFER_EVERYTHING;
-			}
-			g_base_info_unref (interface);
-		}
-
 		sv_to_arg (POPs, &arg, NULL, type_info,
-		           transfer, may_be_null, NULL);
+		           transfer, may_be_null, &iinfo);
 		arg_to_raw (&arg, resp, type_info);
-
-		g_base_info_unref ((GIBaseInfo *) type_info);
 	}
 
 	PUTBACK;
 
-	g_base_info_unref ((GIBaseInfo *) return_type);
+	clear_perl_invocation_info (&iinfo);
 
 	FREETMPS;
 	LEAVE;

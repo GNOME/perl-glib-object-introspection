@@ -1,21 +1,33 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
 static void
-prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
-                         GICallableInfo *info,
-                         IV items,
-                         UV internal_stack_offset)
+prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
+                           GICallableInfo *info,
+                           IV items,
+                           UV internal_stack_offset)
 {
-	gboolean is_vfunc;
 	guint i;
 
-	is_vfunc = GI_IS_VFUNC_INFO (info);
+	dwarn ("C invoke: %s\n"
+	       "  n_args: %d\n",
+	       g_base_info_get_name (info),
+	       g_callable_info_get_n_args (info));
+
+	iinfo->interface = info;
+
+	iinfo->is_function = GI_IS_FUNCTION_INFO (info);
+	iinfo->is_vfunc = GI_IS_VFUNC_INFO (info);
+	iinfo->is_callback = (g_base_info_get_type (info) == GI_INFO_TYPE_CALLBACK);
+	dwarn ("  is_function = %d, is_vfunc = %d, is_callback = %d\n",
+	       iinfo->is_function, iinfo->is_vfunc, iinfo->is_callback);
 
 	iinfo->stack_offset = internal_stack_offset;
 
-	iinfo->is_constructor = is_vfunc
-		? FALSE
-		: g_function_info_get_flags (info) & GI_FUNCTION_IS_CONSTRUCTOR;
+	iinfo->is_constructor = FALSE;
+	if (iinfo->is_function) {
+		iinfo->is_constructor =
+			g_function_info_get_flags (info) & GI_FUNCTION_IS_CONSTRUCTOR;
+	}
 	if (iinfo->is_constructor) {
 		iinfo->stack_offset++;
 	}
@@ -26,15 +38,19 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 		g_callable_info_get_n_args ((GICallableInfo *) info);
 
 	/* FIXME: can a vfunc not throw? */
-	iinfo->throws = is_vfunc
-		? FALSE
-		: g_function_info_get_flags (info) & GI_FUNCTION_THROWS;
+	iinfo->throws = FALSE;
+	if (iinfo->is_function) {
+		iinfo->throws =
+			g_function_info_get_flags (info) & GI_FUNCTION_THROWS;
+	}
 	if (iinfo->throws) {
 		iinfo->n_invoke_args++;
 	}
 
-	if (is_vfunc) {
+	if (iinfo->is_vfunc) {
 		iinfo->is_method = TRUE;
+	} else if (iinfo->is_callback) {
+		iinfo->is_method = FALSE;
 	} else {
 		iinfo->is_method =
 			(g_function_info_get_flags (info) & GI_FUNCTION_IS_METHOD)
@@ -44,7 +60,7 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 		iinfo->n_invoke_args++;
 	}
 
-	dwarn ("invoke: %s\n"
+	dwarn ("C invoke: %s\n"
 	       "  n_args: %d, n_invoke_args: %d, n_given_args: %d\n"
 	       "  is_constructor: %d, is_method: %d\n",
 	       is_vfunc ? g_base_info_get_name (info) : g_function_info_get_symbol (info),
@@ -140,7 +156,7 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 }
 
 static void
-clear_invocation_info (GPerlI11nInvocationInfo *iinfo)
+clear_c_invocation_info (GPerlI11nInvocationInfo *iinfo)
 {
 	g_slist_free (iinfo->free_after_call);
 
@@ -154,60 +170,67 @@ clear_invocation_info (GPerlI11nInvocationInfo *iinfo)
 	g_base_info_unref ((GIBaseInfo *) iinfo->return_type_info);
 }
 
-static gpointer
-allocate_out_mem (GITypeInfo *arg_type)
+/* -------------------------------------------------------------------------- */
+
+static void
+prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
+                              GICallableInfo *info)
 {
-	GIBaseInfo *interface_info;
-	GIInfoType type;
+	/* when invoking Perl code, we currently always use a complete
+	 * description of the callable (from a record field or some callback
+	 * typedef).  this implies that there is no implicit invocant; it
+	 * always appears explicitly in the arg list. */
 
-	interface_info = g_type_info_get_interface (arg_type);
-	g_assert (interface_info);
-	type = g_base_info_get_type (interface_info);
-	g_base_info_unref (interface_info);
+	dwarn ("Perl invoke: %s\n"
+	       "  n_args: %d\n",
+	       g_base_info_get_name (info),
+	       g_callable_info_get_n_args (info));
 
-	switch (type) {
-	    case GI_INFO_TYPE_STRUCT:
-	    {
-		/* No plain g_struct_info_get_size (interface_info) here so
-		 * that we get the GValue override. */
-		gsize size = size_of_interface (arg_type);
-		return g_malloc0 (size);
-	    }
-	    default:
-		g_assert_not_reached ();
-		return NULL;
+	iinfo->interface = info;
+
+	iinfo->is_function = GI_IS_FUNCTION_INFO (info);
+	iinfo->is_vfunc = GI_IS_VFUNC_INFO (info);
+	iinfo->is_callback = (g_base_info_get_type (info) == GI_INFO_TYPE_CALLBACK);
+	dwarn ("  is_function = %d, is_vfunc = %d, is_callback = %d\n",
+	       iinfo->is_function, iinfo->is_vfunc, iinfo->is_callback);
+
+	iinfo->n_args = g_callable_info_get_n_args (info);
+
+	/* FIXME: 'throws'? */
+
+	iinfo->return_type_info = g_callable_info_get_return_type (info);
+	iinfo->has_return_value =
+		GI_TYPE_TAG_VOID != g_type_info_get_tag (iinfo->return_type_info);
+	iinfo->return_type_ffi = g_type_info_get_ffi_type (iinfo->return_type_info);
+	iinfo->return_type_transfer = g_callable_info_get_caller_owns (info);
+
+	iinfo->dynamic_stack_offset = 0;
+
+	/* If the callback is supposed to return a GInitiallyUnowned object
+	 * then we must enforce GI_TRANSFER_EVERYTHING.  Otherwise, if the Perl
+	 * code returns a newly created object, FREETMPS would finalize it. */
+	if (g_type_info_get_tag (iinfo->return_type_info) == GI_TYPE_TAG_INTERFACE &&
+	    iinfo->return_type_transfer == GI_TRANSFER_NOTHING)
+	{
+		GIBaseInfo *interface = g_type_info_get_interface (iinfo->return_type_info);
+		if (GI_IS_REGISTERED_TYPE_INFO (interface) &&
+		    g_type_is_a (g_registered_type_info_get_g_type (interface),
+		                 G_TYPE_INITIALLY_UNOWNED))
+		{
+			iinfo->return_type_transfer = GI_TRANSFER_EVERYTHING;
+		}
+		g_base_info_unref (interface);
 	}
 }
 
 static void
-handle_automatic_arg (guint pos,
-                      GIArgument * arg,
-                      GPerlI11nInvocationInfo * invocation_info)
+clear_perl_invocation_info (GPerlI11nInvocationInfo *iinfo)
 {
-	GSList *l;
+	g_slist_free (iinfo->free_after_call);
 
-	/* array length */
-	for (l = invocation_info->array_infos; l != NULL; l = l->next) {
-		GPerlI11nArrayInfo *ainfo = l->data;
-		if (pos == ainfo->length_pos) {
-			dwarn ("  setting automatic arg %d (array length) to %d\n",
-			       pos, ainfo->length);
-			/* FIXME: Is it OK to always use v_size here? */
-			arg->v_size = ainfo->length;
-			return;
-		}
-	}
+	/* The actual callback infos might be needed later, so we cannot free
+	 * them here. */
+	g_slist_free (iinfo->callback_infos);
 
-	/* callback destroy notify */
-	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
-		GPerlI11nCallbackInfo *cinfo = l->data;
-		if (pos == cinfo->notify_pos) {
-			dwarn ("  setting automatic arg %d (destroy notify for calllback %p)\n",
-			       pos, cinfo);
-			arg->v_pointer = release_callback;
-			return;
-		}
-	}
-
-	ccroak ("Could not handle automatic arg %d", pos);
+	g_base_info_unref ((GIBaseInfo *) iinfo->return_type_info);
 }

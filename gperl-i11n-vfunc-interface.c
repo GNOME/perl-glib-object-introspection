@@ -15,7 +15,7 @@ generic_interface_init (gpointer iface, gpointer data)
 		gint field_offset;
 		GITypeInfo *field_type_info;
 		gchar *perl_method_name;
-		GPerlI11nCallbackInfo *callback_info;
+		GPerlI11nPerlCallbackInfo *callback_info;
 
 		vfunc_info = g_interface_info_get_vfunc (info, i);
 		vfunc_name = g_base_info_get_name (vfunc_info);
@@ -27,7 +27,7 @@ generic_interface_init (gpointer iface, gpointer data)
 		field_type_info = g_field_info_get_type (field_info);
 
 		perl_method_name = g_ascii_strup (vfunc_name, -1);
-		callback_info = create_callback_closure_for_named_sub (
+		callback_info = create_perl_callback_closure_for_named_sub (
 		                  field_type_info, perl_method_name);
 		dwarn ("installing vfunc %s as %s at offset %d (vs. %d) inside %p\n",
 		       vfunc_name, perl_method_name,

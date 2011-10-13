@@ -17,7 +17,7 @@ invoke_callable (GICallableInfo *info,
 
 	PERL_UNUSED_VAR (mark);
 
-	prepare_invocation_info (&iinfo, info, items, internal_stack_offset);
+	prepare_c_invocation_info (&iinfo, info, items, internal_stack_offset);
 
 	if (iinfo.is_method) {
 		instance = instance_sv_to_pointer (info, ST (0 + iinfo.stack_offset));
@@ -156,7 +156,7 @@ invoke_callable (GICallableInfo *info,
 	if (FFI_OK != ffi_prep_cif (&cif, FFI_DEFAULT_ABI, iinfo.n_invoke_args,
 	                            iinfo.return_type_ffi, iinfo.arg_types))
 	{
-		clear_invocation_info (&iinfo);
+		clear_c_invocation_info (&iinfo);
 		ccroak ("Could not prepare a call interface");
 	}
 
@@ -164,7 +164,7 @@ invoke_callable (GICallableInfo *info,
 
 	/* free call-scoped callback infos */
 	g_slist_foreach (iinfo.free_after_call,
-	                 (GFunc) release_callback, NULL);
+	                 (GFunc) release_perl_callback, NULL);
 
 	if (local_error) {
 		gperl_croak_gerror (NULL, local_error);
@@ -232,9 +232,67 @@ invoke_callable (GICallableInfo *info,
 		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
 
-	clear_invocation_info (&iinfo);
+	clear_c_invocation_info (&iinfo);
 
 	dwarn ("  number of return values: %d\n", n_return_values);
 
 	PUTBACK;
+}
+
+static void
+handle_automatic_arg (guint pos,
+                      GIArgument * arg,
+                      GPerlI11nInvocationInfo * invocation_info)
+{
+	GSList *l;
+
+	/* array length */
+	for (l = invocation_info->array_infos; l != NULL; l = l->next) {
+		GPerlI11nArrayInfo *ainfo = l->data;
+		if (pos == ainfo->length_pos) {
+			dwarn ("  setting automatic arg %d (array length) to %d\n",
+			       pos, ainfo->length);
+			/* FIXME: Is it OK to always use v_size here? */
+			arg->v_size = ainfo->length;
+			return;
+		}
+	}
+
+	/* callback destroy notify */
+	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
+		GPerlI11nPerlCallbackInfo *cinfo = l->data;
+		if (pos == cinfo->destroy_pos) {
+			dwarn ("  setting automatic arg %d (destroy notify for calllback %p)\n",
+			       pos, cinfo);
+			arg->v_pointer = release_perl_callback;
+			return;
+		}
+	}
+
+	ccroak ("Could not handle automatic arg %d", pos);
+}
+
+static gpointer
+allocate_out_mem (GITypeInfo *arg_type)
+{
+	GIBaseInfo *interface_info;
+	GIInfoType type;
+
+	interface_info = g_type_info_get_interface (arg_type);
+	g_assert (interface_info);
+	type = g_base_info_get_type (interface_info);
+	g_base_info_unref (interface_info);
+
+	switch (type) {
+	    case GI_INFO_TYPE_STRUCT:
+	    {
+		/* No plain g_struct_info_get_size (interface_info) here so
+		 * that we get the GValue override. */
+		gsize size = size_of_interface (arg_type);
+		return g_malloc0 (size);
+	    }
+	    default:
+		g_assert_not_reached ();
+		return NULL;
+	}
 }

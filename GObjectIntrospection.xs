@@ -42,21 +42,42 @@ typedef struct {
 	gchar *sub_name;
 
 	guint data_pos;
-	guint notify_pos;
+	guint destroy_pos;
 
 	gboolean free_after_use;
 
 	gpointer priv; /* perl context */
-} GPerlI11nCallbackInfo;
+} GPerlI11nPerlCallbackInfo;
+
+typedef struct {
+	GICallableInfo *interface;
+
+	gpointer func;
+	gpointer data;
+	GDestroyNotify destroy;
+
+	guint data_pos;
+	guint destroy_pos;
+
+	SV *data_sv;
+
+	gboolean free_after_use;
+} GPerlI11nCCallbackInfo;
 
 typedef struct {
 	gsize length;
 	guint length_pos;
 } GPerlI11nArrayInfo;
 
-/* This stores information that one call to sv_to_arg needs to make available
- * to later calls of sv_to_arg. */
+/* This stores information that the different marshallers might need to
+ * communicate to each other. */
 typedef struct {
+	GICallableInfo *interface;
+
+	gboolean is_function;
+	gboolean is_vfunc;
+	gboolean is_callback;
+
 	guint n_args;
 	guint n_invoke_args;
 	guint n_given_args;
@@ -89,10 +110,14 @@ typedef struct {
 } GPerlI11nInvocationInfo;
 
 /* callbacks */
-static GPerlI11nCallbackInfo* create_callback_closure (GITypeInfo *cb_type, SV *code);
-static void attach_callback_data (GPerlI11nCallbackInfo *info, SV *data);
-static GPerlI11nCallbackInfo * create_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name);
-static void release_callback (gpointer data);
+static GPerlI11nPerlCallbackInfo * create_perl_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name);
+static GPerlI11nPerlCallbackInfo * create_perl_callback_closure (GITypeInfo *cb_type, SV *code);
+static void attach_perl_callback_data (GPerlI11nPerlCallbackInfo *info, SV *data);
+static void release_perl_callback (gpointer data);
+
+static GPerlI11nCCallbackInfo * create_c_callback_closure (GIBaseInfo *interface, gpointer func);
+static void attach_c_callback_data (GPerlI11nCCallbackInfo *info, gpointer data);
+static void release_c_callback (gpointer data);
 
 /* invocation */
 static void invoke_callback (ffi_cif* cif,
@@ -104,17 +129,21 @@ static void invoke_callable (GICallableInfo *info,
                              gpointer func_pointer,
                              SV **sp, I32 ax, SV **mark, I32 items, /* these correspond to dXSARGS */
                              UV internal_stack_offset);
-
-/* invocation info */
-static void prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
-                                     GICallableInfo *info,
-                                     IV items,
-                                     UV internal_stack_offset);
-static void clear_invocation_info (GPerlI11nInvocationInfo *iinfo);
 static gpointer allocate_out_mem (GITypeInfo *arg_type);
 static void handle_automatic_arg (guint pos,
                                   GIArgument * arg,
                                   GPerlI11nInvocationInfo * invocation_info);
+
+/* invocation info */
+static void prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
+                                       GICallableInfo *info,
+                                       IV items,
+                                       UV internal_stack_offset);
+static void clear_c_invocation_info (GPerlI11nInvocationInfo *iinfo);
+
+static void prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
+                                          GICallableInfo *info);
+static void clear_perl_invocation_info (GPerlI11nInvocationInfo *iinfo);
 
 /* info finders */
 static GIFunctionInfo * get_function_info (GIRepository *repository,
@@ -127,7 +156,8 @@ static GIFieldInfo * get_field_info (GIBaseInfo *info,
 /* marshallers */
 static SV * interface_to_sv (GITypeInfo* info,
                              GIArgument *arg,
-                             gboolean own);
+                             gboolean own,
+                             GPerlI11nInvocationInfo *iinfo);
 static void sv_to_interface (GIArgInfo * arg_info,
                              GITypeInfo * type_info,
                              GITransfer transfer,
@@ -151,6 +181,9 @@ static SV * arg_to_sv (GIArgument * arg,
 
 static gpointer sv_to_callback (GIArgInfo * arg_info, GITypeInfo * type_info, SV * sv, GPerlI11nInvocationInfo * invocation_info);
 static gpointer sv_to_callback_data (SV * sv, GPerlI11nInvocationInfo * invocation_info);
+
+static SV * callback_to_sv (GICallableInfo *interface, gpointer func, GPerlI11nInvocationInfo *invocation_info);
+static SV * callback_data_to_sv (gpointer data, GPerlI11nInvocationInfo * invocation_info);
 
 static SV * struct_to_sv (GIBaseInfo* info, GIInfoType info_type, gpointer pointer, gboolean own);
 static gpointer sv_to_struct (GITransfer transfer, GIBaseInfo * info, GIInfoType info_type, SV * sv);
@@ -640,3 +673,30 @@ DESTROY (SV *sv)
 	v = SvGValueWrapper (sv);
 	g_value_unset (v);
 	g_free (v);
+
+# --------------------------------------------------------------------------- #
+
+MODULE = Glib::Object::Introspection	PACKAGE = Glib::Object::Introspection::_FuncWrapper
+
+void
+_invoke (SV *code, ...)
+    PREINIT:
+	GPerlI11nCCallbackInfo *wrapper;
+	UV internal_stack_offset = 1;
+    CODE:
+	wrapper = INT2PTR (GPerlI11nCCallbackInfo*, SvIV (SvRV (code)));
+	if (!wrapper || !wrapper->func)
+		ccroak ("invalid reference encountered");
+	invoke_callable (wrapper->interface, wrapper->func,
+	                 sp, ax, mark, items,
+	                 internal_stack_offset);
+	/* wrapper->func (cell_layout, cell, tree_model, iter, wrapper->data); */
+
+void
+DESTROY (SV *code)
+    PREINIT:
+	GPerlI11nCCallbackInfo *info;
+    CODE:
+	info = INT2PTR (GPerlI11nCCallbackInfo*, SvIV (SvRV (code)));
+	if (info)
+		release_c_callback (info);
