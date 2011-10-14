@@ -31,11 +31,8 @@ my $time = time ();
 is (Regress::test_timet ($time), $time);
 
 is (Regress::test_gtype ('Glib::Object'), 'Glib::Object');
-TODO: {
-  local $TODO = 'Is that how we want to handle unregistered GTypes?';
-  is (Regress::test_gtype ('GIRepository'),
-      'Glib::Object::_Unregistered::GIRepository');
-}
+is (Regress::test_gtype ('GIRepository'),
+    'Glib::Object::_Unregistered::GIRepository');
 is (Regress::test_gtype ('Inexistant'), undef);
 
 my $expected_const_string = 'const ♥ utf8';

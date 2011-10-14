@@ -7,8 +7,5 @@ use warnings;
 
 plan tests => 3;
 
-TODO: {
-  local $TODO = 'User cannot supply user data';
-  is (Regress::test_closure (sub { return 23; }), 23);
-  is (Regress::test_closure_one_arg (sub { is (shift, 42); return 23; }, 42), 23);
-}
+is (Regress::test_closure (sub { return 23; }), 23);
+is (Regress::test_closure_one_arg (sub { is (shift, 42); return 23; }, 42), 23);
