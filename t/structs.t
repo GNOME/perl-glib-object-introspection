@@ -7,7 +7,9 @@ use warnings;
 
 plan tests => 6;
 
-{
+SKIP: {
+  skip 'new stuff', 2
+    unless check_gi_version (0, 12, 0);
   my $expected_struct = {long_ => 6, int8 => 7};
   my $struct = GI::SimpleStruct::returnv ();
   is_deeply ($struct, $expected_struct);
@@ -17,7 +19,9 @@ plan tests => 6;
   is_deeply (GI::SimpleStruct::returnv (), $expected_struct);
 }
 
-{
+SKIP: {
+  skip 'new stuff', 2
+    unless check_gi_version (0, 12, 0);
   my $expected_struct = {long_ => 42};
   my $struct = GI::PointerStruct::returnv ();
   is_deeply ($struct, $expected_struct);

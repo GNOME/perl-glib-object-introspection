@@ -29,4 +29,9 @@ sub delta_ok ($$;$) {
   ok (abs ($a - $b) < 1e-6, $msg);
 }
 
+sub check_gi_version {
+  my ($x, $y, $z) = @_;
+  return !system ('pkg-config', "atleast-version=$x.$y.$z");
+}
+
 1;

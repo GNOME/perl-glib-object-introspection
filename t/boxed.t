@@ -19,7 +19,9 @@ plan tests => 41;
   is ($boxed, undef);
 }
 
-{
+SKIP: {
+  skip 'new stuff', 6
+    unless check_gi_version (0, 12, 0);
   my $boxed = GI::BoxedStruct::returnv ();
   isa_ok ($boxed, 'GI::BoxedStruct');
   is ($boxed->long_, 42);
@@ -32,7 +34,9 @@ plan tests => 41;
   isa_ok (GI::BoxedStruct::returnv ()->copy, 'GI::BoxedStruct');
 }
 
-{
+SKIP: {
+  skip 'new stuff', 5
+    unless check_gi_version (0, 12, 0);
   my $boxed = GI::BoxedStruct::out ();
   isa_ok ($boxed, 'GI::BoxedStruct');
   is ($boxed->long_, 42);
@@ -44,7 +48,9 @@ plan tests => 41;
   isa_ok (GI::BoxedStruct::out ()->copy, 'GI::BoxedStruct');
 }
 
-{
+SKIP: {
+  skip 'new stuff', 4
+    unless check_gi_version (0, 12, 0);
   my $boxed_out = GI::BoxedStruct::out ();
   my $boxed = GI::BoxedStruct::inout ($boxed_out);
   isa_ok ($boxed, 'GI::BoxedStruct');
@@ -57,7 +63,9 @@ plan tests => 41;
 
 # --------------------------------------------------------------------------- #
 
-{
+SKIP: {
+  skip 'new stuff', 5
+    unless check_gi_version (0, 12, 0);
   my $boxed = Regress::TestSimpleBoxedA::const_return ();
   isa_ok ($boxed, 'Regress::TestSimpleBoxedA');
   isa_ok ($boxed, 'Glib::Boxed');

@@ -37,7 +37,9 @@ is (eval { $obj->torture_signature_1 (23, 'perl', 41); 1 }, undef);
 like ($@, qr/odd/);
 
 # skipping return values
-{
+SKIP: {
+  skip 'new stuff', 3
+    unless check_gi_version (0, 12, 0);
   my ($b, $d, $sum) = $obj->skip_return_val (23, 42, 57, 13, 17);
   is ($b, 24);
   is ($d, 58);
@@ -45,7 +47,9 @@ like ($@, qr/odd/);
 }
 
 # skipping parameters
-{
+SKIP: {
+  skip 'new stuff', 10
+    unless check_gi_version (0, 12, 0);
   my ($success, $b, $d, $sum);
 
   ($success, $b, $d, $sum) = $obj->skip_param (23, 57, 13, 17);
