@@ -28,6 +28,10 @@ $Carp::Internal{(__PACKAGE__)}++;
 require XSLoader;
 XSLoader::load(__PACKAGE__, $VERSION);
 
+my %FORBIDDEN_SUB_NAMES = map { $_ => 1 } qw/AUTOLOAD CLONE DESTROY BEGIN
+                                             UNITCHECK CHECK INIT END/;
+my @_OBJECT_PACKAGES_WITH_VFUNCS = ();
+
 sub _create_invoker_sub {
   my ($basename, $namespace, $name,
       $shift_package_name, $flatten_array_ref_return,
@@ -143,37 +147,57 @@ sub setup {
     };
   }
 
-  my %forbidden_sub_names = map { $_ => 1 } qw/AUTOLOAD CLONE DESTROY
-                                               BEGIN UNITCHECK CHECK INIT END/;
-
   foreach my $object_name (keys %{$objects_with_vfuncs}) {
     my $object_package = $package . '::' . $object_name;
     my $installer_name = $object_package . '::_INSTALL_OVERRIDES';
     *{$installer_name} = sub {
       my ($target_package) = @_;
+
+      # For each vfunc in our ancestry that has an implementation, add a
+      # wrapper sub to our immediate parent.
       my @non_perl_parent_packages =
-        __PACKAGE__->_install_overrides($basename, $object_name,
-                                        $target_package);
+        __PACKAGE__->_find_non_perl_parents($basename, $object_name,
+                                            $target_package);
+      my $first_parent = $non_perl_parent_packages[0];
       foreach my $parent_package (@non_perl_parent_packages) {
+        my @vfuncs = __PACKAGE__->_find_vfuncs_with_implementation(
+                       $parent_package, $first_parent);
         VFUNC:
-        foreach my $vfunc_names (@{$objects_with_vfuncs->{$object_name}}) {
-          my $vfunc_name = $vfunc_names->[0];
-          my $perl_vfunc_name = $vfunc_names->[1];
-          if (exists $forbidden_sub_names{$perl_vfunc_name}) {
+        foreach my $vfunc_names (@vfuncs) {
+          my ($vfunc_name, $perl_vfunc_name) = @{$vfunc_names};
+          if (exists $FORBIDDEN_SUB_NAMES{$perl_vfunc_name}) {
             $perl_vfunc_name .= '_VFUNC';
           }
-          my $full_perl_vfunc_name = $parent_package . '::' . $perl_vfunc_name;
+          my $full_perl_vfunc_name =
+            $first_parent . '::' . $perl_vfunc_name;
           if (defined &{$full_perl_vfunc_name}) {
             next VFUNC;
           }
           *{$full_perl_vfunc_name} = sub {
-            __PACKAGE__->_invoke_fallback_vfunc($basename, $object_name, $vfunc_name,
-                                                $parent_package, @_);
+            __PACKAGE__->_invoke_fallback_vfunc($basename,
+                                                $parent_package,
+                                                $vfunc_name,
+                                                $first_parent,
+                                                @_);
           }
         }
       }
+
+      # Delay hooking up the vfuncs until INIT so that we can see whether the
+      # package defines the relevant subs or not.
+      push @_OBJECT_PACKAGES_WITH_VFUNCS,
+           [$basename, $object_name, $target_package];
     };
   }
+}
+
+sub INIT {
+  no strict qw(refs);
+  foreach my $target (@_OBJECT_PACKAGES_WITH_VFUNCS) {
+    my ($basename, $object_name, $target_package) = @{$target};
+    __PACKAGE__->_install_overrides($basename, $object_name, $target_package);
+  }
+  @_OBJECT_PACKAGES_WITH_VFUNCS = ();
 }
 
 package Glib::Object::Introspection::_FuncWrapper;

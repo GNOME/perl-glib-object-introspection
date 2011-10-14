@@ -217,7 +217,7 @@ static void generic_interface_init (gpointer iface, gpointer data);
 static void generic_interface_finalize (gpointer iface, gpointer data);
 
 /* object vfuncs */
-static void generic_class_init (GIObjectInfo *info, gpointer class);
+static void generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer class);
 
 /* misc. */
 #define ccroak(...) call_carp_croak (form (__VA_ARGS__));
@@ -535,10 +535,11 @@ _install_overrides (class, basename, object_name, target_package)
     PREINIT:
 	GIRepository *repository;
 	GIObjectInfo *info;
-	GType gtype, object_gtype;
+	GType gtype;
 	gpointer klass;
-    PPCODE:
-	dwarn ("_install_overrides: %s.%s for %s\n", basename, object_name, target_package);
+    CODE:
+	dwarn ("_install_overrides: %s.%s for %s\n",
+	       basename, object_name, target_package);
 	repository = g_irepository_get_default ();
 	info = g_irepository_find_by_name (repository, basename, object_name);
 	if (!GI_IS_OBJECT_INFO (info))
@@ -551,13 +552,31 @@ _install_overrides (class, basename, object_name, target_package)
 	if (!klass)
 		ccroak ("internal problem: can't peek at type class for %s (%d)",
 		        g_type_name (gtype), gtype);
-	generic_class_init (info, klass);
-	/* find all non-Perl parents up to and including the object type */
+	generic_class_init (info, target_package, klass);
+	g_base_info_unref (info);
+
+void
+_find_non_perl_parents (class, basename, object_name, target_package)
+	const gchar *basename
+	const gchar *object_name
+	const gchar *target_package
+    PREINIT:
+	GIRepository *repository;
+	GIObjectInfo *info;
+	GType gtype, object_gtype;
+	GQuark reg_quark = g_quark_from_static_string ("__gperl_type_reg");
+    PPCODE:
+	repository = g_irepository_get_default ();
+	info = g_irepository_find_by_name (repository, basename, object_name);
+	g_assert (info && GI_IS_OBJECT_INFO (info));
+	gtype = gperl_object_type_from_package (target_package);
 	object_gtype = g_registered_type_info_get_g_type (info);
+	/* find all non-Perl parents up to and including the object type */
 	while ((gtype = g_type_parent (gtype))) {
 		/* FIXME: we should export gperl_type_reg_quark from Glib */
-		if (!g_type_get_qdata (gtype, g_quark_from_static_string ("__gperl_type_reg"))) {
-			XPUSHs (sv_2mortal (newSVpv (gperl_object_package_from_type (gtype), PL_na)));
+		if (!g_type_get_qdata (gtype, reg_quark)) {
+			const gchar *package = gperl_object_package_from_type (gtype);
+			XPUSHs (sv_2mortal (newSVpv (package, PL_na)));
 		}
 		if (gtype == object_gtype) {
 			break;
@@ -566,9 +585,59 @@ _install_overrides (class, basename, object_name, target_package)
 	g_base_info_unref (info);
 
 void
-_invoke_fallback_vfunc (class, basename, object_name, vfunc_name, target_package, ...)
+_find_vfuncs_with_implementation (class, object_package, target_package)
+	const gchar *object_package
+	const gchar *target_package
+    PREINIT:
+	GIRepository *repository;
+	GType object_gtype, target_gtype;
+	gpointer object_klass, target_klass;
+	GIObjectInfo *object_info;
+	GIStructInfo *struct_info;
+	gint n_vfuncs, i;
+    PPCODE:
+	repository = g_irepository_get_default ();
+	target_gtype = gperl_object_type_from_package (target_package);
+	object_gtype = gperl_object_type_from_package (object_package);
+	g_assert (target_gtype && object_gtype);
+	target_klass = g_type_class_peek (target_gtype);
+	object_klass = g_type_class_peek (object_gtype);
+	g_assert (target_klass && object_klass);
+	object_info = g_irepository_find_by_gtype (repository, object_gtype);
+	g_assert (object_info && GI_IS_OBJECT_INFO (object_info));
+	struct_info = g_object_info_get_class_struct (object_info);
+	g_assert (struct_info);
+	n_vfuncs = g_object_info_get_n_vfuncs (object_info);
+	for (i = 0; i < n_vfuncs; i++) {
+		GIVFuncInfo *vfunc_info;
+		const gchar *vfunc_name;
+		GIFieldInfo *field_info;
+		gint field_offset;
+		gchar *perl_method_name;
+		vfunc_info = g_object_info_get_vfunc (object_info, i);
+		vfunc_name = g_base_info_get_name (vfunc_info);
+		/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
+		field_info = get_field_info (struct_info, vfunc_name);
+		g_assert (field_info);
+		field_offset = g_field_info_get_offset (field_info);
+		perl_method_name = g_ascii_strup (vfunc_name, -1);
+		if (G_STRUCT_MEMBER (gpointer, target_klass, field_offset)) {
+			AV *av = newAV ();
+			av_push (av, newSVpv (vfunc_name, PL_na));
+			av_push (av, newSVpv (perl_method_name, PL_na));
+			XPUSHs (sv_2mortal (newRV_noinc ((SV *) av)));
+		}
+		g_free (perl_method_name);
+		g_base_info_unref (field_info);
+		g_base_info_unref (vfunc_info);
+	}
+	g_base_info_unref (struct_info);
+	g_base_info_unref (object_info);
+
+void
+_invoke_fallback_vfunc (class, basename, vfunc_package, vfunc_name, target_package, ...)
 	const gchar *basename
-	const gchar *object_name
+	const gchar *vfunc_package
 	const gchar *vfunc_name
 	const gchar *target_package
     PREINIT:
@@ -583,16 +652,15 @@ _invoke_fallback_vfunc (class, basename, object_name, vfunc_name, target_package
 	gint field_offset;
 	gpointer func_pointer;
     PPCODE:
-	dwarn ("_invoke_parent_vfunc: %s\n", vfunc_name);
-	repository = g_irepository_get_default ();
-	info = g_irepository_find_by_name (repository, basename, object_name);
-	g_assert (info);
+	dwarn ("_invoke_parent_vfunc: %s.%s, target = %s\n",
+	       vfunc_package, vfunc_name, target_package);
 	gtype = gperl_object_type_from_package (target_package);
-	dwarn ("  target: %s\n", target_package);
 	klass = g_type_class_peek (gtype);
-	if (!klass)
-		ccroak ("internal problem: can't peek at type class for %s (%d)",
-		        g_type_name (gtype), gtype);
+	g_assert (klass);
+	repository = g_irepository_get_default ();
+	info = g_irepository_find_by_gtype (
+		repository, gperl_object_type_from_package (vfunc_package));
+	g_assert (info && GI_IS_OBJECT_INFO (info));
 	struct_info = g_object_info_get_class_struct (info);
 	g_assert (struct_info);
 	vfunc_info = g_object_info_find_vfunc (info, vfunc_name);
@@ -602,15 +670,14 @@ _invoke_fallback_vfunc (class, basename, object_name, vfunc_name, target_package
 	g_assert (field_info);
 	field_offset = g_field_info_get_offset (field_info);
 	func_pointer = G_STRUCT_MEMBER (gpointer, klass, field_offset);
-	if (func_pointer) {
-		invoke_callable (vfunc_info, func_pointer,
-		                 sp, ax, mark, items,
-		                 internal_stack_offset);
-		/* SPAGAIN since invoke_callable probably modified the stack
-		 * pointer.  so we need to make sure that our local variable
-		 * 'sp' is correct before the implicit PUTBACK happens. */
-		SPAGAIN;
-	}
+	g_assert (func_pointer);
+	invoke_callable (vfunc_info, func_pointer,
+	                 sp, ax, mark, items,
+	                 internal_stack_offset);
+	/* SPAGAIN since invoke_callable probably modified the stack
+	 * pointer.  so we need to make sure that our local variable
+	 * 'sp' is correct before the implicit PUTBACK happens. */
+	SPAGAIN;
 	g_base_info_unref (field_info);
 	g_base_info_unref (vfunc_info);
 	g_base_info_unref (info);
