@@ -1,4 +1,4 @@
-# Copyright (C) 2010 Torsten Schoenfeld <kaffeetisch@gmx.de>
+# Copyright (C) 2010-2011 Torsten Schoenfeld <kaffeetisch@gmx.de>
 #
 # This library is free software; you can redistribute it and/or modify it under
 # the terms of the GNU Library General Public License as published by the Free
@@ -25,7 +25,7 @@ use Cwd;
 my %PREREQ_PM = (
   'ExtUtils::Depends'   => 0.300,
   'ExtUtils::PkgConfig' => 1.000,
-  'Glib'                => 1.233,
+  'Glib'                => 1.240,
 );
 
 my %BUILD_REQ = (
