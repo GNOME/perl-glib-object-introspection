@@ -100,11 +100,6 @@ WriteMakefile(
   $deps->get_makefile_vars,
 );
 
-sub MY::postamble
-{
-  return Glib::MakeHelper->postamble_clean ();
-}
-
 sub compile_test_libraries {
   chdir 'build';
   my $build_dir = cwd();
@@ -120,7 +115,7 @@ sub compile_test_libraries {
     my %gio_flags = ExtUtils::PkgConfig->find ('gio-2.0');
     my %glib_flags = ExtUtils::PkgConfig->find ('glib-2.0');
 
-       !system (qq(gcc -shared \\
+       !system (qq(gcc -shared -g \\
                    $cairo_flags{cflags} $cairo_flags{libs} \\
                    $gio_flags{cflags} $gio_flags{libs} \\
                    $testsdir/regress.c \\
@@ -136,7 +131,7 @@ sub compile_test_libraries {
                    1>/dev/null 2>/dev/null))
     && !system (qq(g-ir-compiler Regress-1.0.gir -o Regress-1.0.typelib \\
                    1>/dev/null 2>/dev/null))
-    && !system (qq(gcc -shared \\
+    && !system (qq(gcc -shared -g \\
                    $glib_flags{cflags} $glib_flags{libs} \\
                    $testsdir/gimarshallingtests.c \\
                    -o libgimarshallingtests.so 1>/dev/null 2>/dev/null))
@@ -157,4 +152,17 @@ sub compile_test_libraries {
   print $success ? "OK\n" : "not OK\n";
 
   chdir '..';
+}
+
+package MY; # so that "SUPER" works right
+
+sub test {
+  my $inherited = shift->SUPER::test(@_);
+  # put "build" into LD_LIBRARY_PATH for the tests
+  $inherited =~ s/(test_dynamic :: pure_all)\n\t/$1\n\tLD_LIBRARY_PATH=\${LD_LIBRARY_PATH}:build /;
+  $inherited;
+}
+
+sub postamble {
+  return Glib::MakeHelper->postamble_clean ();
 }
