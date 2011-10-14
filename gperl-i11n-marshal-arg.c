@@ -17,9 +17,14 @@ sv_to_arg (SV * sv,
 		/* Interfaces and void types need to be able to handle undef
 		 * separately. */
 		if (!may_be_null && tag != GI_TYPE_TAG_INTERFACE
-		                 && tag != GI_TYPE_TAG_VOID)
-			ccroak ("undefined value for mandatory argument '%s' encountered",
-			       g_base_info_get_name ((GIBaseInfo *) arg_info));
+		                 && tag != GI_TYPE_TAG_VOID) {
+			if (arg_info) {
+				ccroak ("undefined value for mandatory argument '%s' encountered",
+				        g_base_info_get_name ((GIBaseInfo *) arg_info));
+			} else {
+				ccroak ("undefined value encountered");
+			}
+		}
 
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
@@ -88,8 +93,8 @@ sv_to_arg (SV * sv,
 
 	    case GI_TYPE_TAG_INTERFACE:
 		dwarn ("    type %p -> interface\n", type_info);
-		sv_to_interface (arg_info, type_info, transfer, sv, arg,
-		                 invocation_info);
+		sv_to_interface (arg_info, type_info, transfer, may_be_null,
+		                 sv, arg, invocation_info);
 		break;
 
 	    case GI_TYPE_TAG_GLIST:

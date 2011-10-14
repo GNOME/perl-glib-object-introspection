@@ -161,6 +161,7 @@ static SV * interface_to_sv (GITypeInfo* info,
 static void sv_to_interface (GIArgInfo * arg_info,
                              GITypeInfo * type_info,
                              GITransfer transfer,
+                             gboolean may_be_null,
                              SV * sv,
                              GIArgument * arg,
                              GPerlI11nInvocationInfo * invocation_info);

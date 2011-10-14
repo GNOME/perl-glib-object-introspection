@@ -53,6 +53,7 @@ static void
 sv_to_interface (GIArgInfo * arg_info,
                  GITypeInfo * type_info,
                  GITransfer transfer,
+                 gboolean may_be_null,
                  SV * sv,
                  GIArgument * arg,
                  GPerlI11nInvocationInfo * invocation_info)
@@ -118,8 +119,12 @@ sv_to_interface (GIArgInfo * arg_info,
 				gpointer mem = gperl_get_boxed_check (sv, type);
 				g_memmove (arg->v_pointer, mem, n_bytes);
 			} else {
-				/* FIXME: Check transfer setting. */
-				arg->v_pointer = gperl_get_boxed_check (sv, type);
+				if (may_be_null && sv == &PL_sv_undef) {
+					arg->v_pointer = NULL;
+				} else {
+					/* FIXME: Check transfer setting. */
+					arg->v_pointer = gperl_get_boxed_check (sv, type);
+				}
 			}
 		}
 		break;
