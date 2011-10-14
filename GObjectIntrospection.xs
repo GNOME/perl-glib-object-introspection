@@ -60,8 +60,6 @@ typedef struct {
 	guint destroy_pos;
 
 	SV *data_sv;
-
-	gboolean free_after_use;
 } GPerlI11nCCallbackInfo;
 
 typedef struct {

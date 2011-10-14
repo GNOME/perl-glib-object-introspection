@@ -82,6 +82,8 @@ release_perl_callback (gpointer data)
 	g_free (info);
 }
 
+/* -------------------------------------------------------------------------- */
+
 static GPerlI11nCCallbackInfo *
 create_c_callback_closure (GIBaseInfo *interface, gpointer func)
 {

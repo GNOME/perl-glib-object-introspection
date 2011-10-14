@@ -87,7 +87,6 @@ callback_to_sv (GICallableInfo *interface, gpointer func, GPerlI11nInvocationInf
 	GPerlI11nCCallbackInfo *callback_info;
 	HV *stash;
 	SV *code_sv, *data_sv;
-	GIScopeType scope;
 
 	GSList *l;
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
@@ -112,7 +111,7 @@ callback_to_sv (GICallableInfo *interface, gpointer func, GPerlI11nInvocationInf
 	callback_info = create_c_callback_closure (interface, func);
 	callback_info->data_pos = g_arg_info_get_closure (arg_info);
 	callback_info->destroy_pos = g_arg_info_get_destroy (arg_info);
-	callback_info->free_after_use = FALSE;
+	g_base_info_unref (arg_info);
 
 	if (func) {
 		data_sv = newSViv (PTR2IV (callback_info));
@@ -126,31 +125,6 @@ callback_to_sv (GICallableInfo *interface, gpointer func, GPerlI11nInvocationInf
 	dwarn ("      C callback data at %d, destroy at %d\n",
 	       callback_info->data_pos, callback_info->destroy_pos);
 
-	scope = func
-		? g_arg_info_get_scope (arg_info)
-		: GI_SCOPE_TYPE_CALL;
-	switch (scope) {
-	    case GI_SCOPE_TYPE_CALL:
-		dwarn ("      C callback has scope 'call'\n");
-		invocation_info->free_after_call
-			= g_slist_prepend (invocation_info->free_after_call,
-			                   callback_info);
-		break;
-	    case GI_SCOPE_TYPE_NOTIFIED:
-		dwarn ("      C callback has scope 'notified'\n");
-		/* This case is already taken care of by the notify
-		 * stuff above */
-		break;
-	    case GI_SCOPE_TYPE_ASYNC:
-		dwarn ("      C callback has scope 'async'\n");
-		/* FIXME: callback_info->free_after_use = TRUE; */
-		break;
-	    default:
-		ccroak ("unhandled scope type %d encountered",
-		       g_arg_info_get_scope (arg_info));
-	}
-
-	g_base_info_unref (arg_info);
 
 	invocation_info->callback_infos =
 		g_slist_prepend (invocation_info->callback_infos,
@@ -166,8 +140,6 @@ callback_data_to_sv (gpointer data,
                      GPerlI11nInvocationInfo * invocation_info)
 {
 	GSList *l;
-	if (!data)
-		return NULL;
 	if (!invocation_info)
 		return NULL;
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
@@ -179,7 +151,7 @@ callback_data_to_sv (gpointer data,
 			return callback_info->data_sv;
 		}
 	}
-	if (invocation_info->is_callback) {
+	if (data && invocation_info->is_callback) {
 		GPerlI11nPerlCallbackInfo *wrapper = data;
 		dwarn ("      user data for Perl callback %p\n", wrapper);
 		return wrapper->data;

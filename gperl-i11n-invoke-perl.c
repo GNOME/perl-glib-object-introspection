@@ -126,9 +126,8 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		        n_returned, n_return_values);
 	}
 
-	/* free call-scoped callback infos */
-	g_slist_foreach (iinfo.free_after_call,
-	                 (GFunc) release_c_callback, NULL);
+	/* call-scoped callback infos are freed by
+	 * Glib::Object::Introspection::_FuncWrapper::DESTROY */
 
 	SPAGAIN;
 
