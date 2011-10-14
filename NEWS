@@ -1,3 +1,26 @@
+Overview of changes in Glib::Object::Introspection 0.003
+========================================================
+
+* Nothing, except for adding the NEWS entries that were forgotten for
+  release 0.002.
+
+Overview of changes in Glib::Object::Introspection 0.002
+========================================================
+
+* Add support for implementing interfaces.
+* Add support for implementing object vfuncs.
+* Add support for callbacks in callbacks.
+* Add support for caller-allocated out arguments.
+* Add support for nested structs.
+* Add support for calling functions on structs.
+* Add support for reading and writing fields of boxed types.
+* Add support for flattening array ref returns.
+* Add support for handling 'sentinel booleans'.
+* Handle skipping arguments and return values.
+* Fix ownership handling for GInitiallyUnowned.
+* Expand the documentation.
+* Fix build and test suite issues.
+
 Overview of changes in Glib::Object::Introspection 0.001
 ========================================================
 
