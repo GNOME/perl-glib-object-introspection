@@ -102,7 +102,7 @@ sv_to_array (GITransfer transfer,
 		iinfo->array_infos = g_slist_prepend (iinfo->array_infos, array_info);
 	}
 
-	if (sv == &PL_sv_undef)
+	if (!gperl_sv_is_defined (sv))
 		return NULL;
 
 	if (!gperl_sv_is_array_ref (sv))

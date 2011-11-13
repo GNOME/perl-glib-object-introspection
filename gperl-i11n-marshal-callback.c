@@ -23,7 +23,7 @@ sv_to_callback (GIArgInfo * arg_info,
 	dwarn ("      Perl callback data at %d, destroy at %d\n",
 	       callback_info->data_pos, callback_info->destroy_pos);
 
-	scope = (sv == &PL_sv_undef)
+	scope = (!gperl_sv_is_defined (sv))
 		? GI_SCOPE_TYPE_CALL
 		: g_arg_info_get_scope (arg_info);
 	switch (scope) {

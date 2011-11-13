@@ -119,7 +119,7 @@ sv_to_interface (GIArgInfo * arg_info,
 				gpointer mem = gperl_get_boxed_check (sv, type);
 				g_memmove (arg->v_pointer, mem, n_bytes);
 			} else {
-				if (may_be_null && sv == &PL_sv_undef) {
+				if (may_be_null && !gperl_sv_is_defined (sv)) {
 					arg->v_pointer = NULL;
 				} else {
 					/* FIXME: Check transfer setting. */

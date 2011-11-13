@@ -82,7 +82,7 @@ sv_to_ghash (GITransfer transfer,
 
 	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
 
-	if (sv == &PL_sv_undef)
+	if (!gperl_sv_is_defined (sv))
 		return NULL;
 
 	if (!gperl_sv_is_hash_ref (sv))

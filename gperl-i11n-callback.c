@@ -6,7 +6,7 @@ create_perl_callback_closure (GITypeInfo *cb_type, SV *code)
 	GPerlI11nPerlCallbackInfo *info;
 
 	info = g_new0 (GPerlI11nPerlCallbackInfo, 1);
-	if (code == &PL_sv_undef)
+	if (!gperl_sv_is_defined (code))
 		return info;
 
 	info->interface =
