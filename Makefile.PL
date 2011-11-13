@@ -115,7 +115,8 @@ sub compile_test_libraries {
     my %gio_flags = ExtUtils::PkgConfig->find ('gio-2.0');
     my %glib_flags = ExtUtils::PkgConfig->find ('glib-2.0');
 
-       !system (qq(gcc -shared -g \\
+    # FIXME: Why is --no-as-needed necessary?
+       !system (qq(gcc -shared -Wl,--no-as-needed -g \\
                    $cairo_flags{cflags} $cairo_flags{libs} \\
                    $gio_flags{cflags} $gio_flags{libs} \\
                    $testsdir/regress.c \\
