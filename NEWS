@@ -1,3 +1,13 @@
+Overview of changes in Glib::Object::Introspection 0.004
+========================================================
+
+* Fix building test libraries on Ubuntu 11.10.  They (Ubuntu devs) added
+  --as-needed to the default linker flags, and that breaks building the test
+  libraries for reasons I don't understand at the moment.  So simply add
+  --no-as-needed for now.
+* Properly check for definedness throughout; Use gperl_sv_is_defined instead
+  of a direct comparison against &PL_sv_undef.
+
 Overview of changes in Glib::Object::Introspection 0.003
 ========================================================
 
