@@ -31,7 +31,7 @@ sub delta_ok ($$;$) {
 
 sub check_gi_version {
   my ($x, $y, $z) = @_;
-  return !system ('pkg-config', "atleast-version=$x.$y.$z");
+  return !system ('pkg-config', "--atleast-version=$x.$y.$z", 'gobject-introspection-1.0');
 }
 
 1;
