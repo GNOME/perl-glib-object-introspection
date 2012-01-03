@@ -174,8 +174,7 @@ sub setup {
             next VFUNC;
           }
           *{$full_perl_vfunc_name} = sub {
-            __PACKAGE__->_invoke_fallback_vfunc($basename,
-                                                $parent_package,
+            __PACKAGE__->_invoke_fallback_vfunc($parent_package,
                                                 $vfunc_name,
                                                 $first_parent,
                                                 @_);

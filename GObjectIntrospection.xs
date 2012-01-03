@@ -638,13 +638,12 @@ _find_vfuncs_with_implementation (class, object_package, target_package)
 	g_base_info_unref (object_info);
 
 void
-_invoke_fallback_vfunc (class, basename, vfunc_package, vfunc_name, target_package, ...)
-	const gchar *basename
+_invoke_fallback_vfunc (class, vfunc_package, vfunc_name, target_package, ...)
 	const gchar *vfunc_package
 	const gchar *vfunc_name
 	const gchar *target_package
     PREINIT:
-	UV internal_stack_offset = 5;
+	UV internal_stack_offset = 4;
 	GIRepository *repository;
 	GIObjectInfo *info;
 	GType gtype;
