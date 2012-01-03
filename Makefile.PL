@@ -116,7 +116,7 @@ sub compile_test_libraries {
     my %glib_flags = ExtUtils::PkgConfig->find ('glib-2.0');
 
     # FIXME: Why is --no-as-needed necessary?
-       !system (qq(gcc -shared -Wl,--no-as-needed -g \\
+       !system (qq(gcc -shared -fPIC -Wl,--no-as-needed -g \\
                    $cairo_flags{cflags} $cairo_flags{libs} \\
                    $gio_flags{cflags} $gio_flags{libs} \\
                    $testsdir/regress.c \\
@@ -132,7 +132,7 @@ sub compile_test_libraries {
                    1>/dev/null 2>/dev/null))
     && !system (qq(g-ir-compiler Regress-1.0.gir -o Regress-1.0.typelib \\
                    1>/dev/null 2>/dev/null))
-    && !system (qq(gcc -shared -g \\
+    && !system (qq(gcc -shared -fPIC -g \\
                    $glib_flags{cflags} $glib_flags{libs} \\
                    $testsdir/gimarshallingtests.c \\
                    -o libgimarshallingtests.so 1>/dev/null 2>/dev/null))
