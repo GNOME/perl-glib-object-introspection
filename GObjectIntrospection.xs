@@ -423,6 +423,9 @@ _fetch_constant (class, basename, constant)
 	/* FIXME: What am I suppossed to do with the return value? */
 	g_constant_info_get_value (info, &value);
 	RETVAL = arg_to_sv (&value, type_info, GI_TRANSFER_NOTHING, NULL);
+#if GI_CHECK_VERSION (1, 30, 1)
+	g_constant_info_free_value (info, &value);
+#endif
 	g_base_info_unref ((GIBaseInfo *) type_info);
 	g_base_info_unref ((GIBaseInfo *) info);
     OUTPUT:
