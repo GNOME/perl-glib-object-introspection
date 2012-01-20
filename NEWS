@@ -1,3 +1,10 @@
+Overview of changes in Glib::Object::Introspection 0.006
+========================================================
+
+* Remove an unneeded argument of an internal function
+* Plug a leak in the wrapper for constants
+* Fix compilation of the test lib on x86-64
+
 Overview of changes in Glib::Object::Introspection 0.005
 ========================================================
 

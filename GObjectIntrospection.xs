@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2005 muppet
- * Copyright (C) 2005-2011 Torsten Schoenfeld <kaffeetisch@gmx.de>
+ * Copyright (C) 2005-2012 Torsten Schoenfeld <kaffeetisch@gmx.de>
  *
  * This library is free software; you can redistribute it and/or modify it
  * under the terms of the GNU Lesser General Public License as published by the
