@@ -1,3 +1,11 @@
+Overview of changes in Glib::Object::Introspection <next>
+========================================================
+
+* Do not assume filenames are UTF8-encoded; pass the strings on unaltered in
+  both directions, C to Perl and Perl to C.  Before passing a filename on to
+  something which expects UTF8 (like widgets), users now have to ensure that it
+  is UTF8-encoded.  Glib::filename_to_unicode provides one way to do this.
+
 Overview of changes in Glib::Object::Introspection 0.006
 ========================================================
 

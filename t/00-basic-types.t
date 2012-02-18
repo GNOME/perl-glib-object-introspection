@@ -48,7 +48,7 @@ is (Regress::test_utf8_null_out (), undef);
 
 my $filenames = Regress::test_filename_return ();
 is (scalar @$filenames, 2);
-is ($filenames->[0], 'åäö');
+is (Glib::filename_to_unicode ($filenames->[0]), 'åäö');
 is ($filenames->[1], '/etc/fstab');
 
 is (Regress::test_int_out_utf8 ('Παν語'), 4);

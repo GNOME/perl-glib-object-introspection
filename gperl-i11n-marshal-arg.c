@@ -117,8 +117,8 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_FILENAME:
-		/* FIXME: Is it correct to use gperl_filename_from_sv here? */
-		arg->v_string = gperl_sv_is_defined (sv) ? gperl_filename_from_sv (sv) : NULL;
+		/* FIXME: Should we use SvPVbyte_nolen here? */
+		arg->v_string = gperl_sv_is_defined (sv) ? SvPV_nolen (sv) : NULL;
 		if (transfer >= GI_TRANSFER_CONTAINER)
 			arg->v_string = g_strdup (arg->v_string);
 		break;
@@ -227,8 +227,7 @@ arg_to_sv (GIArgument * arg,
 
 	    case GI_TYPE_TAG_FILENAME:
 	    {
-		/* FIXME: Is it correct to use gperl_sv_from_filename here? */
-		SV *sv = gperl_sv_from_filename (arg->v_string);
+		SV *sv = newSVpv (arg->v_string, PL_na);
 		if (own)
 			g_free (arg->v_string);
 		return sv;
