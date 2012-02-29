@@ -1,4 +1,4 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.007
 ========================================================
 
 * Do not assume filenames are UTF8-encoded; pass the strings on unaltered in
