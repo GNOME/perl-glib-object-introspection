@@ -38,8 +38,10 @@ Please report bugs to the gnome-perl product in GNOME's Bugzilla:
 <http://bugzilla.gnome.org/enter_bug.cgi?product=gnome-perl>
 
 
-LICENSE
--------
+COPYRIGHT AND LICENSE
+---------------------
+
+Copyright (C) 2005-2012 Torsten Schoenfeld <kaffeetisch@gmx.de>
 
 This library is free software; you can redistribute it and/or modify it under
 the terms of the GNU Library General Public License as published by the Free
@@ -52,5 +54,5 @@ PARTICULAR PURPOSE.  See the GNU Library General Public License for more
 details.
 
 You should have received a copy of the GNU Library General Public License along
-with this library; if not, write to the Free Software Foundation, Inc., 
+with this library; if not, write to the Free Software Foundation, Inc.,
 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
