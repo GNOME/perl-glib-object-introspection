@@ -63,7 +63,7 @@ prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	dwarn ("C invoke: %s\n"
 	       "  n_args: %d, n_invoke_args: %d, n_given_args: %d\n"
 	       "  is_constructor: %d, is_method: %d\n",
-	       is_vfunc ? g_base_info_get_name (info) : g_function_info_get_symbol (info),
+	       iinfo->is_vfunc ? g_base_info_get_name (info) : g_function_info_get_symbol (info),
 	       iinfo->n_args, iinfo->n_invoke_args, iinfo->n_given_args,
 	       iinfo->is_constructor, iinfo->is_method);
 
@@ -146,7 +146,7 @@ prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	{
 		GIBaseInfo * interface = g_type_info_get_interface (iinfo->return_type_info);
 		if (GI_IS_REGISTERED_TYPE_INFO (interface) &&
-		    g_type_is_a (g_registered_type_info_get_g_type (interface),
+		    g_type_is_a (get_gtype (interface),
 		                 G_TYPE_INITIALLY_UNOWNED))
 		{
 			iinfo->return_type_transfer = GI_TRANSFER_EVERYTHING;
@@ -214,7 +214,7 @@ prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	{
 		GIBaseInfo *interface = g_type_info_get_interface (iinfo->return_type_info);
 		if (GI_IS_REGISTERED_TYPE_INFO (interface) &&
-		    g_type_is_a (g_registered_type_info_get_g_type (interface),
+		    g_type_is_a (get_gtype (interface),
 		                 G_TYPE_INITIALLY_UNOWNED))
 		{
 			iinfo->return_type_transfer = GI_TRANSFER_EVERYTHING;

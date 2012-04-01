@@ -111,3 +111,30 @@ get_field_info (GIBaseInfo *info, const gchar *field_name)
 	}
 	return NULL;
 }
+
+static GType
+get_gtype (GIRegisteredTypeInfo *info)
+{
+	GType gtype = g_registered_type_info_get_g_type (info);
+	if (gtype == G_TYPE_NONE) {
+		/* Fall back to the registered type name, and if that doesn't
+		 * work either, construct the full name and try that. */
+		const gchar *type_name = g_registered_type_info_get_type_name (info);
+		if (type_name) {
+			gtype = g_type_from_name (type_name);
+			return gtype ? gtype : G_TYPE_NONE;
+		} else {
+			gchar *full_name;
+			const gchar *namespace = g_base_info_get_namespace (info);
+			const gchar *name = g_base_info_get_name (info);
+			if (0 == strncmp (namespace, "GObject", 8)) {
+				namespace = "G";
+			}
+			full_name = g_strconcat (namespace, name, NULL);
+			gtype = g_type_from_name (full_name);
+			g_free (full_name);
+			return gtype ? gtype : G_TYPE_NONE;
+		}
+	}
+	return gtype;
+}

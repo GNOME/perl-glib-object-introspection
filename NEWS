@@ -1,3 +1,8 @@
+Overview of changes in Glib::Object::Introspection <next>
+========================================================
+
+* When looking up GTypes, also try by name.
+
 Overview of changes in Glib::Object::Introspection 0.007
 ========================================================
 
@@ -16,11 +21,11 @@ Overview of changes in Glib::Object::Introspection 0.006
 Overview of changes in Glib::Object::Introspection 0.005
 ========================================================
 
-* use the overloaded '==' operator directly when comparing flags
-* Make enums.t test more robust
-* implement check_gi_version
-* implement test skipping
-* updated FSF address in license blurbs
+* Use the overloaded '==' operator directly when comparing flags
+* Make t/enums.t more robust
+* Implement check_gi_version
+* Implement test skipping
+* Update FSF address in license blurbs
 
 Overview of changes in Glib::Object::Introspection 0.004
 ========================================================

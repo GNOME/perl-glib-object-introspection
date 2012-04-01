@@ -25,8 +25,7 @@ instance_sv_to_pointer (GICallableInfo *info, SV *sv)
 	    case GI_INFO_TYPE_STRUCT:
             case GI_INFO_TYPE_UNION:
 	    {
-		GType type = g_registered_type_info_get_g_type (
-			       (GIRegisteredTypeInfo *) container);
+		GType type = get_gtype ((GIRegisteredTypeInfo *) container);
 		if (!type || type == G_TYPE_NONE) {
 			dwarn ("    unboxed type\n");
 			pointer = sv_to_struct (GI_TRANSFER_NOTHING,
@@ -88,8 +87,7 @@ sv_to_interface (GIArgInfo * arg_info,
 		gboolean need_value_semantics =
 			arg_info && g_arg_info_is_caller_allocates (arg_info)
 			&& !g_type_info_is_pointer (type_info);
-		GType type = g_registered_type_info_get_g_type (
-		               (GIRegisteredTypeInfo *) interface);
+		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		if (!type || type == G_TYPE_NONE) {
 			dwarn ("    unboxed type\n");
 			g_assert (!need_value_semantics);
@@ -132,7 +130,7 @@ sv_to_interface (GIArgInfo * arg_info,
 
 	    case GI_INFO_TYPE_ENUM:
 	    {
-		GType type = g_registered_type_info_get_g_type ((GIRegisteredTypeInfo *) interface);
+		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		/* FIXME: Check storage type? */
 		arg->v_long = gperl_convert_enum (type, sv);
 		break;
@@ -140,7 +138,7 @@ sv_to_interface (GIArgInfo * arg_info,
 
 	    case GI_INFO_TYPE_FLAGS:
 	    {
-		GType type = g_registered_type_info_get_g_type ((GIRegisteredTypeInfo *) interface);
+		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		/* FIXME: Check storage type? */
 		arg->v_long = gperl_convert_flags (type, sv);
 		break;
@@ -188,8 +186,7 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 	    {
 		/* FIXME: What about pass-by-value here? */
 		GType type;
-		type = g_registered_type_info_get_g_type (
-		               (GIRegisteredTypeInfo *) interface);
+		type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		if (!type || type == G_TYPE_NONE) {
 			dwarn ("    unboxed type\n");
 			sv = struct_to_sv (interface, info_type, arg->v_pointer, own);
@@ -207,7 +204,7 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 
 	    case GI_INFO_TYPE_ENUM:
 	    {
-		GType type = g_registered_type_info_get_g_type ((GIRegisteredTypeInfo *) interface);
+		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		/* FIXME: Is it right to just use v_long here? */
 		sv = gperl_convert_back_enum (type, arg->v_long);
 		break;
@@ -215,7 +212,7 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 
 	    case GI_INFO_TYPE_FLAGS:
 	    {
-		GType type = g_registered_type_info_get_g_type ((GIRegisteredTypeInfo *) interface);
+		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		/* FIXME: Is it right to just use v_long here? */
 		sv = gperl_convert_back_flags (type, arg->v_long);
 		break;

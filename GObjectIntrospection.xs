@@ -150,6 +150,8 @@ static GIFunctionInfo * get_function_info (GIRepository *repository,
                                            const gchar *method);
 static GIFieldInfo * get_field_info (GIBaseInfo *info,
                                      const gchar *field_name);
+static GType get_gtype (GIRegisteredTypeInfo *info);
+
 
 /* marshallers */
 static SV * interface_to_sv (GITypeInfo* info,
@@ -355,8 +357,7 @@ _register_types (class, namespace, package)
 			store_vfuncs (objects_with_vfuncs, info);
 		}
 
-		type = g_registered_type_info_get_g_type (
-			(GIRegisteredTypeInfo *) info);
+		type = get_gtype ((GIRegisteredTypeInfo *) info);
 		if (!type) {
 			ccroak ("Could not find GType for type %s::%s",
 			       namespace, name);
@@ -453,7 +454,7 @@ _get_field (class, basename, namespace, field, invocant)
 	if (!field_info)
 		ccroak ("Could not find field '%s' in namespace '%s'",
 		        field, namespace)
-	invocant_type = g_registered_type_info_get_g_type (namespace_info);
+	invocant_type = get_gtype (namespace_info);
 	if (!g_type_is_a (invocant_type, G_TYPE_BOXED))
 		ccroak ("Unable to handle field access for type '%s'",
 		        g_type_name (invocant_type));
@@ -487,7 +488,7 @@ _set_field (class, basename, namespace, field, invocant, new_value)
 	if (!field_info)
 		ccroak ("Could not find field '%s' in namespace '%s'",
 		        field, namespace)
-	invocant_type = g_registered_type_info_get_g_type (namespace_info);
+	invocant_type = get_gtype (namespace_info);
 	if (!g_type_is_a (invocant_type, G_TYPE_BOXED))
 		ccroak ("Unable to handle field access for type '%s'",
 		        g_type_name (invocant_type));
@@ -525,9 +526,7 @@ _add_interface (class, basename, interface_name, target_package)
 	if (!gtype)
 		ccroak ("package '%s' is not registered with Glib-Perl",
 		        target_package);
-	g_type_add_interface_static (gtype,
-	                             g_registered_type_info_get_g_type (info),
-	                             &iface_info);
+	g_type_add_interface_static (gtype, get_gtype (info), &iface_info);
 	/* info is unref'd in generic_interface_finalize */
 
 void
@@ -573,7 +572,7 @@ _find_non_perl_parents (class, basename, object_name, target_package)
 	info = g_irepository_find_by_name (repository, basename, object_name);
 	g_assert (info && GI_IS_OBJECT_INFO (info));
 	gtype = gperl_object_type_from_package (target_package);
-	object_gtype = g_registered_type_info_get_g_type (info);
+	object_gtype = get_gtype (info);
 	/* find all non-Perl parents up to and including the object type */
 	while ((gtype = g_type_parent (gtype))) {
 		/* FIXME: we should export gperl_type_reg_quark from Glib */
@@ -758,7 +757,6 @@ _invoke (SV *code, ...)
 	invoke_callable (wrapper->interface, wrapper->func,
 	                 sp, ax, mark, items,
 	                 internal_stack_offset);
-	/* wrapper->func (cell_layout, cell, tree_model, iter, wrapper->data); */
 
 void
 DESTROY (SV *code)

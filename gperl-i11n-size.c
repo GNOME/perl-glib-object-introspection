@@ -65,7 +65,7 @@ size_of_interface (GITypeInfo *type_info)
 			/* FIXME: Remove this workaround once
 			 * gobject-introspection is fixed:
 			 * <https://bugzilla.gnome.org/show_bug.cgi?id=657040>. */
-			GType type = g_registered_type_info_get_g_type (info);
+			GType type = get_gtype (info);
 			if (type == G_TYPE_VALUE) {
 				size = sizeof (GValue);
 			} else {
