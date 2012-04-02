@@ -552,7 +552,7 @@ _install_overrides (class, basename, object_name, target_package)
 		        target_package);
 	klass = g_type_class_peek (gtype);
 	if (!klass)
-		ccroak ("internal problem: can't peek at type class for %s (%d)",
+		ccroak ("internal problem: can't peek at type class for %s (%" G_GSIZE_FORMAT ")",
 		        g_type_name (gtype), gtype);
 	generic_class_init (info, target_package, klass);
 	g_base_info_unref (info);
