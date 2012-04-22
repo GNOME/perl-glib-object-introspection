@@ -2,6 +2,7 @@ Overview of changes in Glib::Object::Introspection <next>
 ========================================================
 
 * When looking up GTypes, also try by name.
+* Make constants work on perl 5.8.x.
 
 Overview of changes in Glib::Object::Introspection 0.007
 ========================================================

@@ -111,10 +111,10 @@ sub setup {
       : $auto_name;
     # Install a sub which, on the first invocation, calls _fetch_constant and
     # then overrides itself with a constant sub returning that value.
-    *{$corrected_name} = sub () {
+    *{$corrected_name} = sub {
       my $value = __PACKAGE__->_fetch_constant($basename, $name);
       {
-        *{$corrected_name} = sub () { $value };
+        *{$corrected_name} = sub { $value };
       }
       return $value;
     };
