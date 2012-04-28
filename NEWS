@@ -1,4 +1,4 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.008
 ========================================================
 
 * When looking up GTypes, also try by name.
