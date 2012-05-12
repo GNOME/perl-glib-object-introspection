@@ -81,7 +81,7 @@ sub setup {
     __PACKAGE__->_register_types($basename, $package);
 
   no strict qw(refs);
-  no warnings qw(redefine prototype);
+  no warnings qw(redefine);
 
   foreach my $namespace (keys %{$functions}) {
     my $is_namespaced = $namespace ne "";
