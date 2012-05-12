@@ -167,5 +167,6 @@ sv_to_array (GITransfer transfer,
 
 	g_base_info_unref ((GIBaseInfo *) param_info);
 
+	/* FIXME: for transfer=nothing, we seem to be leaking the bare array. */
 	return g_array_free (array, FALSE);
 }
