@@ -337,18 +337,6 @@ _register_types (class, namespace, package)
 			av_push (interfaces, newSVpv (name, PL_na));
 		}
 
-		if (info_type != GI_INFO_TYPE_OBJECT &&
-		    info_type != GI_INFO_TYPE_INTERFACE &&
-		    info_type != GI_INFO_TYPE_BOXED &&
-		    info_type != GI_INFO_TYPE_STRUCT &&
-		    info_type != GI_INFO_TYPE_UNION &&
-		    info_type != GI_INFO_TYPE_ENUM &&
-		    info_type != GI_INFO_TYPE_FLAGS)
-		{
-			g_base_info_unref ((GIBaseInfo *) info);
-			continue;
-		}
-
 		if (info_type == GI_INFO_TYPE_OBJECT ||
 		    info_type == GI_INFO_TYPE_INTERFACE ||
 		    info_type == GI_INFO_TYPE_BOXED ||
@@ -367,6 +355,19 @@ _register_types (class, namespace, package)
 
 		if (info_type == GI_INFO_TYPE_OBJECT) {
 			store_vfuncs (objects_with_vfuncs, info);
+		}
+
+		/* These are the types that we want to register with perl-Glib. */
+		if (info_type != GI_INFO_TYPE_OBJECT &&
+		    info_type != GI_INFO_TYPE_INTERFACE &&
+		    info_type != GI_INFO_TYPE_BOXED &&
+		    info_type != GI_INFO_TYPE_STRUCT &&
+		    info_type != GI_INFO_TYPE_UNION &&
+		    info_type != GI_INFO_TYPE_ENUM &&
+		    info_type != GI_INFO_TYPE_FLAGS)
+		{
+			g_base_info_unref ((GIBaseInfo *) info);
+			continue;
 		}
 
 		type = get_gtype ((GIRegisteredTypeInfo *) info);
