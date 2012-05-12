@@ -225,6 +225,18 @@ static void generic_class_init (GIObjectInfo *info, const gchar *target_package,
 #define ccroak(...) call_carp_croak (form (__VA_ARGS__));
 static void call_carp_croak (const char *msg);
 
+/* interface_to_sv and its callers might invoke Perl code, so any xsub invoking
+ * them needs to save the stack.  these wrappers do this automatically. */
+#define SS_arg_to_sv(sv, arg, info, transfer, iinfo)	\
+	PUTBACK;					\
+	sv = arg_to_sv (arg, info, transfer, iinfo);	\
+	SPAGAIN;
+
+#define SS_get_field(sv, field_info, mem, transfer)	\
+	PUTBACK;					\
+	sv = get_field (field_info, mem, transfer);	\
+	SPAGAIN;
+
 /* #define NOISY */
 #ifdef NOISY
 # define dwarn(...) warn(__VA_ARGS__)
@@ -423,7 +435,7 @@ _fetch_constant (class, basename, constant)
 	type_info = g_constant_info_get_type (info);
 	/* FIXME: What am I suppossed to do with the return value? */
 	g_constant_info_get_value (info, &value);
-	RETVAL = arg_to_sv (&value, type_info, GI_TRANSFER_NOTHING, NULL);
+	SS_arg_to_sv (RETVAL, &value, type_info, GI_TRANSFER_NOTHING, NULL);
 #if GI_CHECK_VERSION (1, 30, 1)
 	g_constant_info_free_value (info, &value);
 #endif
@@ -459,7 +471,7 @@ _get_field (class, basename, namespace, field, invocant)
 		ccroak ("Unable to handle field access for type '%s'",
 		        g_type_name (invocant_type));
 	boxed_mem = gperl_get_boxed_check (invocant, invocant_type);
-	RETVAL = get_field (field_info, boxed_mem, GI_TRANSFER_NOTHING);
+	SS_get_field (RETVAL, field_info, boxed_mem, GI_TRANSFER_NOTHING);
 	g_base_info_unref (field_info);
 	g_base_info_unref (namespace_info);
     OUTPUT:

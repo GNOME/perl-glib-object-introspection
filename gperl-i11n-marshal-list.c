@@ -1,5 +1,7 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
+/* This may call Perl code (via arg_to_sv), so it needs to be wrapped with
+ * PUTBACK/SPAGAIN by the caller. */
 static SV *
 glist_to_sv (GITypeInfo* info,
              gpointer pointer,

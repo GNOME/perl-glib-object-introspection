@@ -1,5 +1,7 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
+/* This may call Perl code (via get_field), so it needs to be wrapped with
+ * PUTBACK/SPAGAIN by the caller. */
 static SV *
 struct_to_sv (GIBaseInfo* info,
               GIInfoType info_type,

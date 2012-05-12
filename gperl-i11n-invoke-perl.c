@@ -75,7 +75,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 			GIArgument arg;
 			SV *sv;
 			raw_to_arg (args[i], &arg, arg_type);
-			sv = arg_to_sv (&arg, arg_type, transfer, &iinfo);
+			SS_arg_to_sv (sv, &arg, arg_type, transfer, &iinfo);
 			/* If arg_to_sv returns NULL, we take that as 'skip
 			 * this argument'; happens for GDestroyNotify, for
 			 * example. */

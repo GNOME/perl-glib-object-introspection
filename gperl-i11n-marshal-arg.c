@@ -128,6 +128,8 @@ sv_to_arg (SV * sv,
 	}
 }
 
+/* This may call Perl code (via interface_to_sv), so it needs to be wrapped
+ * with PUTBACK/SPAGAIN by the caller. */
 static SV *
 arg_to_sv (GIArgument * arg,
            GITypeInfo * info,

@@ -49,6 +49,8 @@ store_fields (HV *fields, GIBaseInfo *info, GIInfoType info_type)
 	                  newRV_noinc ((SV *) av));
 }
 
+/* This may call Perl code (via arg_to_sv), so it needs to be wrapped with
+ * PUTBACK/SPAGAIN by the caller. */
 static SV *
 get_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer)
 {

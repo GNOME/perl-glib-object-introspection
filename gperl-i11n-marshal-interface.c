@@ -158,6 +158,8 @@ sv_to_interface (GIArgInfo * arg_info,
 	g_base_info_unref ((GIBaseInfo *) interface);
 }
 
+/* This may call Perl code, so it needs to be wrapped with PUTBACK/SPAGAIN by
+ * the caller. */
 static SV *
 interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvocationInfo *iinfo)
 {
