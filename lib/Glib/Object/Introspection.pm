@@ -130,7 +130,8 @@ sub setup {
         my ($invocant, $new_value) = @_;
         my $old_value = __PACKAGE__->_get_field($basename, $namespace, $name,
                                                 $invocant);
-        if (defined $new_value) {
+        # If a new value is provided, even if it is undef, update the field.
+        if (scalar @_ > 1) {
           __PACKAGE__->_set_field($basename, $namespace, $name,
                                   $invocant, $new_value);
         }
