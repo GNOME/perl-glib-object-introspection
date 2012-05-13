@@ -267,7 +267,11 @@ handle_automatic_arg (guint pos,
 		if (pos == cinfo->destroy_pos) {
 			dwarn ("  setting automatic arg %d (destroy notify for calllback %p)\n",
 			       pos, cinfo);
-			arg->v_pointer = release_perl_callback;
+			/* If the code pointer is NULL, then the user actually
+			 * specified undef for the callback or nothing at all,
+			 * in which case we must not install our destroy notify
+			 * handler. */
+			arg->v_pointer = cinfo->code ? release_perl_callback : NULL;
 			return;
 		}
 	}
