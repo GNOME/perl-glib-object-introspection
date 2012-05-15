@@ -4,6 +4,7 @@ Overview of changes in Glib::Object::Introspection <next>
 * Allow setting boxed fields to undef.
 * Do not pass on an incorrect destroy notify func if there is no
   callback.
+* Do not crash on inexistent GTypes on perl 5.8.x.
 
 Overview of changes in Glib::Object::Introspection 0.008
 ========================================================

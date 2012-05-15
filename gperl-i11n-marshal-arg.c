@@ -199,6 +199,8 @@ arg_to_sv (GIArgument * arg,
 		const char *package = gperl_package_from_type (arg->v_size);
 		if (!package)
 			package = g_type_name (arg->v_size);
+		if (!package)
+			return &PL_sv_undef;
 		return newSVpv (package, PL_na);
 	    }
 
