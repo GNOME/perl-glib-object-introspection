@@ -20,7 +20,7 @@ use strict;
 use warnings;
 use Glib;
 
-our $VERSION = 0.008;
+our $VERSION = 0.009;
 
 use Carp;
 $Carp::Internal{(__PACKAGE__)}++;
