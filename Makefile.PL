@@ -115,11 +115,10 @@ sub compile_test_libraries {
     my %gio_flags = ExtUtils::PkgConfig->find ('gio-2.0');
     my %glib_flags = ExtUtils::PkgConfig->find ('glib-2.0');
 
-    # FIXME: Why is --no-as-needed necessary?
-       !system (qq(gcc -shared -fPIC -Wl,--no-as-needed -g \\
-                   $cairo_flags{cflags} $cairo_flags{libs} \\
-                   $gio_flags{cflags} $gio_flags{libs} \\
+       !system (qq(gcc -shared -fPIC -g \\
+                   $cairo_flags{cflags} $gio_flags{cflags} \\
                    $testsdir/regress.c \\
+                   $cairo_flags{libs} $gio_flags{libs} \\
                    -o libregress.so 1>/dev/null 2>/dev/null))
     && !system (qq(LD_LIBRARY_PATH=$build_dir \\
                    g-ir-scanner \\
@@ -133,8 +132,9 @@ sub compile_test_libraries {
     && !system (qq(g-ir-compiler Regress-1.0.gir -o Regress-1.0.typelib \\
                    1>/dev/null 2>/dev/null))
     && !system (qq(gcc -shared -fPIC -g \\
-                   $glib_flags{cflags} $glib_flags{libs} \\
+                   $glib_flags{cflags} \\
                    $testsdir/gimarshallingtests.c \\
+                   $glib_flags{libs} \\
                    -o libgimarshallingtests.so 1>/dev/null 2>/dev/null))
     && !system (qq(LD_LIBRARY_PATH=$build_dir \\
                    g-ir-scanner \\

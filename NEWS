@@ -1,3 +1,8 @@
+Overview of changes in Glib::Object::Introspection <next>
+========================================================
+
+* Correctly place the linker flags when building the test libs.
+
 Overview of changes in Glib::Object::Introspection 0.009
 ========================================================
 
