@@ -88,6 +88,7 @@ WriteMakefile(
   PREREQ_PM	=> \%PREREQ_PM,
   XSPROTOARG	=> '-noprototypes',
   MAN3PODS	=> \%pod_files,
+  LICENSE       => 'lgpl_2_1',
 
   META_MERGE => {
     configure_requires => \%PREREQ_PM,
