@@ -111,16 +111,20 @@ sub compile_test_libraries {
     my $gidatadir = ExtUtils::PkgConfig->variable ('gobject-introspection-1.0',
                                                    'gidatadir');
     my $testsdir = $gidatadir . '/tests';
+    my $have_cairo_gobject = !system (qw/pkg-config --exists cairo-gobject/);
     my %cairo_flags = ExtUtils::PkgConfig->find ('cairo');
+    my %cairo_gobject_flags = $have_cairo_gobject ?
+      ExtUtils::PkgConfig->find ('cairo-gobject') :
+      (cflags => '', libs => '');
     my %gio_flags = ExtUtils::PkgConfig->find ('gio-2.0');
     my %glib_flags = ExtUtils::PkgConfig->find ('glib-2.0');
 
        !system (qq(gcc -shared -fPIC -g \\
-                   $cairo_flags{cflags} $gio_flags{cflags} \\
+                   $cairo_flags{cflags} $cairo_gobject_flags{cflags} $gio_flags{cflags} \\
                    $testsdir/regress.c \\
-                   $cairo_flags{libs} $gio_flags{libs} \\
+                   $cairo_flags{libs} $cairo_gobject_flags{libs} $gio_flags{libs} \\
                    -o libregress.so 1>/dev/null 2>/dev/null))
-    && !system (qq(LD_LIBRARY_PATH=$build_dir \\
+    && !system (qq(LD_LIBRARY_PATH=$build_dir:\$LD_LIBRARY_PATH \\
                    g-ir-scanner \\
                    --include=cairo-1.0 --include=Gio-2.0 \\
                    --namespace=Regress --nsversion=1.0 \\
@@ -136,7 +140,7 @@ sub compile_test_libraries {
                    $testsdir/gimarshallingtests.c \\
                    $glib_flags{libs} \\
                    -o libgimarshallingtests.so 1>/dev/null 2>/dev/null))
-    && !system (qq(LD_LIBRARY_PATH=$build_dir \\
+    && !system (qq(LD_LIBRARY_PATH=$build_dir:\$LD_LIBRARY_PATH \\
                    g-ir-scanner \\
                    --include=GObject-2.0 \\
                    --namespace=GIMarshallingTests \\
