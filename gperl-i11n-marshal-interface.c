@@ -89,12 +89,27 @@ sv_to_interface (GIArgInfo * arg_info,
 			&& !g_type_info_is_pointer (type_info);
 		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		if (!type || type == G_TYPE_NONE) {
+			const gchar *namespace, *name, *package;
+			GType parent_type;
 			dwarn ("    unboxed type\n");
 			g_assert (!need_value_semantics);
-			arg->v_pointer = sv_to_struct (transfer,
-			                               interface,
-			                               info_type,
-			                               sv);
+			/* Find out whether this untyped struct is a member of
+			 * a boxed union before using raw hash-to-struct
+			 * conversion. */
+			name = g_base_info_get_name (interface);
+			namespace = g_base_info_get_namespace (interface);
+			package = get_package_for_basename (namespace);
+			parent_type = find_union_member_gtype (package, name);
+			if (parent_type && parent_type != G_TYPE_NONE) {
+				/* FIXME: Check transfer setting. */
+				arg->v_pointer = gperl_get_boxed_check (
+				                   sv, parent_type);
+			} else {
+				arg->v_pointer = sv_to_struct (transfer,
+				                               interface,
+				                               info_type,
+				                               sv);
+			}
 		} else if (type == G_TYPE_CLOSURE) {
 			/* FIXME: User cannot supply user data. */
 			dwarn ("    closure type\n");

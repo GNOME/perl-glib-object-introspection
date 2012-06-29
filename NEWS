@@ -1,3 +1,8 @@
+Overview of changes in Glib::Object::Introspection <next>
+========================================================
+
+* Improve handling of boxed unions, like GdkEvent.
+
 Overview of changes in Glib::Object::Introspection 0.010
 ========================================================
 

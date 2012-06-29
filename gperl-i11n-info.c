@@ -138,3 +138,15 @@ get_gtype (GIRegisteredTypeInfo *info)
 	}
 	return gtype;
 }
+
+static const gchar *
+get_package_for_basename (const gchar *basename)
+{
+	SV **svp;
+	HV *basename_to_package =
+		get_hv ("Glib::Object::Introspection::_BASENAME_TO_PACKAGE", 0);
+	g_assert (basename_to_package);
+	svp = hv_fetch (basename_to_package, basename, strlen (basename), 0);
+	g_assert (svp && gperl_sv_is_defined (*svp));
+	return SvPV_nolen (*svp);
+}

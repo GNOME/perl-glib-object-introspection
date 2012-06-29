@@ -17,6 +17,7 @@ gperl-i11n-marshal-raw.c
 gperl-i11n-marshal-struct.c
 gperl-i11n-method.c
 gperl-i11n-size.c
+gperl-i11n-union.c
 gperl-i11n-vfunc-interface.c
 gperl-i11n-vfunc-object.c
 lib/Glib/Object/Introspection.pm

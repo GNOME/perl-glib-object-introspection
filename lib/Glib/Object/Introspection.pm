@@ -30,7 +30,10 @@ XSLoader::load(__PACKAGE__, $VERSION);
 
 my %FORBIDDEN_SUB_NAMES = map { $_ => 1 } qw/AUTOLOAD CLONE DESTROY BEGIN
                                              UNITCHECK CHECK INIT END/;
-my @_OBJECT_PACKAGES_WITH_VFUNCS = ();
+my @OBJECT_PACKAGES_WITH_VFUNCS;
+
+our %_BASENAME_TO_PACKAGE;
+our %_REBLESSERS;
 
 sub _create_invoker_sub {
   my ($basename, $namespace, $name,
@@ -67,6 +70,8 @@ sub setup {
   my $search_path = $params{search_path} || undef;
   my $name_corrections = $params{name_corrections} || {};
 
+  $_BASENAME_TO_PACKAGE{$basename} = $package;
+
   local $@;
   my %shift_package_name_for = eval {
     map { $_ => 1 } @{$params{class_static_methods}} };
@@ -74,6 +79,11 @@ sub setup {
     map { $_ => 1 } @{$params{flatten_array_ref_return_for}} };
   my %handle_sentinel_boolean_for = eval {
     map { $_ => 1 } @{$params{handle_sentinel_boolean_for}} };
+
+  if (exists $params{reblessers}) {
+    $_REBLESSERS{$_} = $params{reblessers}->{$_}
+      for keys %{$params{reblessers}}
+  }
 
   __PACKAGE__->_load_library($basename, $version, $search_path);
 
@@ -121,19 +131,19 @@ sub setup {
   }
 
   foreach my $namespace (keys %{$fields}) {
-    foreach my $name (@{$fields->{$namespace}}) {
-      my $auto_name = $package . '::' . $namespace . '::' . $name;
+    foreach my $field_name (@{$fields->{$namespace}}) {
+      my $auto_name = $package . '::' . $namespace . '::' . $field_name;
       my $corrected_name = exists $name_corrections->{$auto_name}
         ? $name_corrections->{$auto_name}
         : $auto_name;
       *{$corrected_name} = sub {
         my ($invocant, $new_value) = @_;
-        my $old_value = __PACKAGE__->_get_field($basename, $namespace, $name,
-                                                $invocant);
+        my $old_value = __PACKAGE__->_get_field($basename, $namespace,
+                                                $field_name, $invocant);
         # If a new value is provided, even if it is undef, update the field.
         if (scalar @_ > 1) {
-          __PACKAGE__->_set_field($basename, $namespace, $name,
-                                  $invocant, $new_value);
+          __PACKAGE__->_set_field($basename, $namespace,
+                                  $field_name, $invocant, $new_value);
         }
         return $old_value;
       };
@@ -185,7 +195,7 @@ sub setup {
 
       # Delay hooking up the vfuncs until INIT so that we can see whether the
       # package defines the relevant subs or not.
-      push @_OBJECT_PACKAGES_WITH_VFUNCS,
+      push @OBJECT_PACKAGES_WITH_VFUNCS,
            [$basename, $object_name, $target_package];
     };
   }
@@ -193,11 +203,11 @@ sub setup {
 
 sub INIT {
   no strict qw(refs);
-  foreach my $target (@_OBJECT_PACKAGES_WITH_VFUNCS) {
+  foreach my $target (@OBJECT_PACKAGES_WITH_VFUNCS) {
     my ($basename, $object_name, $target_package) = @{$target};
     __PACKAGE__->_install_overrides($basename, $object_name, $target_package);
   }
-  @_OBJECT_PACKAGES_WITH_VFUNCS = ();
+  @OBJECT_PACKAGES_WITH_VFUNCS = ();
 }
 
 package Glib::Object::Introspection::_FuncWrapper;
