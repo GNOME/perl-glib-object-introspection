@@ -72,13 +72,15 @@ sub setup {
 
   $_BASENAME_TO_PACKAGE{$basename} = $package;
 
-  local $@;
-  my %shift_package_name_for = eval {
-    map { $_ => 1 } @{$params{class_static_methods}} };
-  my %flatten_array_ref_return_for = eval {
-    map { $_ => 1 } @{$params{flatten_array_ref_return_for}} };
-  my %handle_sentinel_boolean_for = eval {
-    map { $_ => 1 } @{$params{handle_sentinel_boolean_for}} };
+  my %shift_package_name_for = exists $params{class_static_methods}
+    ? map { $_ => 1 } @{$params{class_static_methods}}
+    : ();
+  my %flatten_array_ref_return_for = exists $params{flatten_array_ref_return_for}
+    ? map { $_ => 1 } @{$params{flatten_array_ref_return_for}}
+    : ();
+  my %handle_sentinel_boolean_for = exists $params{handle_sentinel_boolean_for}
+    ? map { $_ => 1 } @{$params{handle_sentinel_boolean_for}}
+    : ();
 
   if (exists $params{reblessers}) {
     $_REBLESSERS{$_} = $params{reblessers}->{$_}
