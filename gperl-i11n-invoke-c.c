@@ -183,11 +183,10 @@ invoke_callable (GICallableInfo *info,
 	   )
 	{
 		SV *value;
-		SS_arg_to_sv (value,
-		              &return_value,
-		              iinfo.return_type_info,
-		              iinfo.return_type_transfer,
-		              &iinfo);
+		value = SAVED_STACK_SV (arg_to_sv (&return_value,
+		                                   iinfo.return_type_info,
+		                                   iinfo.return_type_transfer,
+		                                   &iinfo));
 		if (value) {
 			XPUSHs (sv_2mortal (value));
 			n_return_values++;
@@ -216,11 +215,10 @@ invoke_callable (GICallableInfo *info,
 			transfer = g_arg_info_is_caller_allocates (arg_info)
 			         ? GI_TRANSFER_CONTAINER
 			         : g_arg_info_get_ownership_transfer (arg_info);
-			SS_arg_to_sv (sv,
-			              iinfo.out_args[i].v_pointer,
-			              iinfo.out_arg_infos[i],
-			              transfer,
-			              &iinfo);
+			sv = SAVED_STACK_SV (arg_to_sv (iinfo.out_args[i].v_pointer,
+			                                iinfo.out_arg_infos[i],
+			                                transfer,
+			                                &iinfo));
 			if (sv) {
 				XPUSHs (sv_2mortal (sv));
 				n_return_values++;
