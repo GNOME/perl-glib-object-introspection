@@ -72,7 +72,7 @@ sv_to_interface (GIArgInfo * arg_info,
 	    case GI_INFO_TYPE_OBJECT:
 	    case GI_INFO_TYPE_INTERFACE:
 		arg->v_pointer = gperl_get_object (sv);
-		if (arg->v_pointer && transfer == GI_TRANSFER_EVERYTHING) {
+		if (arg->v_pointer && transfer >= GI_TRANSFER_CONTAINER) {
 			g_object_ref (arg->v_pointer);
 			if (G_IS_INITIALLY_UNOWNED (arg->v_pointer)) {
 				g_object_force_floating (arg->v_pointer);
@@ -211,7 +211,8 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 		} else if (type == G_TYPE_VALUE) {
 			dwarn ("    value type\n");
 			sv = gperl_sv_from_value (arg->v_pointer);
-			/* FIXME: Check 'own'. */
+			if (own)
+				g_boxed_free (type, arg->v_pointer);
 		} else {
 			dwarn ("    boxed type: %d (%s)\n",
 			       type, g_type_name (type));
