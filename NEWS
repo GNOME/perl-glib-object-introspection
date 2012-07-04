@@ -1,7 +1,10 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.010
 ========================================================
 
 * Correctly place the linker flags when building the test libs.
+* Fix compilation of the test libs against recent gobject-introspection
+* updated README file similar to Cairo (RT#74870)
+* Created %meta_merge which follows v2 of meta-spec
 
 Overview of changes in Glib::Object::Introspection 0.009
 ========================================================
