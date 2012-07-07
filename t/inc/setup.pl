@@ -1,14 +1,26 @@
+use Config;
 use Glib::Object::Introspection;
 use Test::More;
 
-unless (-e 'build/libregress.so' && -e 'build/libgimarshallingtests.so') {
+unless (-e qq(build/libregress.$Config{dlext}) &&
+        -e qq(build/libgimarshallingtests.$Config{dlext}))
+{
   plan skip_all => 'Need the test libraries';
 }
 
-unless (defined $ENV{LD_LIBRARY_PATH} &&
-        $ENV{LD_LIBRARY_PATH} =~ m/\bbuild\b/)
-{
-  plan skip_all => 'Need "build" in LD_LIBRARY_PATH';
+if ($^O eq 'MSWin32') {
+  unless (defined $ENV{PATH} &&
+          $ENV{PATH} =~ m/\bbuild\b/)
+  {
+    plan skip_all => 'Need "build" in PATH';
+  }
+}
+else {
+  unless (defined $ENV{LD_LIBRARY_PATH} &&
+          $ENV{LD_LIBRARY_PATH} =~ m/\bbuild\b/)
+  {
+    plan skip_all => 'Need "build" in LD_LIBRARY_PATH';
+  }
 }
 
 Glib::Object::Introspection->setup(
