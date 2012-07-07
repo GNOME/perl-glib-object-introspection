@@ -1,5 +1,19 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
+static void
+free_list (GList *list)
+{
+	dwarn ("free_list %p\n", list);
+	g_list_free (list);
+}
+
+static void
+free_slist (GSList *list)
+{
+	dwarn ("free_slist %p\n", list);
+	g_slist_free (list);
+}
+
 /* This may call Perl code (via arg_to_sv), so it needs to be wrapped with
  * PUTBACK/SPAGAIN by the caller. */
 static SV *
@@ -21,7 +35,7 @@ glist_to_sv (GITypeInfo* info,
 	/* FIXME: What about an array containing arrays of strings, where the
 	 * outer array is GI_TRANSFER_EVERYTHING but the inner arrays are
 	 * GI_TRANSFER_CONTAINER? */
-	item_transfer = transfer == GI_TRANSFER_EVERYTHING
+	item_transfer = GI_TRANSFER_EVERYTHING == transfer
 		? GI_TRANSFER_EVERYTHING
 		: GI_TRANSFER_NOTHING;
 
@@ -57,7 +71,7 @@ glist_to_sv (GITypeInfo* info,
 }
 
 static gpointer
-sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * sv)
+sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * sv, GPerlI11nInvocationInfo *iinfo)
 {
 	AV *av;
 	GITransfer item_transfer;
@@ -75,18 +89,9 @@ sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * sv)
 		ccroak ("need an array ref to convert to GList");
 	av = (AV *) SvRV (sv);
 
-	item_transfer = GI_TRANSFER_NOTHING;
-	switch (transfer) {
-	    case GI_TRANSFER_EVERYTHING:
-		item_transfer = GI_TRANSFER_EVERYTHING;
-		break;
-	    case GI_TRANSFER_CONTAINER:
-		/* nothing special to do */
-		break;
-	    case GI_TRANSFER_NOTHING:
-		/* FIXME: need to free list after call */
-		break;
-	}
+	item_transfer = GI_TRANSFER_EVERYTHING == transfer
+		? GI_TRANSFER_EVERYTHING
+		: GI_TRANSFER_NOTHING;
 
 	param_info = g_type_info_get_param_type (type_info, 0);
 	dwarn ("  G(S)List: param_info %p with type tag %d (%s) and transfer %d\n",
@@ -115,6 +120,11 @@ sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * sv)
 				list = g_list_append (list, arg.v_pointer);
 		}
 	}
+
+	if (GI_TRANSFER_NOTHING == transfer)
+		free_after_call (iinfo,
+		                 is_slist ? ((GFunc)free_slist) : ((GFunc)free_list),
+		                 list);
 
 	dwarn ("    -> list %p of length %d\n", list, g_list_length (list));
 

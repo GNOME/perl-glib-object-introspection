@@ -236,7 +236,7 @@ static SV * array_to_sv (GITypeInfo *info, gpointer pointer, GITransfer transfer
 static gpointer sv_to_array (GITransfer transfer, GITypeInfo *type_info, SV *sv, GPerlI11nInvocationInfo *iinfo);
 
 static SV * glist_to_sv (GITypeInfo* info, gpointer pointer, GITransfer transfer);
-static gpointer sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * sv);
+static gpointer sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * sv, GPerlI11nInvocationInfo *iinfo);
 
 static SV * ghash_to_sv (GITypeInfo *info, gpointer pointer, GITransfer transfer);
 static gpointer sv_to_ghash (GITransfer transfer, GITypeInfo *type_info, SV *sv);

@@ -99,7 +99,7 @@ sv_to_arg (SV * sv,
 
 	    case GI_TYPE_TAG_GLIST:
 	    case GI_TYPE_TAG_GSLIST:
-		arg->v_pointer = sv_to_glist (transfer, type_info, sv);
+		arg->v_pointer = sv_to_glist (transfer, type_info, sv, invocation_info);
 		break;
 
 	    case GI_TYPE_TAG_GHASH:
