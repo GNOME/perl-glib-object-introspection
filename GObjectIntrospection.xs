@@ -164,6 +164,9 @@ static gpointer allocate_out_mem (GITypeInfo *arg_type);
 static void handle_automatic_arg (guint pos,
                                   GIArgument * arg,
                                   GPerlI11nInvocationInfo * invocation_info);
+static void free_after_call (GPerlI11nInvocationInfo *iinfo,
+                             GFunc func, gpointer data);
+static void invoke_free_after_call_handlers (GPerlI11nInvocationInfo *iinfo);
 
 /* invocation info */
 static void prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,

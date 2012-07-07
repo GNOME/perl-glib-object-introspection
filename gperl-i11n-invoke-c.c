@@ -211,9 +211,8 @@ invoke_c_code (GICallableInfo *info,
 
 	ffi_call (&cif, func_pointer, &return_value, iinfo.args);
 
-	/* free call-scoped callback infos */
-	g_slist_foreach (iinfo.free_after_call,
-	                 (GFunc) release_perl_callback, NULL);
+	/* free call-scoped data */
+	invoke_free_after_call_handlers (&iinfo);
 
 	if (local_error) {
 		gperl_croak_gerror (NULL, local_error);
@@ -367,4 +366,35 @@ allocate_out_mem (GITypeInfo *arg_type)
 		g_assert_not_reached ();
 		return NULL;
 	}
+}
+
+typedef struct {
+	GFunc func;
+	gpointer data;
+} FreeClosure;
+
+static void
+free_after_call (GPerlI11nInvocationInfo *iinfo, GFunc func, gpointer data)
+{
+	FreeClosure *closure = g_new (FreeClosure, 1);
+	closure->func = func;
+	closure->data = data;
+	iinfo->free_after_call
+		= g_slist_prepend (iinfo->free_after_call, closure);
+}
+
+static void
+invoke_free_closure (FreeClosure *closure)
+{
+	closure->func (closure->data, NULL);
+	g_free (closure);
+}
+
+static void
+invoke_free_after_call_handlers (GPerlI11nInvocationInfo *iinfo)
+{
+	g_slist_foreach (iinfo->free_after_call,
+	                 (GFunc) invoke_free_closure, NULL);
+	g_slist_free (iinfo->free_after_call);
+	iinfo->free_after_call = NULL;
 }

@@ -266,8 +266,6 @@ prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
 static void
 clear_perl_invocation_info (GPerlI11nInvocationInfo *iinfo)
 {
-	g_slist_free (iinfo->free_after_call);
-
 	/* The actual callback infos might be needed later, so we cannot free
 	 * them here. */
 	g_slist_free (iinfo->callback_infos);
