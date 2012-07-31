@@ -75,9 +75,9 @@ my %meta_merge = (
             },
         },
         no_index => {
-            file => \@xs_files,
+            file    => \@xs_files,
+            package => [ 'MY', 'Glib::Object::Introspection::_FuncWrapper' ],
         },
-        package => [ 'MY', 'Glib::Object::Introspection::_FuncWrapper' ],
 );
 
 my $dep_success = eval <<__EOE__;
@@ -138,7 +138,7 @@ WriteMakefile(
   PREREQ_PM	=> \%PREREQ_PM,
   XSPROTOARG	=> '-noprototypes',
   MAN3PODS	=> \%pod_files,
-  META_MERGE => \%meta_merge,
+  META_MERGE	=> \%meta_merge,
   $deps->get_makefile_vars,
 );
 
