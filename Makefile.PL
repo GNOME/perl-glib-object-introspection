@@ -69,7 +69,11 @@ my %meta_merge = (
                     web     => 'http://git.gnome.org/browse/perl-Glib-Object-Introspection',
             },
         },
-        configure_requires => \%PREREQ_PM,
+        prereqs => {
+            configure => {
+                requires => \%PREREQ_PM,
+            },
+        },
         no_index => {
             file => \@xs_files,
         },
