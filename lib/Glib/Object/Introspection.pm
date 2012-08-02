@@ -341,6 +341,18 @@ be returned, and otherwise an empty list will be returned.
 The function names refer to those after name corrections.  Functions occuring
 in C<handle_sentinel_boolean_for> may also occur in C<class_static_methods>.
 
+=item reblessers => { package => \&reblesser, ... }
+
+Tells G:O:I to invoke I<reblesser> whenever a Perl object is created for an
+object of type I<package>.  Currently, this only applies to boxed unions.  The
+reblesser gets passed the pre-created Perl object and needs to return the
+modified Perl object.  For example:
+
+  sub Gtk3::Gdk::Event::_rebless {
+    my ($event) = @_;
+    return bless $event, lookup_real_package_for ($event);
+  }
+
 =back
 
 =head2 C<< Glib::Object::Introspection->invoke >>
