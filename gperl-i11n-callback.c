@@ -64,10 +64,13 @@ release_perl_callback (gpointer data)
 	GPerlI11nPerlCallbackInfo *info = data;
 	dwarn ("releasing Perl callback info %p\n", info);
 
-	if (info->cif)
-		g_free (info->cif);
+	/* g_callable_info_free_closure reaches into info->cif, so it needs to
+	 * be called before we free it.  See
+	 * <https://bugzilla.gnome.org/show_bug.cgi?id=652954>. */
 	if (info->closure)
 		g_callable_info_free_closure (info->interface, info->closure);
+	if (info->cif)
+		g_free (info->cif);
 
 	if (info->interface)
 		g_base_info_unref ((GIBaseInfo*) info->interface);
