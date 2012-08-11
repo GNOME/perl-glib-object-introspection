@@ -2,6 +2,7 @@ Overview of changes in Glib::Object::Introspection 0.012
 ========================================================
 
 * Support more struct types when writing fields.
+* Handle disguised structures.
 
 Overview of changes in Glib::Object::Introspection 0.011
 ========================================================

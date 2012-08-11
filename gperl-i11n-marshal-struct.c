@@ -1,5 +1,24 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
+static gchar *
+get_struct_package (GIBaseInfo* info)
+{
+	const gchar *basename, *package, *name;
+	basename = g_base_info_get_namespace (info);
+	package = get_package_for_basename (basename);
+	g_assert (package);
+	name = g_base_info_get_name (info);
+	return g_strconcat (package, "::", name, NULL);
+}
+
+/* FIXME: Should g-i offer API for this? */
+static gboolean
+is_struct_disguised (GIBaseInfo* info)
+{
+	return 0 == g_struct_info_get_n_fields (info) &&
+	       0 == g_struct_info_get_size (info);
+}
+
 /* This may call Perl code (via get_field), so it needs to be wrapped with
  * PUTBACK/SPAGAIN by the caller. */
 static SV *
@@ -14,6 +33,18 @@ struct_to_sv (GIBaseInfo* info,
 
 	if (pointer == NULL) {
 		return &PL_sv_undef;
+	}
+
+	if (is_struct_disguised (info)) {
+		SV *sv;
+		gchar *package;
+		dwarn ("  disguised struct\n");
+		g_assert (!own);
+		package = get_struct_package (info);
+		sv = newSV (0);
+		sv_setref_pv (sv, package, pointer);
+		g_free (package);
+		return sv;
 	}
 
 	hv = newHV ();
@@ -73,6 +104,20 @@ sv_to_struct (GITransfer transfer,
 	gpointer pointer = NULL;
 
 	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
+
+	if (!gperl_sv_is_defined (sv))
+		return NULL;
+
+	if (is_struct_disguised (info)) {
+		gchar *package;
+		dwarn ("  disguised struct\n");
+		package = get_struct_package (info);
+		if (!gperl_sv_is_ref (sv) || !sv_derived_from (sv, package))
+			croak("Cannot convert scalar %p to an object of type %s",
+			      sv, package);
+		g_free (package);
+		return INT2PTR (void *, SvIV ((SV *) SvRV (sv)));
+	}
 
 	if (!gperl_sv_is_hash_ref (sv))
 		ccroak ("need a hash ref to convert to struct of type %s",
