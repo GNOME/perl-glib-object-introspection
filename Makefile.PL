@@ -278,5 +278,6 @@ sub test {
 }
 
 sub postamble {
-  return Glib::MakeHelper->postamble_clean ();
+  my $additional_deps = "\n\n\$(OBJECT) : gperl-i11n-*.c\n\n";
+  return Glib::MakeHelper->postamble_clean () . $additional_deps;
 }
