@@ -282,10 +282,16 @@ allocate_out_mem (GITypeInfo *arg_type)
 {
 	GIBaseInfo *interface_info;
 	GIInfoType type;
+	gboolean is_boxed = FALSE;
+	GType gtype = G_TYPE_INVALID;
 
 	interface_info = g_type_info_get_interface (arg_type);
 	g_assert (interface_info);
 	type = g_base_info_get_type (interface_info);
+	if (GI_IS_REGISTERED_TYPE_INFO (interface_info)) {
+		gtype = get_gtype (interface_info);
+		is_boxed = g_type_is_a (gtype, G_TYPE_BOXED);
+	}
 	g_base_info_unref (interface_info);
 
 	switch (type) {
@@ -293,8 +299,20 @@ allocate_out_mem (GITypeInfo *arg_type)
 	    {
 		/* No plain g_struct_info_get_size (interface_info) here so
 		 * that we get the GValue override. */
-		gsize size = size_of_interface (arg_type);
-		return g_malloc0 (size);
+		gsize size;
+		gpointer mem;
+		size = size_of_interface (arg_type);
+		mem = g_malloc0 (size);
+		if (is_boxed) {
+			/* For a boxed type, malloc() might not be the right
+			 * allocator.  For example, GtkTreeIter uses GSlice.
+			 * So use g_boxed_copy() to make a copy of the newly
+			 * allocated block using the correct allocator. */
+			gpointer real_mem = g_boxed_copy (gtype, mem);
+			g_free (mem);
+			mem = real_mem;
+		}
+		return mem;
 	    }
 	    default:
 		g_assert_not_reached ();
