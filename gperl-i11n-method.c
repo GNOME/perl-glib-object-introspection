@@ -1,11 +1,21 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
+#define PUSH_METHODS(prefix, av, info)                                  \
+	gint i, n_methods = g_ ## prefix ## _info_get_n_methods (info); \
+	for (i = 0; i < n_methods; i++) { \
+		GIFunctionInfo *function_info; \
+		const gchar *function_name; \
+		function_info = g_ ## prefix ## _info_get_method (info, i); \
+		function_name = g_base_info_get_name (function_info); \
+		av_push (av, newSVpv (function_name, PL_na)); \
+		g_base_info_unref (function_info); \
+	}
+
 static void
 store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 {
 	const gchar *namespace;
 	AV *av;
-	gint i;
 
 	namespace = g_base_info_get_name (info);
 	av = newAV ();
@@ -13,69 +23,26 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
 	    {
-		gint n_methods = g_object_info_get_n_methods (
-		                   (GIObjectInfo *) info);
-		for (i = 0; i < n_methods; i++) {
-			GIFunctionInfo *function_info =
-				g_object_info_get_method (
-					(GIObjectInfo *) info, i);
-			const gchar *function_name =
-				g_base_info_get_name (
-					(GIBaseInfo *) function_info);
-			av_push (av, newSVpv (function_name, PL_na));
-			g_base_info_unref ((GIBaseInfo *) function_info);
-		}
+		PUSH_METHODS (object, av, info);
 		break;
 	    }
 
 	    case GI_INFO_TYPE_INTERFACE:
 	    {
-		gint n_methods = g_interface_info_get_n_methods (
-		                   (GIInterfaceInfo *) info);
-		for (i = 0; i < n_methods; i++) {
-			GIFunctionInfo *function_info =
-				g_interface_info_get_method (
-					(GIInterfaceInfo *) info, i);
-			const gchar *function_name =
-				g_base_info_get_name (
-					(GIBaseInfo *) function_info);
-			av_push (av, newSVpv (function_name, PL_na));
-			g_base_info_unref ((GIBaseInfo *) function_info);
-		}
+		PUSH_METHODS (interface, av, info);
 		break;
 	    }
 
 	    case GI_INFO_TYPE_BOXED:
 	    case GI_INFO_TYPE_STRUCT:
 	    {
-		gint n_methods = g_struct_info_get_n_methods (
-		                   (GIStructInfo *) info);
-		for (i = 0; i < n_methods; i++) {
-			GIFunctionInfo *function_info =
-				g_struct_info_get_method (
-					(GIStructInfo *) info, i);
-			const gchar *function_name =
-				g_base_info_get_name (
-					(GIBaseInfo *) function_info);
-			av_push (av, newSVpv (function_name, PL_na));
-			g_base_info_unref ((GIBaseInfo *) function_info);
-		}
+		PUSH_METHODS (struct, av, info);
 		break;
 	    }
 
 	    case GI_INFO_TYPE_UNION:
 	    {
-                gint n_methods = g_union_info_get_n_methods ((GIUnionInfo *) info);
-                for (i = 0; i < n_methods; i++) {
-                        GIFunctionInfo *function_info;
-                        const gchar *function_name;
-
-                        function_info = g_union_info_get_method ((GIUnionInfo *) info, i);
-                        function_name = g_base_info_get_name ((GIBaseInfo *) function_info);
-
-                        av_push (av, newSVpv (function_name, PL_na));
-                        g_base_info_unref ((GIBaseInfo *) function_info);
-                }
+		PUSH_METHODS (union, av, info);
                 break;
 	    }
 
