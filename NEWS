@@ -2,7 +2,9 @@ Overview of changes in Glib::Object::Introspection <next>
 ========================================================
 
 * Implement generic signal marshalling.
-* Generate error messages when function are passed an incorrect number of
+* Implement a generic constructor for boxed types and install it as
+  Glib::Boxed::new.
+* Generate error messages when functions are passed an incorrect number of
   parameters.
 * Avoid using vfunc names that coincide with special Perl subs.  This fixes
   double-frees occurring for subclasses of Gtk3::Widget.

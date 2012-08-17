@@ -154,6 +154,25 @@ sub setup {
     }
   }
 
+  # Monkey-patch Glib with a generic constructor for boxed types.  Glib cannot
+  # provide this on its own because it does not know how big the struct of a
+  # boxed type is.  FIXME: This sort of violates encapsulation.
+  {
+    if (! defined &{Glib::Boxed::new}) {
+      *{Glib::Boxed::new} = sub {
+        my ($class, @rest) = @_;
+        my $boxed = Glib::Object::Introspection->_construct_boxed ($class);
+        my $fields = 1 == @rest ? $rest[0] : { @rest };
+        foreach my $field (keys %$fields) {
+          if ($boxed->can ($field)) {
+            $boxed->$field ($fields->{$field});
+          }
+        }
+        return $boxed;
+      }
+    }
+  }
+
   foreach my $name (@{$interfaces}) {
     my $adder_name = $package . '::' . $name . '::_ADD_INTERFACE';
     *{$adder_name} = sub {

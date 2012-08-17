@@ -6,8 +6,9 @@ use strict;
 use warnings;
 use Scalar::Util qw/weaken/;
 
-plan tests => 41;
+plan tests => 47;
 
+# Use the provided constructor.
 {
   my $boxed = GI::BoxedStruct->new;
   isa_ok ($boxed, 'GI::BoxedStruct');
@@ -17,6 +18,21 @@ plan tests => 41;
   $boxed->inv;
   weaken $boxed;
   is ($boxed, undef);
+}
+
+# Use our generic constructor.
+{
+  my $boxed = Glib::Boxed::new ('GI::BoxedStruct', {long_ => 42});
+  isa_ok ($boxed, 'GI::BoxedStruct');
+  is ($boxed->long_, 42);
+  is ($boxed->g_strv, undef);
+  $boxed->inv;
+
+  $boxed = Glib::Boxed::new ('GI::BoxedStruct', long_ => 42);
+  isa_ok ($boxed, 'GI::BoxedStruct');
+  is ($boxed->long_, 42);
+  is ($boxed->g_strv, undef);
+  $boxed->inv;
 }
 
 SKIP: {

@@ -545,6 +545,43 @@ _fetch_constant (class, basename, constant)
 	RETVAL
 
 SV *
+_construct_boxed (class, package)
+	const gchar *package
+    PREINIT:
+	GIRepository *repository;
+	GType gtype;
+	GIBaseInfo *info;
+	gsize size;
+	gpointer tmp_mem;
+    CODE:
+	gtype = gperl_boxed_type_from_package (package);
+	if (!gtype)
+		croak ("Could not find GType for package %s", package);
+	repository = g_irepository_get_default ();
+	info = g_irepository_find_by_gtype (repository, gtype);
+	if (!info) {
+		g_base_info_unref (info);
+		croak ("Could not fetch information for package %s; "
+		       "perhaps it has not been loaded via "
+		       "Glib::Object::Introspection?",
+		       package);
+	}
+	size = g_struct_info_get_size (info);
+	/* We allocate memory for the boxed type here with malloc(), but then
+	 * take a copy of it and discard the original so that the memory we
+	 * hand out is always allocated with the allocator used for the boxed
+	 * type.  Maybe we should use g_alloca? */
+	tmp_mem = g_malloc0 (size);
+	/* No PUTBACK/SPAGAIN needed here since the code that xsubpp generates
+	 * for OUTPUT does not refer to our local copy of the stack pointer
+	 * (but uses the ST macro). */
+	RETVAL = gperl_new_boxed_copy (tmp_mem, gtype);
+	g_free (tmp_mem);
+	g_base_info_unref (info);
+    OUTPUT:
+	RETVAL
+
+SV *
 _get_field (class, basename, namespace, field, invocant)
 	const gchar *basename
 	const gchar *namespace
