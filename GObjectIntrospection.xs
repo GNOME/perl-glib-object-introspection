@@ -441,6 +441,43 @@ _register_types (class, namespace, package)
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) interfaces)));
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) objects_with_vfuncs)));
 
+# This is only semi-private, as Gtk3 needs it.  But it doesn't seem generally
+# applicable, so it doesn't get an import() API.
+void
+_register_boxed_synonym (class, const gchar *reg_basename, const gchar *reg_name, const gchar *syn_gtype_function)
+    PREINIT:
+	GIRepository *repository;
+	GIBaseInfo *reg_info;
+	GModule *module;
+	GType (*syn_gtype_function_pointer) (void) = NULL;
+	GType reg_type, syn_type;
+    CODE:
+	repository = g_irepository_get_default ();
+	reg_info = g_irepository_find_by_name (repository, reg_basename, reg_name);
+	reg_type = reg_info ? get_gtype (reg_info) : 0;
+	if (!reg_type)
+		croak ("Could not lookup GType for type %s.%s",
+		       reg_basename, reg_name);
+
+	/* The GType in question (e.g., GdkRectangle) hasn't been loaded yet,
+	 * so we cannot use g_type_name.  It's also absent from the typelib, so
+	 * we cannot use g_irepository_find_by_name.  Hence, use the name of
+	 * the GType creation function, look it up and call it. */
+	module = g_module_open (NULL, 0);
+	g_module_symbol (module, syn_gtype_function,
+	                 (gpointer *) &syn_gtype_function_pointer);
+	syn_type = syn_gtype_function_pointer ? syn_gtype_function_pointer () : 0;
+	g_module_close (module);
+	if (!syn_type)
+		croak ("Could not lookup GType from function %s",
+		       syn_gtype_function);
+
+	dwarn ("registering synonym %s => %s",
+	       g_type_name (reg_type),
+	       g_type_name (syn_type));
+	gperl_register_boxed_synonym (reg_type, syn_type);
+	g_base_info_unref (reg_info);
+
 SV *
 _fetch_constant (class, basename, constant)
 	const gchar *basename
