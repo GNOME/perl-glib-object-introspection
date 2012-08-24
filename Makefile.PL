@@ -23,10 +23,14 @@ use File::Spec;
 use Config;
 use Cwd;
 
-my %PREREQ_PM = (
+my %RUNTIME_REQ_PM = (
+  'Glib' => 1.240,
+);
+
+my %CONFIG_REQ_PM = (
   'ExtUtils::Depends'   => 0.300,
   'ExtUtils::PkgConfig' => 1.000,
-  'Glib'                => 1.240,
+  'Glib'                => $RUNTIME_REQ_PM{Glib},
 );
 
 my %BUILD_REQ = (
@@ -71,7 +75,10 @@ my %meta_merge = (
         },
         prereqs => {
             configure => {
-                requires => \%PREREQ_PM,
+                requires => \%CONFIG_REQ_PM,
+            },
+            runtime => {
+                requires => \%RUNTIME_REQ_PM,
             },
         },
         no_index => {
@@ -81,9 +88,9 @@ my %meta_merge = (
 );
 
 my $dep_success = eval <<__EOE__;
-  use ExtUtils::Depends $PREREQ_PM{'ExtUtils::Depends'};
-  use ExtUtils::PkgConfig $PREREQ_PM{'ExtUtils::PkgConfig'};
-  use Glib $PREREQ_PM{'Glib'};
+  use ExtUtils::Depends $CONFIG_REQ_PM{'ExtUtils::Depends'};
+  use ExtUtils::PkgConfig $CONFIG_REQ_PM{'ExtUtils::PkgConfig'};
+  use Glib $CONFIG_REQ_PM{'Glib'};
   use Glib::MakeHelper;
   1;
 __EOE__
@@ -135,7 +142,7 @@ WriteMakefile(
   NAME		=> 'Glib::Object::Introspection',
   VERSION_FROM	=> 'lib/Glib/Object/Introspection.pm',
   ABSTRACT_FROM	=> 'lib/Glib/Object/Introspection.pm',
-  PREREQ_PM	=> \%PREREQ_PM,
+  PREREQ_PM	=> \%CONFIG_REQ_PM,
   XSPROTOARG	=> '-noprototypes',
   MAN3PODS	=> \%pod_files,
   META_MERGE	=> \%meta_merge,
