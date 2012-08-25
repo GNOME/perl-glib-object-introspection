@@ -115,8 +115,8 @@ typedef struct {
 } GPerlI11nInvocationInfo;
 
 /* callbacks */
-static GPerlI11nPerlCallbackInfo * create_perl_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name);
-static GPerlI11nPerlCallbackInfo * create_perl_callback_closure (GITypeInfo *cb_type, SV *code);
+static GPerlI11nPerlCallbackInfo * create_perl_callback_closure_for_named_sub (GIBaseInfo *cb_info, gchar *sub_name);
+static GPerlI11nPerlCallbackInfo * create_perl_callback_closure (GIBaseInfo *cb_info, SV *code);
 static void attach_perl_callback_data (GPerlI11nPerlCallbackInfo *info, SV *data);
 static void release_perl_callback (gpointer data);
 

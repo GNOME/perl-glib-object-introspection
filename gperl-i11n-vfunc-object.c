@@ -13,6 +13,7 @@ generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer cl
 		GIFieldInfo *field_info;
 		gint field_offset;
 		GITypeInfo *field_type_info;
+		GIBaseInfo *field_interface_info;
 		gchar *perl_method_name;
 		GPerlI11nPerlCallbackInfo *callback_info;
 
@@ -49,16 +50,18 @@ generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer cl
 		g_assert (field_info);
 		field_offset = g_field_info_get_offset (field_info);
 		field_type_info = g_field_info_get_type (field_info);
+		field_interface_info = g_type_info_get_interface (field_type_info);
 
 		/* callback_info takes over ownership of perl_method_name. */
 		callback_info = create_perl_callback_closure_for_named_sub (
-		                  field_type_info, perl_method_name);
+		                  field_interface_info, perl_method_name);
 		dwarn ("installing vfunc %s as %s at offset %d (vs. %d) inside %p\n",
 		       vfunc_name, perl_method_name,
 		       field_offset, g_vfunc_info_get_offset (vfunc_info),
 		       class);
 		G_STRUCT_MEMBER (gpointer, class, field_offset) = callback_info->closure;
 
+		g_base_info_unref (field_interface_info);
 		g_base_info_unref (field_type_info);
 		g_base_info_unref (field_info);
 		g_base_info_unref (vfunc_info);

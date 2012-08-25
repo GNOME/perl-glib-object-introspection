@@ -6,6 +6,7 @@ sv_to_callback (GIArgInfo * arg_info,
                 SV * sv,
                 GPerlI11nInvocationInfo * invocation_info)
 {
+	GIBaseInfo *callback_interface_info;
 	GPerlI11nPerlCallbackInfo *callback_info;
 	GIScopeType scope;
 
@@ -15,10 +16,12 @@ sv_to_callback (GIArgInfo * arg_info,
 	       invocation_info->current_pos,
 	       g_base_info_get_name (arg_info));
 
-	callback_info = create_perl_callback_closure (type_info, sv);
+	callback_interface_info = g_type_info_get_interface (type_info);
+	callback_info = create_perl_callback_closure (callback_interface_info, sv);
 	callback_info->data_pos = g_arg_info_get_closure (arg_info);
 	callback_info->destroy_pos = g_arg_info_get_destroy (arg_info);
 	callback_info->free_after_use = FALSE;
+	g_base_info_unref (callback_interface_info);
 
 	dwarn ("      Perl callback data at %d, destroy at %d\n",
 	       callback_info->data_pos, callback_info->destroy_pos);

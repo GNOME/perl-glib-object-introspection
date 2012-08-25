@@ -1,7 +1,7 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
 static GPerlI11nPerlCallbackInfo *
-create_perl_callback_closure (GITypeInfo *cb_type, SV *code)
+create_perl_callback_closure (GICallableInfo *cb_info, SV *code)
 {
 	GPerlI11nPerlCallbackInfo *info;
 
@@ -9,8 +9,7 @@ create_perl_callback_closure (GITypeInfo *cb_type, SV *code)
 	if (!gperl_sv_is_defined (code))
 		return info;
 
-	info->interface =
-		(GICallableInfo *) g_type_info_get_interface (cb_type);
+	info->interface = g_base_info_ref (cb_info);
 	info->cif = g_new0 (ffi_cif, 1);
 	info->closure =
 		g_callable_info_prepare_closure (info->interface, info->cif,
@@ -36,13 +35,12 @@ attach_perl_callback_data (GPerlI11nPerlCallbackInfo *info, SV *data)
 
 /* assumes ownership of sub_name */
 static GPerlI11nPerlCallbackInfo *
-create_perl_callback_closure_for_named_sub (GITypeInfo *cb_type, gchar *sub_name)
+create_perl_callback_closure_for_named_sub (GICallableInfo *cb_info, gchar *sub_name)
 {
 	GPerlI11nPerlCallbackInfo *info;
 
 	info = g_new0 (GPerlI11nPerlCallbackInfo, 1);
-	info->interface =
-		(GICallableInfo *) g_type_info_get_interface (cb_type);
+	info->interface = g_base_info_ref (cb_info);
 	info->cif = g_new0 (ffi_cif, 1);
 	info->closure =
 		g_callable_info_prepare_closure (info->interface, info->cif,
