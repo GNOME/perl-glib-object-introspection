@@ -176,11 +176,6 @@ static void
 prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
                               GICallableInfo *info)
 {
-	/* when invoking Perl code, we currently always use a complete
-	 * description of the callable (from a record field or some callback
-	 * typedef).  this implies that there is no implicit invocant; it
-	 * always appears explicitly in the arg list. */
-
 	dwarn ("Perl invoke: %s\n"
 	       "  n_args: %d\n",
 	       g_base_info_get_name (info),
@@ -188,11 +183,24 @@ prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
 
 	iinfo->interface = info;
 
+	/* When invoking Perl code, we currently always use a complete
+	 * description of the callable (from a record field or some callback
+	 * typedef) for functions, vfuncs and calllbacks.  This implies that
+	 * there is no implicit invocant; it always appears explicitly in the
+	 * arg list.  For signals, however, the invocant is implicit. */
 	iinfo->is_function = GI_IS_FUNCTION_INFO (info);
 	iinfo->is_vfunc = GI_IS_VFUNC_INFO (info);
+	iinfo->is_signal = GI_IS_SIGNAL_INFO (info);
 	iinfo->is_callback = (g_base_info_get_type (info) == GI_INFO_TYPE_CALLBACK);
-	dwarn ("  is_function = %d, is_vfunc = %d, is_callback = %d\n",
-	       iinfo->is_function, iinfo->is_vfunc, iinfo->is_callback);
+	dwarn ("  is_function = %d, is_vfunc = %d, is_callback = %d, is_signal = %d\n",
+	       iinfo->is_function, iinfo->is_vfunc, iinfo->is_callback, iinfo->is_signal);
+	if (iinfo->is_signal) {
+		 /* FIXME: Need separate iinfo struct for calls into perl, with
+		  * a field "has_implicit_invocant". */
+		iinfo->is_method = TRUE;
+	} else {
+		iinfo->is_method = FALSE;
+	}
 
 	iinfo->n_args = g_callable_info_get_n_args (info);
 

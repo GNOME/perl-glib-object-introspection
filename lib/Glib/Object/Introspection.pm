@@ -80,6 +80,9 @@ sub setup {
   my %handle_sentinel_boolean_for = exists $params{handle_sentinel_boolean_for}
     ? map { $_ => 1 } @{$params{handle_sentinel_boolean_for}}
     : ();
+  my @use_generic_signal_marshaller_for = exists $params{use_generic_signal_marshaller_for}
+    ? @{$params{use_generic_signal_marshaller_for}}
+    : ();
 
   if (exists $params{reblessers}) {
     $_REBLESSERS{$_} = $params{reblessers}->{$_}
@@ -199,6 +202,10 @@ sub setup {
       push @OBJECT_PACKAGES_WITH_VFUNCS,
            [$basename, $object_name, $target_package];
     };
+  }
+
+  foreach my $packaged_signal (@use_generic_signal_marshaller_for) {
+    __PACKAGE__->_use_generic_signal_marshaller_for (@$packaged_signal);
   }
 }
 
@@ -339,6 +346,12 @@ be returned, and otherwise an empty list will be returned.
 
 The function names refer to those after name corrections.  Functions occuring
 in C<handle_sentinel_boolean_for> may also occur in C<class_static_methods>.
+
+=item use_generic_signal_marshaller_for => [ [package1, signal1], ... ]
+
+Use an introspection-based generic signal marshaller for the signal C<signal1>
+of type C<package1>.  In contrast to the normal signal marshaller, the generic
+marshaller supports, among other things, pointer arrays and out arguments.
 
 =item reblessers => { package => \&reblesser, ... }
 

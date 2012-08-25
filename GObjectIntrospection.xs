@@ -48,6 +48,8 @@ typedef struct {
 	/* ... or a sub name to be called as a method on the invocant. */
 	gchar *sub_name;
 
+	gboolean swap_data;
+
 	guint data_pos;
 	guint destroy_pos;
 
@@ -82,6 +84,7 @@ typedef struct {
 	gboolean is_function;
 	gboolean is_vfunc;
 	gboolean is_callback;
+	gboolean is_signal;
 
 	guint n_args;
 	guint n_invoke_args;
@@ -125,6 +128,13 @@ static void attach_c_callback_data (GPerlI11nCCallbackInfo *info, gpointer data)
 static void release_c_callback (gpointer data);
 
 /* invocation */
+#if GI_CHECK_VERSION (1, 33, 10)
+static void invoke_perl_signal_handler (ffi_cif* cif,
+                                        gpointer resp,
+                                        gpointer* args,
+                                        gpointer userdata);
+#endif
+
 static void invoke_callback (ffi_cif* cif,
                              gpointer resp,
                              gpointer* args,
@@ -157,6 +167,8 @@ static GIFunctionInfo * get_function_info (GIRepository *repository,
                                            const gchar *method);
 static GIFieldInfo * get_field_info (GIBaseInfo *info,
                                      const gchar *field_name);
+static GISignalInfo * get_signal_info (GIBaseInfo *container_info,
+                                       const gchar *signal_name);
 static GType get_gtype (GIRegisteredTypeInfo *info);
 static const gchar * get_package_for_basename (const gchar *basename);
 static gboolean is_forbidden_sub_name (const gchar *name);
@@ -174,6 +186,7 @@ static void sv_to_interface (GIArgInfo * arg_info,
                              GIArgument * arg,
                              GPerlI11nInvocationInfo * invocation_info);
 
+static SV * instance_pointer_to_sv (GICallableInfo *info, gpointer pointer);
 static gpointer instance_sv_to_pointer (GICallableInfo *info, SV *sv);
 
 static void sv_to_arg (SV * sv,
@@ -206,6 +219,7 @@ static gpointer sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * s
 static SV * ghash_to_sv (GITypeInfo *info, gpointer pointer, GITransfer transfer);
 static gpointer sv_to_ghash (GITransfer transfer, GITypeInfo *type_info, SV *sv);
 
+#define CAST_RAW(raw, type) (*((type *) raw))
 static void raw_to_arg (gpointer raw, GIArgument *arg, GITypeInfo *info);
 static void arg_to_raw (GIArgument *arg, gpointer raw, GITypeInfo *info);
 
@@ -770,6 +784,73 @@ _invoke_fallback_vfunc (class, vfunc_package, vfunc_name, target_package, ...)
 	g_base_info_unref (field_info);
 	g_base_info_unref (vfunc_info);
 	g_base_info_unref (info);
+
+void
+_use_generic_signal_marshaller_for (class, const gchar *package, const gchar *signal)
+    PREINIT:
+	GType gtype;
+	GIRepository *repository;
+	GIBaseInfo *container_info, *signal_info = NULL;
+	ffi_cif *cif;
+	ffi_closure *closure;
+	GIBaseInfo *closure_marshal_info;
+    CODE:
+#if GI_CHECK_VERSION (1, 33, 10)
+	gtype = gperl_type_from_package (package);
+	if (!gtype)
+		croak ("Could not find GType for package %s", package);
+
+	repository = g_irepository_get_default ();
+	container_info = g_irepository_find_by_gtype (repository, gtype);
+	if (!container_info ||
+	    !(GI_IS_OBJECT_INFO (container_info) ||
+	      GI_IS_INTERFACE_INFO (container_info)))
+		croak ("Could not find object/interface info for package %s",
+		       package);
+
+	signal_info = get_signal_info (container_info, signal);
+	if (!signal_info)
+		croak ("Could not find signal %s for package %s",
+		       signal, package);
+
+	closure_marshal_info = g_irepository_find_by_name (repository,
+		                                           "GObject",
+	                                                   "ClosureMarshal");
+	g_assert (closure_marshal_info);
+	cif = g_new0 (ffi_cif, 1);
+	closure = g_callable_info_prepare_closure (closure_marshal_info,
+	                                           cif,
+	                                           invoke_perl_signal_handler,
+	                                           signal_info);
+	g_base_info_unref (closure_marshal_info);
+
+	dwarn ("_use_generic_signal_marshaller_for: "
+	       "package %s, signal %s => closure %p\n",
+	       package, signal, closure);
+	gperl_signal_set_marshaller_for (gtype, (gchar*) signal, (GClosureMarshal) closure);
+
+	/* These should be freed when the signal marshaller is not needed
+	 * anymore.  But gperl_signal_set_marshaller_for does not provide a
+	 * hook for resource freeing.
+	 *
+	 * g_callable_info_free_closure (signal_info, closure);
+	 * g_free (cif);
+	 * g_base_info_unref (signal_info);
+	 */
+
+	g_base_info_unref (container_info);
+#else
+	/* g_callable_info_prepare_closure, and thus
+	 * create_perl_callback_closure and invoke_perl_signal_handler, did not
+	 * work correctly for signals prior to commit
+	 * d8970fbc500a8b20853b564536251315587450d9 in
+	 * gobject-introspection. */
+	warn ("*** Cannot use generic signal marshallers for signal %s of %s "
+	      "unless gobject-introspection >= 1.33.10; "
+	      "any handlers connected to the signal "
+	      "might thus be invoked incorrectly",
+	      signal, package);
+#endif
 
 void
 invoke (class, basename, namespace, method, ...)

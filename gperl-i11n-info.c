@@ -112,6 +112,34 @@ get_field_info (GIBaseInfo *info, const gchar *field_name)
 	return NULL;
 }
 
+/* Caller owns return value */
+static GISignalInfo *
+get_signal_info (GIBaseInfo *container_info, const gchar *signal_name)
+{
+	if (GI_IS_OBJECT_INFO (container_info)) {
+		return g_object_info_find_signal (container_info, signal_name);
+	} else if (GI_IS_INTERFACE_INFO (container_info)) {
+#if GI_CHECK_VERSION (1, 35, 4)
+		return g_interface_info_find_signal (container_info, signal_name);
+#else
+{
+		gint n_signals;
+		gint i;
+		n_signals = g_interface_info_get_n_signals (container_info);
+		for (i = 0; i < n_signals; i++) {
+			GISignalInfo *siginfo =
+				g_interface_info_get_signal (container_info, i);
+			if (strEQ (g_base_info_get_name (siginfo), signal_name))
+				return siginfo;
+			g_base_info_unref (siginfo);
+		}
+		return NULL;
+}
+#endif
+	}
+	return NULL;
+}
+
 static GType
 get_gtype (GIRegisteredTypeInfo *info)
 {

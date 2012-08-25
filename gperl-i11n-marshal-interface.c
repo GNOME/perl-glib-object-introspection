@@ -48,6 +48,54 @@ instance_sv_to_pointer (GICallableInfo *info, SV *sv)
 	return pointer;
 }
 
+/* This may call Perl code (via gperl_new_boxed, gperl_sv_from_value,
+ * struct_to_sv), so it needs to be wrapped with PUTBACK/SPAGAIN by the
+ * caller. */
+static SV *
+instance_pointer_to_sv (GICallableInfo *info, gpointer pointer)
+{
+	// We do *not* own container.
+	GIBaseInfo *container = g_base_info_get_container (info);
+	GIInfoType info_type = g_base_info_get_type (container);
+	SV *sv = NULL;
+
+	/* FIXME: Much of this code is duplicated in interface_to_sv. */
+
+	dwarn ("  instance_pointer_to_sv: container name: %s, info type: %d\n",
+	       g_base_info_get_name (container),
+	       info_type);
+
+	switch (info_type) {
+	    case GI_INFO_TYPE_OBJECT:
+	    case GI_INFO_TYPE_INTERFACE:
+		sv = gperl_new_object (pointer, FALSE);
+		dwarn ("    -> object SV: %p\n", sv);
+		break;
+
+	    case GI_INFO_TYPE_BOXED:
+	    case GI_INFO_TYPE_STRUCT:
+            case GI_INFO_TYPE_UNION:
+	    {
+		GType type = get_gtype ((GIRegisteredTypeInfo *) container);
+		if (!type || type == G_TYPE_NONE) {
+			dwarn ("    unboxed type\n");
+			sv = struct_to_sv (container, info_type, pointer, FALSE);
+		} else {
+			dwarn ("    boxed type: %s (%d)\n",
+			       g_type_name (type), type);
+			sv = gperl_new_boxed (pointer, type, FALSE);
+		}
+		warn ("    -> boxed pointer: %p\n", pointer);
+		break;
+	    }
+
+	    default:
+		ccroak ("instance_pointer_to_sv: Don't know how to handle info type %d", info_type);
+	}
+
+	return sv;
+}
+
 static void
 sv_to_interface (GIArgInfo * arg_info,
                  GITypeInfo * type_info,

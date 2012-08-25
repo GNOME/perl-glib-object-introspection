@@ -6,10 +6,11 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	GPerlI11nPerlCallbackInfo *info;
 	GICallableInfo *cb_interface;
 	GPerlI11nInvocationInfo iinfo = {0,};
-	guint i;
+	guint args_offset = 0, i;
 	guint in_inout;
 	guint n_return_values, n_returned;
 	I32 context;
+	SV *instance_sv = NULL, *data_sv = NULL, *first_sv = NULL, *last_sv = NULL;
 	dGPERL_CALLBACK_MARSHAL_SP;
 
 	PERL_UNUSED_VAR (cif);
@@ -27,6 +28,21 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	SAVETMPS;
 
 	PUSHMARK (SP);
+
+	/* convert the implicit instance argument and push the first SV onto
+	 * the stack; depending on the "swap" setting, this might be the
+	 * instance or the user data */
+	if (iinfo.is_method) {
+		instance_sv = SAVED_STACK_SV (instance_pointer_to_sv (
+		                                cb_interface,
+		                                CAST_RAW (args[0], gpointer)));
+		args_offset = 1;
+	}
+	data_sv = info->data ? SvREFCNT_inc (info->data) : NULL;
+	first_sv = info->swap_data ? data_sv     : instance_sv;
+	last_sv  = info->swap_data ? instance_sv : data_sv;
+	if (first_sv)
+		XPUSHs (sv_2mortal (first_sv));
 
 	/* find arguments; use type information from interface to find in and
 	 * in-out args and their types, count in-out and out args, and find
@@ -79,8 +95,8 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 			 * to a pointer to a value, so we need to dereference
 			 * it once. */
 			raw = direction == GI_DIRECTION_INOUT
-				? *((gpointer *) args[i])
-				: args[i];
+				? *((gpointer *) args[i+args_offset])
+				: args[i+args_offset];
 			raw_to_arg (raw, &arg, arg_type);
 			sv = SAVED_STACK_SV (arg_to_sv (&arg, arg_type, transfer, &iinfo));
 			/* If arg_to_sv returns NULL, we take that as 'skip
@@ -100,9 +116,9 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		g_base_info_unref ((GIBaseInfo *) arg_type);
 	}
 
-	/* push user data onto the Perl stack */
-	if (info->data)
-		XPUSHs (sv_2mortal (SvREFCNT_inc (info->data)));
+	/* push the last SV onto the stack; this might be the user data or the instance */
+	if (last_sv)
+		XPUSHs (sv_2mortal (last_sv));
 
 	PUTBACK;
 
@@ -157,7 +173,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 			GIArgInfo *arg_info = g_callable_info_get_arg (cb_interface, i);
 			GITypeInfo *arg_type = g_arg_info_get_type (arg_info);
 			GIDirection direction = g_arg_info_get_direction (arg_info);
-			gpointer out_pointer = * (gpointer *) args[i];
+			gpointer out_pointer = * (gpointer *) args[i+args_offset];
 
 			if (!out_pointer) {
 				dwarn ("skipping out arg %d\n", i);
@@ -233,3 +249,47 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	 * frees unused ones.
 	 */
 }
+
+/* ------------------------------------------------------------------------- */
+
+#if GI_CHECK_VERSION (1, 33, 10)
+
+static void
+invoke_perl_signal_handler (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
+{
+	GClosure *closure = CAST_RAW (args[0], GClosure*);
+	GValue *return_value = CAST_RAW (args[1], GValue*);
+	guint n_param_values = CAST_RAW (args[2], guint);
+	const GValue *param_values = CAST_RAW (args[3], const GValue*);
+	gpointer invocation_hint = CAST_RAW (args[4], gpointer);
+	gpointer marshal_data = CAST_RAW (args[5], gpointer);
+
+	GIBaseInfo *signal_info = userdata;
+
+	GPerlClosure *perl_closure = (GPerlClosure *) closure;
+	GPerlI11nPerlCallbackInfo *cb_info;
+	GCClosure c_closure;
+
+	PERL_UNUSED_VAR (cif);
+	PERL_UNUSED_VAR (resp);
+	PERL_UNUSED_VAR (marshal_data);
+
+	dwarn ("invoke_perl_signal_handler: n args %d\n",
+	       g_callable_info_get_n_args (signal_info));
+
+	cb_info = create_perl_callback_closure (signal_info, perl_closure->callback);
+	attach_perl_callback_data (cb_info, perl_closure->data);
+	cb_info->swap_data = GPERL_CLOSURE_SWAP_DATA (perl_closure);
+
+	c_closure.closure = *closure;
+	c_closure.callback = cb_info->closure;
+	gi_cclosure_marshal_generic ((GClosure *) &c_closure,
+	                             return_value,
+	                             n_param_values, param_values,
+	                             invocation_hint,
+	                             NULL /* instead of marshal_data */);
+
+	release_perl_callback (cb_info);
+}
+
+#endif

@@ -1,6 +1,7 @@
 Overview of changes in Glib::Object::Introspection <next>
 ========================================================
 
+* Implement generic signal marshalling.
 * Avoid using vfunc names that coincide with special Perl subs.  This fixes
   double-frees occurring for subclasses of Gtk3::Widget.
 * Correctly marshal in-out args when invoking Perl code.
