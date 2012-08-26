@@ -24,7 +24,7 @@ use Config;
 use Cwd;
 
 my %RUNTIME_REQ_PM = (
-  'Glib' => 1.240,
+  'Glib' => 1.270,
 );
 
 my %CONFIG_REQ_PM = (

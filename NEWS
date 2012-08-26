@@ -1,8 +1,10 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.012
 ========================================================
 
 * Support more struct types when writing fields.
 * Handle disguised structures.
+* Avoid invalid memory access during callback destruction.
+* Use the correct allocator for caller-allocated boxed out-args.
 * Add semi-private API wrapping gperl_register_boxed_synonym.
 
 Overview of changes in Glib::Object::Introspection 0.011
