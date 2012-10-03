@@ -75,10 +75,10 @@ my %meta_merge = (
         },
         prereqs => {
             configure => {
-                requires => \%CONFIG_REQ_PM,
+                requires => {%CONFIG_REQ_PM}, # no direct ref for 5.14 compatibility
             },
             runtime => {
-                requires => \%RUNTIME_REQ_PM,
+                requires => {%RUNTIME_REQ_PM}, # no direct ref for 5.14 compatibility
             },
         },
         no_index => {
