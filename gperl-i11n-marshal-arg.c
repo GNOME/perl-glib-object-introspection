@@ -197,7 +197,10 @@ arg_to_sv (GIArgument * arg,
 
 	    case GI_TYPE_TAG_GTYPE: {
 		/* GType == gsize */
-		const char *package = gperl_package_from_type (arg->v_size);
+		const char *package;
+		if (G_TYPE_INVALID == arg->v_size || G_TYPE_NONE == arg->v_size)
+			return &PL_sv_undef;
+		package = gperl_package_from_type (arg->v_size);
 		if (!package)
 			package = g_type_name (arg->v_size);
 		if (!package)

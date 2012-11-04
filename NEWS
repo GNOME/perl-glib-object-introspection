@@ -1,3 +1,8 @@
+Overview of changes in Glib::Object::Introspection <next>
+========================================================
+
+* Convert invalid or void GTypes to undef.
+
 Overview of changes in Glib::Object::Introspection 0.012
 ========================================================
 
