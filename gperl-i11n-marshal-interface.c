@@ -71,7 +71,11 @@ sv_to_interface (GIArgInfo * arg_info,
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
 	    case GI_INFO_TYPE_INTERFACE:
-		arg->v_pointer = gperl_get_object (sv);
+		if (may_be_null && !gperl_sv_is_defined (sv)) {
+			arg->v_pointer = NULL;
+		} else {
+			arg->v_pointer = gperl_get_object_check (sv, get_gtype (interface));
+		}
 		if (arg->v_pointer && transfer >= GI_TRANSFER_CONTAINER) {
 			g_object_ref (arg->v_pointer);
 			if (G_IS_INITIALLY_UNOWNED (arg->v_pointer)) {
