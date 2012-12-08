@@ -1,6 +1,8 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.013
 ========================================================
 
+* SV -> object: do some type checking
+* Fix building with perl <= 5.14
 * Convert invalid or void GTypes to undef.
 
 Overview of changes in Glib::Object::Introspection 0.012
