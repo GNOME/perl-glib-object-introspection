@@ -159,7 +159,7 @@ static GIFieldInfo * get_field_info (GIBaseInfo *info,
                                      const gchar *field_name);
 static GType get_gtype (GIRegisteredTypeInfo *info);
 static const gchar * get_package_for_basename (const gchar *basename);
-
+static gboolean is_forbidden_sub_name (const gchar *name);
 
 /* marshallers */
 static SV * interface_to_sv (GITypeInfo* info,

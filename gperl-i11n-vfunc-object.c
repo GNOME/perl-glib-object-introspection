@@ -20,6 +20,14 @@ generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer cl
 		vfunc_name = g_base_info_get_name (vfunc_info);
 
 		perl_method_name = g_ascii_strup (vfunc_name, -1);
+		if (is_forbidden_sub_name (perl_method_name)) {
+			/* If the method name coincides with the name of one of
+			 * perl's special subs, add "_VFUNC". */
+			gchar *replacement = g_strconcat (perl_method_name, "_VFUNC", NULL);
+			g_free (perl_method_name);
+			perl_method_name = replacement;
+		}
+
 		{
 			/* If there is no implementation of this vfunc at INIT
 			 * time, we assume that the intention is to provide no
@@ -28,6 +36,8 @@ generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer cl
 			HV * stash = gv_stashpv (target_package, 0);
 			GV * slot = gv_fetchmethod (stash, perl_method_name);
 			if (!slot) {
+				dwarn ("skipping vfunc %s because it has no implementation\n",
+				       vfunc_name);
 				g_base_info_unref (vfunc_info);
 				g_free (perl_method_name);
 				continue;
@@ -40,6 +50,7 @@ generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer cl
 		field_offset = g_field_info_get_offset (field_info);
 		field_type_info = g_field_info_get_type (field_info);
 
+		/* callback_info takes over ownership of perl_method_name. */
 		callback_info = create_perl_callback_closure_for_named_sub (
 		                  field_type_info, perl_method_name);
 		dwarn ("installing vfunc %s as %s at offset %d (vs. %d) inside %p\n",

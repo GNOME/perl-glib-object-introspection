@@ -150,3 +150,12 @@ get_package_for_basename (const gchar *basename)
 	g_assert (svp && gperl_sv_is_defined (*svp));
 	return SvPV_nolen (*svp);
 }
+
+static gboolean
+is_forbidden_sub_name (const gchar *name)
+{
+	HV *forbidden_sub_names =
+		get_hv ("Glib::Object::Introspection::_FORBIDDEN_SUB_NAMES", 0);
+	g_assert (forbidden_sub_names);
+	return hv_exists (forbidden_sub_names, name, strlen (name));
+}

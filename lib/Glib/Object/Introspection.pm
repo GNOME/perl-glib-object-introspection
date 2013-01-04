@@ -28,10 +28,9 @@ $Carp::Internal{(__PACKAGE__)}++;
 require XSLoader;
 XSLoader::load(__PACKAGE__, $VERSION);
 
-my %FORBIDDEN_SUB_NAMES = map { $_ => 1 } qw/AUTOLOAD CLONE DESTROY BEGIN
-                                             UNITCHECK CHECK INIT END/;
 my @OBJECT_PACKAGES_WITH_VFUNCS;
-
+our %_FORBIDDEN_SUB_NAMES = map { $_ => 1 } qw/AUTOLOAD CLONE DESTROY BEGIN
+                                               UNITCHECK CHECK INIT END/;
 our %_BASENAME_TO_PACKAGE;
 our %_REBLESSERS;
 
@@ -178,7 +177,7 @@ sub setup {
         VFUNC:
         foreach my $vfunc_names (@vfuncs) {
           my ($vfunc_name, $perl_vfunc_name) = @{$vfunc_names};
-          if (exists $FORBIDDEN_SUB_NAMES{$perl_vfunc_name}) {
+          if (exists $_FORBIDDEN_SUB_NAMES{$perl_vfunc_name}) {
             $perl_vfunc_name .= '_VFUNC';
           }
           my $full_perl_vfunc_name =

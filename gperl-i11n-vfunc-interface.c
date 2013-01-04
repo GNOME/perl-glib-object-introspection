@@ -20,13 +20,22 @@ generic_interface_init (gpointer iface, gpointer data)
 		vfunc_info = g_interface_info_get_vfunc (info, i);
 		vfunc_name = g_base_info_get_name (vfunc_info);
 
+		perl_method_name = g_ascii_strup (vfunc_name, -1);
+		if (is_forbidden_sub_name (perl_method_name)) {
+			/* If the method name coincides with the name of one of
+			 * perl's special subs, add "_VFUNC". */
+			gchar *replacement = g_strconcat (perl_method_name, "_VFUNC", NULL);
+			g_free (perl_method_name);
+			perl_method_name = replacement;
+		}
+
 		/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
 		field_info = get_field_info (struct_info, vfunc_name);
 		g_assert (field_info);
 		field_offset = g_field_info_get_offset (field_info);
 		field_type_info = g_field_info_get_type (field_info);
 
-		perl_method_name = g_ascii_strup (vfunc_name, -1);
+		/* callback_info takes over ownership of perl_method_name. */
 		callback_info = create_perl_callback_closure_for_named_sub (
 		                  field_type_info, perl_method_name);
 		dwarn ("installing vfunc %s as %s at offset %d (vs. %d) inside %p\n",
