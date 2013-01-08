@@ -72,9 +72,16 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		if (direction == GI_DIRECTION_IN ||
 		    direction == GI_DIRECTION_INOUT)
 		{
+			gpointer raw;
 			GIArgument arg;
 			SV *sv;
-			raw_to_arg (args[i], &arg, arg_type);
+			/* If the arg is in-out, then the ffi arg is a pointer
+			 * to a pointer to a value, so we need to dereference
+			 * it once. */
+			raw = direction == GI_DIRECTION_INOUT
+				? *((gpointer *) args[i])
+				: args[i];
+			raw_to_arg (raw, &arg, arg_type);
 			sv = SAVED_STACK_SV (arg_to_sv (&arg, arg_type, transfer, &iinfo));
 			/* If arg_to_sv returns NULL, we take that as 'skip
 			 * this argument'; happens for GDestroyNotify, for
