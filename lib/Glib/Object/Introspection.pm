@@ -347,11 +347,13 @@ be returned, and otherwise an empty list will be returned.
 The function names refer to those after name corrections.  Functions occuring
 in C<handle_sentinel_boolean_for> may also occur in C<class_static_methods>.
 
-=item use_generic_signal_marshaller_for => [ [package1, signal1], ... ]
+=item use_generic_signal_marshaller_for => [ [package1, signal1, [arg_converter1]], ... ]
 
 Use an introspection-based generic signal marshaller for the signal C<signal1>
-of type C<package1>.  In contrast to the normal signal marshaller, the generic
-marshaller supports, among other things, pointer arrays and out arguments.
+of type C<package1>.  If given, use the code reference C<arg_converter1> to
+convert the arguments that are passed to the signal handler.  In contrast to
+L<Glib>'s normal signal marshaller, the generic signal marshaller supports,
+among other things, pointer arrays and out arguments.
 
 =item reblessers => { package => \&reblesser, ... }
 

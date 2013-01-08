@@ -11,6 +11,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	guint n_return_values, n_returned;
 	I32 context;
 	SV *instance_sv = NULL, *data_sv = NULL, *first_sv = NULL, *last_sv = NULL;
+	SV *args_converter;
 	dGPERL_CALLBACK_MARSHAL_SP;
 
 	PERL_UNUSED_VAR (cif);
@@ -28,6 +29,20 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	SAVETMPS;
 
 	PUSHMARK (SP);
+
+	args_converter = info->args_converter;
+	if (args_converter) {
+		/* if we are given an args converter, we will call it directly
+		 * after we pushed the original args onto the stack.  we then
+		 * want to invoke the Perl code with whatever the args
+		 * converter returned.  to achieve this, we do a double
+		 * PUSHMARK, which puts on the markstack two pointers to the
+		 * same place on the stack.  after the args converter returns,
+		 * the markstack pointer is decremented, and the invocation of
+		 * the normal Perl code then sees the other entry we put on the
+		 * markstack. */
+		PUSHMARK (SP);
+	}
 
 	/* convert the implicit instance argument and push the first SV onto
 	 * the stack; depending on the "swap" setting, this might be the
@@ -121,6 +136,15 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 		XPUSHs (sv_2mortal (last_sv));
 
 	PUTBACK;
+
+	/* invoke the args converter with the original args on the stack.
+	 * since we created two identical entries on the markstack, the
+	 * call_method or call_sv below will invoke the Perl code with whatever
+	 * the args converter returned. */
+	if (args_converter) {
+		call_sv (args_converter, G_ARRAY);
+		SPAGAIN;
+	}
 
 	/* determine suitable Perl call context */
 	context = G_VOID | G_DISCARD;
@@ -264,7 +288,7 @@ invoke_perl_signal_handler (ffi_cif* cif, gpointer resp, gpointer* args, gpointe
 	gpointer invocation_hint = CAST_RAW (args[4], gpointer);
 	gpointer marshal_data = CAST_RAW (args[5], gpointer);
 
-	GIBaseInfo *signal_info = userdata;
+	GPerlI11nPerlSignalInfo *signal_info = userdata;
 
 	GPerlClosure *perl_closure = (GPerlClosure *) closure;
 	GPerlI11nPerlCallbackInfo *cb_info;
@@ -275,14 +299,19 @@ invoke_perl_signal_handler (ffi_cif* cif, gpointer resp, gpointer* args, gpointe
 	PERL_UNUSED_VAR (marshal_data);
 
 	dwarn ("invoke_perl_signal_handler: n args %d\n",
-	       g_callable_info_get_n_args (signal_info));
+	       g_callable_info_get_n_args (signal_info->interface));
 
-	cb_info = create_perl_callback_closure (signal_info, perl_closure->callback);
+	cb_info = create_perl_callback_closure (signal_info->interface,
+	                                        perl_closure->callback);
 	attach_perl_callback_data (cb_info, perl_closure->data);
 	cb_info->swap_data = GPERL_CLOSURE_SWAP_DATA (perl_closure);
+	cb_info->args_converter = SvREFCNT_inc (signal_info->args_converter);
 
 	c_closure.closure = *closure;
 	c_closure.callback = cb_info->closure;
+	/* If marshal_data is non-NULL, gi_cclosure_marshal_generic uses it as
+	 * the callback.  Hence we pass NULL so that c_closure.callback is
+	 * used. */
 	gi_cclosure_marshal_generic ((GClosure *) &c_closure,
 	                             return_value,
 	                             n_param_values, param_values,

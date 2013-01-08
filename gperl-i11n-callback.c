@@ -19,9 +19,10 @@ create_perl_callback_closure (GICallableInfo *cb_info, SV *code)
 	info->code = newSVsv (code);
 	info->sub_name = NULL;
 
-	/* This is only relevant for signal marshalling; if needed, it gets set
-	 * in invoke_perl_signal_handler. */
+	/* These are only relevant for signal marshalling; if needed, they get
+	 * set in invoke_perl_signal_handler. */
 	info->swap_data = FALSE;
+	info->args_converter = NULL;
 
 #ifdef PERL_IMPLICIT_CONTEXT
 	info->priv = aTHX;

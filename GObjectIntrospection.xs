@@ -48,7 +48,9 @@ typedef struct {
 	/* ... or a sub name to be called as a method on the invocant. */
 	gchar *sub_name;
 
+	/* these are currently only used for signal handler invocation. */
 	gboolean swap_data;
+	SV *args_converter;
 
 	guint data_pos;
 	guint destroy_pos;
@@ -57,6 +59,11 @@ typedef struct {
 
 	gpointer priv; /* perl context */
 } GPerlI11nPerlCallbackInfo;
+
+typedef struct {
+	GISignalInfo *interface;
+	SV *args_converter;
+} GPerlI11nPerlSignalInfo;
 
 typedef struct {
 	GICallableInfo *interface;
@@ -786,11 +793,12 @@ _invoke_fallback_vfunc (class, vfunc_package, vfunc_name, target_package, ...)
 	g_base_info_unref (info);
 
 void
-_use_generic_signal_marshaller_for (class, const gchar *package, const gchar *signal)
+_use_generic_signal_marshaller_for (class, const gchar *package, const gchar *signal, SV *args_converter=NULL)
     PREINIT:
 	GType gtype;
 	GIRepository *repository;
-	GIBaseInfo *container_info, *signal_info = NULL;
+	GIBaseInfo *container_info;
+	GPerlI11nPerlSignalInfo *signal_info;
 	ffi_cif *cif;
 	ffi_closure *closure;
 	GIBaseInfo *closure_marshal_info;
@@ -808,7 +816,9 @@ _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *si
 		croak ("Could not find object/interface info for package %s",
 		       package);
 
-	signal_info = get_signal_info (container_info, signal);
+	signal_info = g_new0 (GPerlI11nPerlSignalInfo, 1); // FIXME: ctor?
+	signal_info->interface = get_signal_info (container_info, signal);
+	signal_info->args_converter = SvREFCNT_inc (args_converter);
 	if (!signal_info)
 		croak ("Could not find signal %s for package %s",
 		       signal, package);
@@ -835,7 +845,9 @@ _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *si
 	 *
 	 * g_callable_info_free_closure (signal_info, closure);
 	 * g_free (cif);
-	 * g_base_info_unref (signal_info);
+	 * g_base_info_unref (signal_info->interface);
+	 * SvREFCNT_dec (signal_info->args_converter);
+	 * g_free (signal_info);
 	 */
 
 	g_base_info_unref (container_info);
