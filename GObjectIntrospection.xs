@@ -818,7 +818,8 @@ _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *si
 
 	signal_info = g_new0 (GPerlI11nPerlSignalInfo, 1); // FIXME: ctor?
 	signal_info->interface = get_signal_info (container_info, signal);
-	signal_info->args_converter = SvREFCNT_inc (args_converter);
+	if (args_converter)
+		signal_info->args_converter = SvREFCNT_inc (args_converter);
 	if (!signal_info)
 		croak ("Could not find signal %s for package %s",
 		       signal, package);
@@ -846,7 +847,8 @@ _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *si
 	 * g_callable_info_free_closure (signal_info, closure);
 	 * g_free (cif);
 	 * g_base_info_unref (signal_info->interface);
-	 * SvREFCNT_dec (signal_info->args_converter);
+	 * if (signal_info->args_converter)
+	 * 	SvREFCNT_dec (signal_info->args_converter);
 	 * g_free (signal_info);
 	 */
 

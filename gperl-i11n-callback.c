@@ -85,6 +85,9 @@ release_perl_callback (gpointer data)
 	if (info->sub_name)
 		g_free (info->sub_name);
 
+	if (info->args_converter)
+		SvREFCNT_dec (info->args_converter);
+
 	g_free (info);
 }
 

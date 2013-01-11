@@ -11,7 +11,6 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	guint n_return_values, n_returned;
 	I32 context;
 	SV *instance_sv = NULL, *data_sv = NULL, *first_sv = NULL, *last_sv = NULL;
-	SV *args_converter;
 	dGPERL_CALLBACK_MARSHAL_SP;
 
 	PERL_UNUSED_VAR (cif);
@@ -30,8 +29,7 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 
 	PUSHMARK (SP);
 
-	args_converter = info->args_converter;
-	if (args_converter) {
+	if (info->args_converter) {
 		/* if we are given an args converter, we will call it directly
 		 * after we pushed the original args onto the stack.  we then
 		 * want to invoke the Perl code with whatever the args
@@ -141,8 +139,8 @@ invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 	 * since we created two identical entries on the markstack, the
 	 * call_method or call_sv below will invoke the Perl code with whatever
 	 * the args converter returned. */
-	if (args_converter) {
-		call_sv (args_converter, G_ARRAY);
+	if (info->args_converter) {
+		call_sv (info->args_converter, G_ARRAY);
 		SPAGAIN;
 	}
 
@@ -305,7 +303,8 @@ invoke_perl_signal_handler (ffi_cif* cif, gpointer resp, gpointer* args, gpointe
 	                                        perl_closure->callback);
 	attach_perl_callback_data (cb_info, perl_closure->data);
 	cb_info->swap_data = GPERL_CLOSURE_SWAP_DATA (perl_closure);
-	cb_info->args_converter = SvREFCNT_inc (signal_info->args_converter);
+	if (signal_info->args_converter)
+		cb_info->args_converter = SvREFCNT_inc (signal_info->args_converter);
 
 	c_closure.closure = *closure;
 	c_closure.callback = cb_info->closure;
