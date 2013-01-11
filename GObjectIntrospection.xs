@@ -794,7 +794,9 @@ _invoke_fallback_vfunc (class, vfunc_package, vfunc_name, target_package, ...)
 
 void
 _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *signal, SV *args_converter=NULL)
-    PREINIT:
+    CODE:
+#if GI_CHECK_VERSION (1, 33, 10)
+{
 	GType gtype;
 	GIRepository *repository;
 	GIBaseInfo *container_info;
@@ -802,8 +804,7 @@ _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *si
 	ffi_cif *cif;
 	ffi_closure *closure;
 	GIBaseInfo *closure_marshal_info;
-    CODE:
-#if GI_CHECK_VERSION (1, 33, 10)
+
 	gtype = gperl_type_from_package (package);
 	if (!gtype)
 		croak ("Could not find GType for package %s", package);
@@ -853,7 +854,10 @@ _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *si
 	 */
 
 	g_base_info_unref (container_info);
+}
 #else
+{
+	PERL_UNUSED_VAR (args_converter);
 	/* g_callable_info_prepare_closure, and thus
 	 * create_perl_callback_closure and invoke_perl_signal_handler, did not
 	 * work correctly for signals prior to commit
@@ -864,6 +868,7 @@ _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *si
 	      "any handlers connected to the signal "
 	      "might thus be invoked incorrectly",
 	      signal, package);
+}
 #endif
 
 void
