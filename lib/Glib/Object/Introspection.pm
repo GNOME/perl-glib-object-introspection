@@ -210,7 +210,6 @@ sub setup {
 }
 
 sub INIT {
-  no strict qw(refs);
   foreach my $target (@OBJECT_PACKAGES_WITH_VFUNCS) {
     my ($basename, $object_name, $target_package) = @{$target};
     __PACKAGE__->_install_overrides($basename, $object_name, $target_package);
