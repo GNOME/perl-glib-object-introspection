@@ -113,8 +113,8 @@ sv_to_struct (GITransfer transfer,
 		dwarn ("  disguised struct\n");
 		package = get_struct_package (info);
 		if (!gperl_sv_is_ref (sv) || !sv_derived_from (sv, package))
-			croak("Cannot convert scalar %p to an object of type %s",
-			      sv, package);
+			ccroak ("Cannot convert scalar %p to an object of type %s",
+			        sv, package);
 		g_free (package);
 		return INT2PTR (void *, SvIV ((SV *) SvRV (sv)));
 	}

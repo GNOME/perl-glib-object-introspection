@@ -1,10 +1,57 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
+static gchar *
+format_target (GPerlI11nInvocationInfo *iinfo)
+{
+	gchar *caller = NULL;
+	if (iinfo->target_package && iinfo->target_namespace && iinfo->target_function) {
+		caller = g_strconcat (iinfo->target_package, "::",
+		                      iinfo->target_namespace, "::",
+		                      iinfo->target_function,
+		                      NULL);
+	} else if (iinfo->target_package && iinfo->target_function) {
+		caller = g_strconcat (iinfo->target_package, "::",
+		                      iinfo->target_function,
+		                      NULL);
+	} else {
+		caller = g_strconcat ("Callable ",
+		                      g_base_info_get_name (iinfo->interface),
+		                      NULL);
+	}
+	return caller;
+}
+
+static void
+check_n_args (GPerlI11nInvocationInfo *iinfo)
+{
+	if (iinfo->n_expected_args != iinfo->n_given_args) {
+		/* Avoid the cost of formatting the target until we know we
+		 * need it. */
+		gchar *caller = NULL;
+		if (iinfo->n_given_args < (iinfo->n_expected_args - iinfo->n_nullable_args)) {
+			caller = format_target (iinfo);
+			ccroak ("%s: passed too few parameters "
+			        "(expected %d, got %d)",
+			        caller, iinfo->n_expected_args, iinfo->n_given_args);
+		} else if (iinfo->n_given_args > iinfo->n_expected_args) {
+			caller = format_target (iinfo);
+			cwarn ("*** %s: passed too many parameters "
+			       "(expected %d, got %d); ignoring excess",
+			       caller, iinfo->n_expected_args, iinfo->n_given_args);
+		}
+		if (caller)
+			g_free (caller);
+	}
+}
+
 static void
 invoke_callable (GICallableInfo *info,
                  gpointer func_pointer,
                  SV **sp, I32 ax, SV **mark, I32 items, /* these correspond to dXSARGS */
-                 UV internal_stack_offset)
+                 UV internal_stack_offset,
+                 const gchar *package,
+                 const gchar *namespace,
+                 const gchar *function)
 {
 	ffi_cif cif;
 	gpointer instance = NULL;
@@ -17,7 +64,10 @@ invoke_callable (GICallableInfo *info,
 
 	PERL_UNUSED_VAR (mark);
 
-	prepare_c_invocation_info (&iinfo, info, items, internal_stack_offset);
+	prepare_c_invocation_info (&iinfo, info, items, internal_stack_offset,
+	                           package, namespace, function);
+
+	check_n_args (&iinfo);
 
 	if (iinfo.is_method) {
 		instance = instance_sv_to_pointer (info, ST (0 + iinfo.stack_offset));
@@ -29,7 +79,7 @@ invoke_callable (GICallableInfo *info,
 		GIArgInfo * arg_info;
 		GITypeInfo * arg_type;
 		GITransfer transfer;
-		gboolean may_be_null;
+		gboolean may_be_null = FALSE, is_skipped = FALSE;
 		gint perl_stack_pos, ffi_stack_pos;
 		SV *current_sv;
 
@@ -39,6 +89,9 @@ invoke_callable (GICallableInfo *info,
 		arg_type = g_arg_info_get_type (arg_info);
 		transfer = g_arg_info_get_ownership_transfer (arg_info);
 		may_be_null = g_arg_info_may_be_null (arg_info);
+#if GI_CHECK_VERSION (1, 29, 0)
+		is_skipped = g_arg_info_is_skip (arg_info);
+#endif
 		perl_stack_pos = i
                                + iinfo.method_offset
                                + iinfo.stack_offset
@@ -60,18 +113,16 @@ invoke_callable (GICallableInfo *info,
 		       g_type_info_is_pointer (arg_type),
 		       iinfo.is_automatic_arg[i]);
 
-		/* FIXME: Generate a proper usage message if the user did not
-		 * supply enough arguments. */
+		/* Use undef for missing args (due to the checks above, these
+		 * must be nullable). */
 		current_sv = perl_stack_pos < items ? ST (perl_stack_pos) : &PL_sv_undef;
 
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
 			if (iinfo.is_automatic_arg[i]) {
 				iinfo.dynamic_stack_offset--;
-#if GI_CHECK_VERSION (1, 29, 0)
-			} else if (g_arg_info_is_skip (arg_info)) {
+			} else if (is_skipped) {
 				iinfo.dynamic_stack_offset--;
-#endif
 			} else {
 				sv_to_arg (current_sv,
 				           &iinfo.in_args[i], arg_info, arg_type,
@@ -106,10 +157,8 @@ invoke_callable (GICallableInfo *info,
 					&iinfo.aux_args[i];
 			if (iinfo.is_automatic_arg[i]) {
 				iinfo.dynamic_stack_offset--;
-#if GI_CHECK_VERSION (1, 29, 0)
-			} else if (g_arg_info_is_skip (arg_info)) {
+			} else if (is_skipped) {
 				iinfo.dynamic_stack_offset--;
-#endif
 			} else {
 				/* We pass iinfo.in_args[i].v_pointer here,
 				 * not &iinfo.in_args[i], so that the value

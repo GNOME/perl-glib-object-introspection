@@ -4,7 +4,10 @@ static void
 prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
                            GICallableInfo *info,
                            IV items,
-                           UV internal_stack_offset)
+                           UV internal_stack_offset,
+                           const gchar *package,
+                           const gchar *namespace,
+                           const gchar *function)
 {
 	guint i;
 
@@ -14,6 +17,9 @@ prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	       g_callable_info_get_n_args (info));
 
 	iinfo->interface = info;
+	iinfo->target_package = package;
+	iinfo->target_namespace = namespace;
+	iinfo->target_function = function;
 
 	iinfo->is_function = GI_IS_FUNCTION_INFO (info);
 	iinfo->is_vfunc = GI_IS_VFUNC_INFO (info);
@@ -119,6 +125,31 @@ prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 			}
 			g_base_info_unref ((GIBaseInfo *) interface);
 		}
+
+		g_base_info_unref ((GIBaseInfo *) arg_type);
+		g_base_info_unref ((GIBaseInfo *) arg_info);
+	}
+
+	/* Make another pass to count the expected args. */
+	iinfo->n_expected_args = iinfo->method_offset;
+	iinfo->n_nullable_args = 0;
+	for (i = 0 ; i < iinfo->n_args ; i++) {
+		GIArgInfo * arg_info =
+			g_callable_info_get_arg ((GICallableInfo *) info, i);
+		GITypeInfo * arg_type = g_arg_info_get_type (arg_info);
+		GITypeTag arg_tag = g_type_info_get_tag (arg_type);
+		gboolean is_out = GI_DIRECTION_OUT == g_arg_info_get_direction (arg_info);
+		gboolean is_automatic = iinfo->is_automatic_arg[i];
+		gboolean is_skipped = FALSE;
+#if GI_CHECK_VERSION (1, 29, 0)
+		is_skipped = g_arg_info_is_skip (arg_info);
+#endif
+
+		if (!is_out && !is_automatic && !is_skipped)
+			iinfo->n_expected_args++;
+		/* Callback user data may always be NULL. */
+		if (g_arg_info_may_be_null (arg_info) || arg_tag == GI_TYPE_TAG_VOID)
+			iinfo->n_nullable_args++;
 
 		g_base_info_unref ((GIBaseInfo *) arg_type);
 		g_base_info_unref ((GIBaseInfo *) arg_info);

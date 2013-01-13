@@ -20,3 +20,22 @@ call_carp_croak (const char *msg)
 	FREETMPS;
 	LEAVE;
 }
+
+/* Similarly for Carp's carp(). */
+static void
+call_carp_carp (const char *msg)
+{
+	dSP;
+
+	ENTER;
+	SAVETMPS;
+
+	PUSHMARK (SP);
+	XPUSHs (sv_2mortal (newSVpv(msg, PL_na)));
+	PUTBACK;
+
+	call_pv("Carp::carp", G_VOID | G_DISCARD);
+
+	FREETMPS;
+	LEAVE;
+}

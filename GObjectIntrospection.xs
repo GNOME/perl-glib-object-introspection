@@ -87,6 +87,9 @@ typedef struct {
  * communicate to each other. */
 typedef struct {
 	GICallableInfo *interface;
+	const gchar *target_package;
+	const gchar *target_namespace;
+	const gchar *target_function;
 
 	gboolean is_function;
 	gboolean is_vfunc;
@@ -95,6 +98,8 @@ typedef struct {
 
 	guint n_args;
 	guint n_invoke_args;
+	guint n_expected_args;
+	guint n_nullable_args;
 	guint n_given_args;
 	gboolean is_constructor;
 	gboolean is_method;
@@ -150,7 +155,10 @@ static void invoke_callback (ffi_cif* cif,
 static void invoke_callable (GICallableInfo *info,
                              gpointer func_pointer,
                              SV **sp, I32 ax, SV **mark, I32 items, /* these correspond to dXSARGS */
-                             UV internal_stack_offset);
+                             UV internal_stack_offset,
+                             const gchar *package,
+                             const gchar *namespace,
+                             const gchar *function);
 static gpointer allocate_out_mem (GITypeInfo *arg_type);
 static void handle_automatic_arg (guint pos,
                                   GIArgument * arg,
@@ -160,7 +168,10 @@ static void handle_automatic_arg (guint pos,
 static void prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
                                        GICallableInfo *info,
                                        IV items,
-                                       UV internal_stack_offset);
+                                       UV internal_stack_offset,
+                                       const gchar *package,
+                                       const gchar *namespace,
+                                       const gchar *function);
 static void clear_c_invocation_info (GPerlI11nInvocationInfo *iinfo);
 
 static void prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
@@ -256,8 +267,10 @@ static void generic_interface_finalize (gpointer iface, gpointer data);
 static void generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer class);
 
 /* misc. */
-#define ccroak(...) call_carp_croak (form (__VA_ARGS__));
 static void call_carp_croak (const char *msg);
+static void call_carp_carp (const char *msg);
+#define ccroak(...) call_carp_croak (form (__VA_ARGS__));
+#define cwarn(...) call_carp_carp (form (__VA_ARGS__));
 
 /* interface_to_sv and its callers might invoke Perl code, so any xsub invoking
  * them needs to save the stack.  this wrapper does this automatically. */
@@ -477,8 +490,8 @@ _register_boxed_synonym (class, const gchar *reg_basename, const gchar *reg_name
 	reg_info = g_irepository_find_by_name (repository, reg_basename, reg_name);
 	reg_type = reg_info ? get_gtype (reg_info) : 0;
 	if (!reg_type)
-		croak ("Could not lookup GType for type %s.%s",
-		       reg_basename, reg_name);
+		ccroak ("Could not lookup GType for type %s.%s",
+		        reg_basename, reg_name);
 
 	/* The GType in question (e.g., GdkRectangle) hasn't been loaded yet,
 	 * so we cannot use g_type_name.  It's also absent from the typelib, so
@@ -490,8 +503,8 @@ _register_boxed_synonym (class, const gchar *reg_basename, const gchar *reg_name
 	syn_type = syn_gtype_function_pointer ? syn_gtype_function_pointer () : 0;
 	g_module_close (module);
 	if (!syn_type)
-		croak ("Could not lookup GType from function %s",
-		       syn_gtype_function);
+		ccroak ("Could not lookup GType from function %s",
+		        syn_gtype_function);
 
 	dwarn ("registering synonym %s => %s",
 	       g_type_name (reg_type),
@@ -783,7 +796,8 @@ _invoke_fallback_vfunc (class, vfunc_package, vfunc_name, target_package, ...)
 	g_assert (func_pointer);
 	invoke_callable (vfunc_info, func_pointer,
 	                 sp, ax, mark, items,
-	                 internal_stack_offset);
+	                 internal_stack_offset,
+	                 NULL, NULL, NULL);
 	/* SPAGAIN since invoke_callable probably modified the stack
 	 * pointer.  so we need to make sure that our local variable
 	 * 'sp' is correct before the implicit PUTBACK happens. */
@@ -807,23 +821,23 @@ _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *si
 
 	gtype = gperl_type_from_package (package);
 	if (!gtype)
-		croak ("Could not find GType for package %s", package);
+		ccroak ("Could not find GType for package %s", package);
 
 	repository = g_irepository_get_default ();
 	container_info = g_irepository_find_by_gtype (repository, gtype);
 	if (!container_info ||
 	    !(GI_IS_OBJECT_INFO (container_info) ||
 	      GI_IS_INTERFACE_INFO (container_info)))
-		croak ("Could not find object/interface info for package %s",
-		       package);
+		ccroak ("Could not find object/interface info for package %s",
+		        package);
 
 	signal_info = g_new0 (GPerlI11nPerlSignalInfo, 1); // FIXME: ctor?
 	signal_info->interface = get_signal_info (container_info, signal);
 	if (args_converter)
 		signal_info->args_converter = SvREFCNT_inc (args_converter);
 	if (!signal_info)
-		croak ("Could not find signal %s for package %s",
-		       signal, package);
+		ccroak ("Could not find signal %s for package %s",
+		        signal, package);
 
 	closure_marshal_info = g_irepository_find_by_name (repository,
 		                                           "GObject",
@@ -872,10 +886,10 @@ _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *si
 #endif
 
 void
-invoke (class, basename, namespace, method, ...)
+invoke (class, basename, namespace, function, ...)
 	const gchar *basename
 	const gchar_ornull *namespace
-	const gchar *method
+	const gchar *function
     PREINIT:
 	UV internal_stack_offset = 4;
 	GIRepository *repository;
@@ -884,7 +898,7 @@ invoke (class, basename, namespace, method, ...)
 	const gchar *symbol = NULL;
     PPCODE:
 	repository = g_irepository_get_default ();
-	info = get_function_info (repository, basename, namespace, method);
+	info = get_function_info (repository, basename, namespace, function);
 	symbol = g_function_info_get_symbol (info);
 	if (!g_typelib_symbol (g_base_info_get_typelib((GIBaseInfo *) info),
 			       symbol, &func_pointer))
@@ -893,7 +907,8 @@ invoke (class, basename, namespace, method, ...)
 	}
 	invoke_callable (info, func_pointer,
 	                 sp, ax, mark, items,
-	                 internal_stack_offset);
+	                 internal_stack_offset,
+	                 get_package_for_basename (basename), namespace, function);
 	/* SPAGAIN since invoke_callable probably modified the stack pointer.
 	 * so we need to make sure that our implicit local variable 'sp' is
 	 * correct before the implicit PUTBACK happens. */
@@ -944,7 +959,8 @@ _invoke (SV *code, ...)
 		ccroak ("invalid reference encountered");
 	invoke_callable (wrapper->interface, wrapper->func,
 	                 sp, ax, mark, items,
-	                 internal_stack_offset);
+	                 internal_stack_offset,
+	                 NULL, NULL, NULL);
 
 void
 DESTROY (SV *code)
