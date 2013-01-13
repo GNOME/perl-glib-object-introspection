@@ -1,7 +1,7 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
 static void
-invoke_callback (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
+invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 {
 	GPerlI11nPerlCallbackInfo *info;
 	GICallableInfo *cb_interface;

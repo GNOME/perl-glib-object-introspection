@@ -13,7 +13,7 @@ create_perl_callback_closure (GICallableInfo *cb_info, SV *code)
 	info->cif = g_new0 (ffi_cif, 1);
 	info->closure =
 		g_callable_info_prepare_closure (info->interface, info->cif,
-		                                 invoke_callback, info);
+		                                 invoke_perl_code, info);
 	/* FIXME: This should most likely use SvREFCNT_inc instead of
 	 * newSVsv. */
 	info->code = newSVsv (code);
@@ -49,7 +49,7 @@ create_perl_callback_closure_for_named_sub (GICallableInfo *cb_info, gchar *sub_
 	info->cif = g_new0 (ffi_cif, 1);
 	info->closure =
 		g_callable_info_prepare_closure (info->interface, info->cif,
-		                                 invoke_callback, info);
+		                                 invoke_perl_code, info);
 	info->sub_name = sub_name;
 	info->code = NULL;
 	info->data = NULL;

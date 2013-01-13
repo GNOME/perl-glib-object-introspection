@@ -45,13 +45,13 @@ check_n_args (GPerlI11nInvocationInfo *iinfo)
 }
 
 static void
-invoke_callable (GICallableInfo *info,
-                 gpointer func_pointer,
-                 SV **sp, I32 ax, SV **mark, I32 items, /* these correspond to dXSARGS */
-                 UV internal_stack_offset,
-                 const gchar *package,
-                 const gchar *namespace,
-                 const gchar *function)
+invoke_c_code (GICallableInfo *info,
+               gpointer func_pointer,
+               SV **sp, I32 ax, SV **mark, I32 items, /* these correspond to dXSARGS */
+               UV internal_stack_offset,
+               const gchar *package,
+               const gchar *namespace,
+               const gchar *function)
 {
 	ffi_cif cif;
 	gpointer instance = NULL;

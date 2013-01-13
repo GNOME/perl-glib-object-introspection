@@ -84,7 +84,8 @@ typedef struct {
 } GPerlI11nArrayInfo;
 
 /* This stores information that the different marshallers might need to
- * communicate to each other. */
+ * communicate to each other.  This struct is used for invoking C and Perl
+ * code. */
 typedef struct {
 	GICallableInfo *interface;
 	const gchar *target_package;
@@ -147,18 +148,18 @@ static void invoke_perl_signal_handler (ffi_cif* cif,
                                         gpointer userdata);
 #endif
 
-static void invoke_callback (ffi_cif* cif,
-                             gpointer resp,
-                             gpointer* args,
-                             gpointer userdata);
+static void invoke_perl_code (ffi_cif* cif,
+                              gpointer resp,
+                              gpointer* args,
+                              gpointer userdata);
 
-static void invoke_callable (GICallableInfo *info,
-                             gpointer func_pointer,
-                             SV **sp, I32 ax, SV **mark, I32 items, /* these correspond to dXSARGS */
-                             UV internal_stack_offset,
-                             const gchar *package,
-                             const gchar *namespace,
-                             const gchar *function);
+static void invoke_c_code (GICallableInfo *info,
+                           gpointer func_pointer,
+                           SV **sp, I32 ax, SV **mark, I32 items, /* these correspond to dXSARGS */
+                           UV internal_stack_offset,
+                           const gchar *package,
+                           const gchar *namespace,
+                           const gchar *function);
 static gpointer allocate_out_mem (GITypeInfo *arg_type);
 static void handle_automatic_arg (guint pos,
                                   GIArgument * arg,
@@ -794,11 +795,11 @@ _invoke_fallback_vfunc (class, vfunc_package, vfunc_name, target_package, ...)
 	field_offset = g_field_info_get_offset (field_info);
 	func_pointer = G_STRUCT_MEMBER (gpointer, klass, field_offset);
 	g_assert (func_pointer);
-	invoke_callable (vfunc_info, func_pointer,
-	                 sp, ax, mark, items,
-	                 internal_stack_offset,
-	                 NULL, NULL, NULL);
-	/* SPAGAIN since invoke_callable probably modified the stack
+	invoke_c_code (vfunc_info, func_pointer,
+	               sp, ax, mark, items,
+	               internal_stack_offset,
+	               NULL, NULL, NULL);
+	/* SPAGAIN since invoke_c_code probably modified the stack
 	 * pointer.  so we need to make sure that our local variable
 	 * 'sp' is correct before the implicit PUTBACK happens. */
 	SPAGAIN;
@@ -905,11 +906,11 @@ invoke (class, basename, namespace, function, ...)
 	{
 		ccroak ("Could not locate symbol %s", symbol);
 	}
-	invoke_callable (info, func_pointer,
-	                 sp, ax, mark, items,
-	                 internal_stack_offset,
-	                 get_package_for_basename (basename), namespace, function);
-	/* SPAGAIN since invoke_callable probably modified the stack pointer.
+	invoke_c_code (info, func_pointer,
+	               sp, ax, mark, items,
+	               internal_stack_offset,
+	               get_package_for_basename (basename), namespace, function);
+	/* SPAGAIN since invoke_c_code probably modified the stack pointer.
 	 * so we need to make sure that our implicit local variable 'sp' is
 	 * correct before the implicit PUTBACK happens. */
 	SPAGAIN;
@@ -957,10 +958,10 @@ _invoke (SV *code, ...)
 	wrapper = INT2PTR (GPerlI11nCCallbackInfo*, SvIV (SvRV (code)));
 	if (!wrapper || !wrapper->func)
 		ccroak ("invalid reference encountered");
-	invoke_callable (wrapper->interface, wrapper->func,
-	                 sp, ax, mark, items,
-	                 internal_stack_offset,
-	                 NULL, NULL, NULL);
+	invoke_c_code (wrapper->interface, wrapper->func,
+	               sp, ax, mark, items,
+	               internal_stack_offset,
+	               NULL, NULL, NULL);
 
 void
 DESTROY (SV *code)
