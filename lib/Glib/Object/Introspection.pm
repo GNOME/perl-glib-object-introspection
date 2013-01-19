@@ -162,7 +162,7 @@ sub setup {
     };
   }
 
-  foreach my $object_name (keys %{$objects_with_vfuncs}) {
+  foreach my $object_name (@{$objects_with_vfuncs}) {
     my $object_package = $package . '::' . $object_name;
     my $installer_name = $object_package . '::_INSTALL_OVERRIDES';
     *{$installer_name} = sub {
@@ -216,8 +216,8 @@ sub INIT {
         my $provider_package = $non_perl_parent_packages[$j];
         my @vfuncs = __PACKAGE__->_find_vfuncs_with_implementation(
                        $provider_package, $implementer_package);
-        VFUNC: foreach my $vfunc_names (@vfuncs) {
-          my ($vfunc_name, $perl_vfunc_name) = @{$vfunc_names};
+        VFUNC: foreach my $vfunc_name (@vfuncs) {
+          my $perl_vfunc_name = uc $vfunc_name;
           if (exists $_FORBIDDEN_SUB_NAMES{$perl_vfunc_name}) {
             $perl_vfunc_name .= '_VFUNC';
           }

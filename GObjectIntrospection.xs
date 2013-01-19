@@ -260,12 +260,13 @@ static GType find_union_member_gtype (const gchar *package, const gchar *namespa
 /* methods */
 static void store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type);
 
+/* object vfuncs */
+static void store_objects_with_vfuncs (AV *objects_with_vfuncs, GIObjectInfo *info);
+static void generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer class);
+
 /* interface vfuncs */
 static void generic_interface_init (gpointer iface, gpointer data);
 static void generic_interface_finalize (gpointer iface, gpointer data);
-
-/* object vfuncs */
-static void generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer class);
 
 /* misc. */
 static void call_carp_croak (const char *msg);
@@ -341,7 +342,7 @@ _register_types (class, namespace, package)
 	HV *namespaced_functions;
 	HV *fields;
 	AV *interfaces;
-	HV *objects_with_vfuncs;
+	AV *objects_with_vfuncs;
     PPCODE:
 	repository = g_irepository_get_default ();
 
@@ -350,7 +351,7 @@ _register_types (class, namespace, package)
 	namespaced_functions = newHV ();
 	fields = newHV ();
 	interfaces = newAV ();
-	objects_with_vfuncs = newHV ();
+	objects_with_vfuncs = newAV ();
 
 	number = g_irepository_get_n_infos (repository, namespace);
 	for (i = 0; i < number; i++) {
@@ -395,7 +396,7 @@ _register_types (class, namespace, package)
 		}
 
 		if (info_type == GI_INFO_TYPE_OBJECT) {
-			store_vfuncs (objects_with_vfuncs, info);
+			store_objects_with_vfuncs (objects_with_vfuncs, info);
 		}
 
 		/* These are the types that we want to register with perl-Glib. */
@@ -738,21 +739,15 @@ _find_vfuncs_with_implementation (class, object_package, target_package)
 		const gchar *vfunc_name;
 		GIFieldInfo *field_info;
 		gint field_offset;
-		gchar *perl_method_name;
 		vfunc_info = g_object_info_get_vfunc (object_info, i);
 		vfunc_name = g_base_info_get_name (vfunc_info);
 		/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
 		field_info = get_field_info (struct_info, vfunc_name);
 		g_assert (field_info);
 		field_offset = g_field_info_get_offset (field_info);
-		perl_method_name = g_ascii_strup (vfunc_name, -1);
 		if (G_STRUCT_MEMBER (gpointer, target_klass, field_offset)) {
-			AV *av = newAV ();
-			av_push (av, newSVpv (vfunc_name, PL_na));
-			av_push (av, newSVpv (perl_method_name, PL_na));
-			XPUSHs (sv_2mortal (newRV_noinc ((SV *) av)));
+			XPUSHs (sv_2mortal (newSVpv (vfunc_name, PL_na)));
 		}
-		g_free (perl_method_name);
 		g_base_info_unref (field_info);
 		g_base_info_unref (vfunc_info);
 	}

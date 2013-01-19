@@ -1,6 +1,17 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
 static void
+store_objects_with_vfuncs (AV *objects_with_vfuncs, GIObjectInfo *info)
+{
+	if (g_object_info_get_n_vfuncs (info) <= 0)
+		return;
+	av_push (objects_with_vfuncs,
+	         newSVpv (g_base_info_get_name (info), PL_na));
+}
+
+/* ------------------------------------------------------------------------- */
+
+static void
 generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer class)
 {
 	GIStructInfo *struct_info;
