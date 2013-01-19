@@ -11,8 +11,9 @@ prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 {
 	guint i;
 
-	dwarn ("C invoke: %s\n"
+	dwarn ("C invoke: %s::%s::%s => %s\n"
 	       "  n_args: %d\n",
+	       package, namespace, function,
 	       g_base_info_get_name (info),
 	       g_callable_info_get_n_args (info));
 

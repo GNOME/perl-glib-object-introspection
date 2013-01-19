@@ -40,8 +40,8 @@ generic_interface_init (gpointer iface, gpointer data)
 		/* callback_info takes over ownership of perl_method_name. */
 		callback_info = create_perl_callback_closure_for_named_sub (
 		                  field_interface_info, perl_method_name);
-		dwarn ("installing vfunc %s as %s at offset %d (vs. %d) inside %p\n",
-		       vfunc_name, perl_method_name,
+		dwarn ("generic_interface_init: installing vfunc %s.%s as %s at offset %d (vs. %d) inside %p\n",
+		       g_base_info_get_name (info), vfunc_name, perl_method_name,
 		       field_offset, g_vfunc_info_get_offset (vfunc_info),
 		       iface);
 		G_STRUCT_MEMBER (gpointer, iface, field_offset) = callback_info->closure;

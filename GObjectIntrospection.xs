@@ -776,7 +776,7 @@ _invoke_fallback_vfunc (class, vfunc_package, vfunc_name, target_package, ...)
 	gint field_offset;
 	gpointer func_pointer;
     PPCODE:
-	dwarn ("_invoke_parent_vfunc: %s.%s, target = %s\n",
+	dwarn ("_invoke_fallback_vfunc: %s.%s, target = %s\n",
 	       vfunc_package, vfunc_name, target_package);
 	gtype = gperl_object_type_from_package (target_package);
 	klass = g_type_class_peek (gtype);
