@@ -168,7 +168,8 @@ sub setup {
     *{$installer_name} = sub {
       my ($target_package) = @_;
       # Delay hooking up the vfuncs until INIT so that we can see whether the
-      # package defines the relevant subs or not.
+      # package defines the relevant subs or not.  FIXME: Shouldn't we only do
+      # the delay dance if ${^GLOBAL_PHASE} eq 'START'?
       push @OBJECT_PACKAGES_WITH_VFUNCS,
            [$basename, $object_name, $target_package];
     };
@@ -195,32 +196,40 @@ sub INIT {
   # would mistake them for an actual implementation.  This would then lead it
   # to put Perl callbacks into the vfunc slots regardless of whether the Perl
   # class in question actually provides implementations.
+  my %implementer_packages_seen;
   foreach my $target (@OBJECT_PACKAGES_WITH_VFUNCS) {
     my ($basename, $object_name, $target_package) = @{$target};
     my @non_perl_parent_packages =
       __PACKAGE__->_find_non_perl_parents($basename, $object_name,
                                           $target_package);
-    my $first_parent = $non_perl_parent_packages[0];
-    foreach my $parent_package (@non_perl_parent_packages) {
-      my @vfuncs = __PACKAGE__->_find_vfuncs_with_implementation(
-                     $parent_package, $first_parent);
-      VFUNC:
-      foreach my $vfunc_names (@vfuncs) {
-        my ($vfunc_name, $perl_vfunc_name) = @{$vfunc_names};
-        if (exists $_FORBIDDEN_SUB_NAMES{$perl_vfunc_name}) {
-          $perl_vfunc_name .= '_VFUNC';
-        }
-        my $full_perl_vfunc_name =
-          $first_parent . '::' . $perl_vfunc_name;
-        if (defined &{$full_perl_vfunc_name}) {
-          next VFUNC;
-        }
-        warn "XXX: $first_parent, $target_package: $full_perl_vfunc_name\n";
-        *{$full_perl_vfunc_name} = sub {
-          __PACKAGE__->_invoke_fallback_vfunc($parent_package,
-                                              $vfunc_name,
-                                              $first_parent,
-                                              @_);
+
+    # For each non-Perl parent, look at all the vfuncs it and its parents
+    # provide.  For each vfunc which has an implementation in the parent
+    # (i.e. the corresponding struct pointer is not NULL), install a fallback
+    # sub which invokes the vfunc implementation.  This assumes that
+    # @non_perl_parent_packages contains the parents in "ancestorial" order,
+    # i.e. the first entry must be the immediate parent.
+    IMPLEMENTER: for (my $i = 0; $i < @non_perl_parent_packages; $i++) {
+      my $implementer_package = $non_perl_parent_packages[$i];
+      next IMPLEMENTER if $implementer_packages_seen{$implementer_package}++;
+      for (my $j = $i; $j < @non_perl_parent_packages; $j++) {
+        my $provider_package = $non_perl_parent_packages[$j];
+        my @vfuncs = __PACKAGE__->_find_vfuncs_with_implementation(
+                       $provider_package, $implementer_package);
+        VFUNC: foreach my $vfunc_names (@vfuncs) {
+          my ($vfunc_name, $perl_vfunc_name) = @{$vfunc_names};
+          if (exists $_FORBIDDEN_SUB_NAMES{$perl_vfunc_name}) {
+            $perl_vfunc_name .= '_VFUNC';
+          }
+          my $full_perl_vfunc_name =
+            $implementer_package . '::' . $perl_vfunc_name;
+          next VFUNC if defined &{$full_perl_vfunc_name};
+          *{$full_perl_vfunc_name} = sub {
+            __PACKAGE__->_invoke_fallback_vfunc($provider_package,
+                                                $vfunc_name,
+                                                $implementer_package,
+                                                @_);
+          }
         }
       }
     }

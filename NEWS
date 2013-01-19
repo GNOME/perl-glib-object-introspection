@@ -6,6 +6,7 @@ Overview of changes in Glib::Object::Introspection <next>
   parameters.
 * Avoid using vfunc names that coincide with special Perl subs.  This fixes
   double-frees occurring for subclasses of Gtk3::Widget.
+* Rework the way fallback vfuncs are installed.
 * Correctly marshal in-out args when invoking Perl code.
 
 Overview of changes in Glib::Object::Introspection 0.013

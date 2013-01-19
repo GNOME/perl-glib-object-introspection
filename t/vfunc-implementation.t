@@ -5,7 +5,7 @@ BEGIN { require './t/inc/setup.pl' };
 use strict;
 use warnings;
 
-plan tests => 31;
+plan tests => 34;
 
 {
   package GoodImplementation;
@@ -109,24 +109,6 @@ plan tests => 31;
   is ($foo->get ('int'), 23);
 }
 
-=for segfault
-
-{
-  package NoImplementation;
-  use Glib::Object::Subclass 'GI::Object';
-}
-
-{
-  my $foo = NoImplementation->new;
-  local $@;
-  eval { $foo->method_int8_in (23) };
-  like ($@, qr/method_int8_in/);
-}
-
-=cut
-
-=for supported?
-
 {
   package BadChaininig;
   use Glib::Object::Subclass 'GI::Object';
@@ -142,7 +124,25 @@ plan tests => 31;
   my $foo = BadChaininig->new;
   local $@;
   eval { $foo->method_int8_in (23) };
-  like ($@, qr/method_int8_in/i);
+  like ($@, qr/METHOD_INT8_IN/);
+}
+
+=for segfault
+
+This segfaults currently because the call to method_int8_in tries to invoke the
+corresponding vfunc slot in the class struct for NoImplementation.  But that's
+NULL since NoImplementation doesn't provide an implementation.
+
+{
+  package NoImplementation;
+  use Glib::Object::Subclass 'GI::Object';
+}
+
+{
+  my $foo = NoImplementation->new;
+  local $@;
+  eval { $foo->method_int8_in (23) };
+  like ($@, qr/method_int8_in/);
 }
 
 =cut
