@@ -167,36 +167,6 @@ sub setup {
     my $installer_name = $object_package . '::_INSTALL_OVERRIDES';
     *{$installer_name} = sub {
       my ($target_package) = @_;
-
-      # For each vfunc in our ancestry that has an implementation, add a
-      # wrapper sub to our immediate parent.
-      my @non_perl_parent_packages =
-        __PACKAGE__->_find_non_perl_parents($basename, $object_name,
-                                            $target_package);
-      my $first_parent = $non_perl_parent_packages[0];
-      foreach my $parent_package (@non_perl_parent_packages) {
-        my @vfuncs = __PACKAGE__->_find_vfuncs_with_implementation(
-                       $parent_package, $first_parent);
-        VFUNC:
-        foreach my $vfunc_names (@vfuncs) {
-          my ($vfunc_name, $perl_vfunc_name) = @{$vfunc_names};
-          if (exists $_FORBIDDEN_SUB_NAMES{$perl_vfunc_name}) {
-            $perl_vfunc_name .= '_VFUNC';
-          }
-          my $full_perl_vfunc_name =
-            $first_parent . '::' . $perl_vfunc_name;
-          if (defined &{$full_perl_vfunc_name}) {
-            next VFUNC;
-          }
-          *{$full_perl_vfunc_name} = sub {
-            __PACKAGE__->_invoke_fallback_vfunc($parent_package,
-                                                $vfunc_name,
-                                                $first_parent,
-                                                @_);
-          }
-        }
-      }
-
       # Delay hooking up the vfuncs until INIT so that we can see whether the
       # package defines the relevant subs or not.
       push @OBJECT_PACKAGES_WITH_VFUNCS,
@@ -210,10 +180,52 @@ sub setup {
 }
 
 sub INIT {
+  no strict qw(refs);
+
+  # Hook up the implemented vfuncs first.
   foreach my $target (@OBJECT_PACKAGES_WITH_VFUNCS) {
     my ($basename, $object_name, $target_package) = @{$target};
     __PACKAGE__->_install_overrides($basename, $object_name, $target_package);
   }
+
+  # And then, for each vfunc in our ancestry that has an implementation, add a
+  # wrapper sub to our immediate parent.  We delay this step until after all
+  # Perl overrides are in place because otherwise, the override code would see
+  # the fallback vfuncs (via gv_fetchmethod) we are about to set up, and it
+  # would mistake them for an actual implementation.  This would then lead it
+  # to put Perl callbacks into the vfunc slots regardless of whether the Perl
+  # class in question actually provides implementations.
+  foreach my $target (@OBJECT_PACKAGES_WITH_VFUNCS) {
+    my ($basename, $object_name, $target_package) = @{$target};
+    my @non_perl_parent_packages =
+      __PACKAGE__->_find_non_perl_parents($basename, $object_name,
+                                          $target_package);
+    my $first_parent = $non_perl_parent_packages[0];
+    foreach my $parent_package (@non_perl_parent_packages) {
+      my @vfuncs = __PACKAGE__->_find_vfuncs_with_implementation(
+                     $parent_package, $first_parent);
+      VFUNC:
+      foreach my $vfunc_names (@vfuncs) {
+        my ($vfunc_name, $perl_vfunc_name) = @{$vfunc_names};
+        if (exists $_FORBIDDEN_SUB_NAMES{$perl_vfunc_name}) {
+          $perl_vfunc_name .= '_VFUNC';
+        }
+        my $full_perl_vfunc_name =
+          $first_parent . '::' . $perl_vfunc_name;
+        if (defined &{$full_perl_vfunc_name}) {
+          next VFUNC;
+        }
+        warn "XXX: $first_parent, $target_package: $full_perl_vfunc_name\n";
+        *{$full_perl_vfunc_name} = sub {
+          __PACKAGE__->_invoke_fallback_vfunc($parent_package,
+                                              $vfunc_name,
+                                              $first_parent,
+                                              @_);
+        }
+      }
+    }
+  }
+
   @OBJECT_PACKAGES_WITH_VFUNCS = ();
 }
 
