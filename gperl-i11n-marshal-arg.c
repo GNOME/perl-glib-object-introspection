@@ -195,17 +195,16 @@ arg_to_sv (GIArgument * arg,
 		return sv;
 	    }
 
-	    case GI_TYPE_TAG_GTYPE: {
-		/* GType == gsize */
+	    case GI_TYPE_TAG_GTYPE:
+	    {
+		GType gtype = arg->v_size;
 		const char *package;
-		if (G_TYPE_INVALID == arg->v_size || G_TYPE_NONE == arg->v_size)
+		if (G_TYPE_INVALID == gtype || G_TYPE_NONE == gtype)
 			return &PL_sv_undef;
-		package = gperl_package_from_type (arg->v_size);
+		package = gperl_package_from_type (gtype);
 		if (!package)
-			package = g_type_name (arg->v_size);
-		if (!package)
-			return &PL_sv_undef;
-		return newSVpv (package, PL_na);
+			package = g_type_name (gtype);
+		return package ? newSVpv (package, PL_na) : &PL_sv_undef;
 	    }
 
 	    case GI_TYPE_TAG_ARRAY:
