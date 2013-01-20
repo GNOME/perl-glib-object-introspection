@@ -1,5 +1,12 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
+static void
+free_raw_array (gpointer raw_array)
+{
+	dwarn ("free_raw_array %p\n", raw_array);
+	g_free (raw_array);
+}
+
 /* This may call Perl code (via arg_to_sv), so it needs to be wrapped with
  * PUTBACK/SPAGAIN by the caller. */
 static SV *
@@ -87,6 +94,7 @@ sv_to_array (GITransfer transfer,
 	gint i, length, length_pos;
 	GPerlI11nArrayInfo *array_info = NULL;
         GArray *array;
+        gpointer raw_array;
         gboolean is_zero_terminated = FALSE;
         gsize item_size;
 	gboolean need_struct_value_semantics;
@@ -165,8 +173,11 @@ sv_to_array (GITransfer transfer,
 		array_info->length = length;
 	}
 
+	raw_array = g_array_free (array, FALSE);
+	if (GI_TRANSFER_NOTHING == transfer)
+		free_after_call (iinfo, (GFunc) free_raw_array, raw_array);
+
 	g_base_info_unref ((GIBaseInfo *) param_info);
 
-	/* FIXME: for transfer=nothing, we seem to be leaking the bare array. */
-	return g_array_free (array, FALSE);
+	return raw_array;
 }
