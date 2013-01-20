@@ -88,7 +88,7 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_ARRAY:
-                arg->v_pointer = sv_to_array (transfer, type_info, sv, invocation_info);
+		arg->v_pointer = sv_to_array (transfer, type_info, sv, invocation_info);
 		break;
 
 	    case GI_TYPE_TAG_INTERFACE:
@@ -103,7 +103,7 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_GHASH:
-                arg->v_pointer = sv_to_ghash (transfer, type_info, sv);
+		arg->v_pointer = sv_to_ghash (transfer, type_info, sv);
 		break;
 
 	    case GI_TYPE_TAG_ERROR:
@@ -218,7 +218,7 @@ arg_to_sv (GIArgument * arg,
 		return glist_to_sv (info, arg->v_pointer, transfer);
 
 	    case GI_TYPE_TAG_GHASH:
-                return ghash_to_sv (info, arg->v_pointer, transfer);
+		return ghash_to_sv (info, arg->v_pointer, transfer);
 
 	    case GI_TYPE_TAG_ERROR:
 		ccroak ("FIXME - GI_TYPE_TAG_ERROR");

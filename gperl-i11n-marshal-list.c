@@ -112,8 +112,8 @@ sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * sv, GPerlI11nInvo
 			/* FIXME: Is it OK to always allow undef here? */
 			sv_to_arg (*svp, &arg, NULL, param_info,
 			           item_transfer, TRUE, NULL);
-                        /* ENHANCEME: Could use g_[s]list_prepend and
-                         * later _reverse for efficiency. */
+			/* ENHANCEME: Could use g_[s]list_prepend and
+			 * later _reverse for efficiency. */
 			if (is_slist)
 				list = g_slist_append (list, arg.v_pointer);
 			else

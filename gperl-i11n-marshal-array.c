@@ -40,13 +40,13 @@ array_to_sv (GITypeInfo *info,
 	if (is_zero_terminated) {
 		length = g_strv_length (pointer);
 	} else {
-                length = g_type_info_get_array_fixed_size (info);
-                if (length < 0) {
+		length = g_type_info_get_array_fixed_size (info);
+		if (length < 0) {
 			guint length_pos = g_type_info_get_array_length (info);
 			g_assert (iinfo && iinfo->aux_args);
 			/* FIXME: Is it OK to always use v_size here? */
 			length = iinfo->aux_args[length_pos].v_size;
-                }
+		}
 	}
 
 	if (length < 0) {
@@ -120,9 +120,9 @@ sv_to_array (GITransfer transfer,
 
 	av = (AV *) SvRV (sv);
 
-        item_transfer = transfer == GI_TRANSFER_CONTAINER
-                      ? GI_TRANSFER_NOTHING
-                      : transfer;
+	item_transfer = transfer == GI_TRANSFER_CONTAINER
+		      ? GI_TRANSFER_NOTHING
+		      : transfer;
 
 	param_info = g_type_info_get_param_type (type_info, 0);
 	param_tag = g_type_info_get_tag (param_info);
@@ -131,10 +131,10 @@ sv_to_array (GITransfer transfer,
 	       g_type_tag_to_string (g_type_info_get_tag (param_info)),
 	       transfer);
 
-        is_zero_terminated = g_type_info_is_zero_terminated (type_info);
-        item_size = size_of_type_info (param_info);
+	is_zero_terminated = g_type_info_is_zero_terminated (type_info);
+	item_size = size_of_type_info (param_info);
 	length = av_len (av) + 1;
-        array = g_array_sized_new (is_zero_terminated, FALSE, item_size, length);
+	array = g_array_sized_new (is_zero_terminated, FALSE, item_size, length);
 
 	/* Arrays containing non-basic types as non-pointers need to be treated
 	 * specially.  Prime example: GValue *values = g_new0 (GValue, n);
@@ -155,7 +155,7 @@ sv_to_array (GITransfer transfer,
 			sv_to_arg (*svp, &arg, NULL, param_info,
 			           item_transfer, TRUE, NULL);
 
-                        if (need_struct_value_semantics) {
+			if (need_struct_value_semantics) {
 				/* Copy from the memory area pointed to by
 				 * arg.v_pointer. */
 				g_array_insert_vals (array, i, arg.v_pointer, 1);

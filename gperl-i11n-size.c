@@ -26,8 +26,8 @@ size_of_type_tag (GITypeTag type_tag)
 		return sizeof (gdouble);
 	    case GI_TYPE_TAG_GTYPE:
 		return sizeof (GType);
-            case GI_TYPE_TAG_UNICHAR:
-                return sizeof (gunichar);
+	    case GI_TYPE_TAG_UNICHAR:
+		return sizeof (gunichar);
 
 	    case GI_TYPE_TAG_VOID:
 	    case GI_TYPE_TAG_UTF8:
@@ -38,9 +38,9 @@ size_of_type_tag (GITypeTag type_tag)
 	    case GI_TYPE_TAG_GSLIST:
 	    case GI_TYPE_TAG_GHASH:
 	    case GI_TYPE_TAG_ERROR:
-                ccroak ("Unable to determine the size of '%s'",
-                        g_type_tag_to_string (type_tag));
-                break;
+		ccroak ("Unable to determine the size of '%s'",
+		        g_type_tag_to_string (type_tag));
+		break;
 	}
 
 	return 0;
@@ -129,7 +129,7 @@ size_of_type_info (GITypeInfo *type_info)
 	    case GI_TYPE_TAG_FLOAT:
 	    case GI_TYPE_TAG_DOUBLE:
 	    case GI_TYPE_TAG_GTYPE:
-            case GI_TYPE_TAG_UNICHAR:
+	    case GI_TYPE_TAG_UNICHAR:
 		if (g_type_info_is_pointer (type_info)) {
 			return sizeof (gpointer);
 		} else {

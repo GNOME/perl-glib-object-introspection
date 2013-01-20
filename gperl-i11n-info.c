@@ -35,10 +35,10 @@ get_function_info (GIRepository *repository,
 				method);
 			break;
                     case GI_INFO_TYPE_UNION:
-                        function_info = g_union_info_find_method (
-                                (GIUnionInfo *) namespace_info,
-                                method);
-                        break;
+			function_info = g_union_info_find_method (
+				(GIUnionInfo *) namespace_info,
+				method);
+			break;
 		    default:
 			ccroak ("Base info for namespace %s has incorrect type",
 			       namespace);

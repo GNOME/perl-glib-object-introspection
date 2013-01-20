@@ -43,7 +43,7 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 	    case GI_INFO_TYPE_UNION:
 	    {
 		PUSH_METHODS (union, av, info);
-                break;
+		break;
 	    }
 
 	    default:

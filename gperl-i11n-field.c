@@ -29,16 +29,16 @@ store_fields (HV *fields, GIBaseInfo *info, GIInfoType info_type)
 
 	    case GI_INFO_TYPE_UNION:
 	    {
-                gint n_fields = g_union_info_get_n_fields ((GIUnionInfo *) info);
-                for (i = 0; i < n_fields; i++) {
-                        GIFieldInfo *field_info;
-                        const gchar *field_name;
-                        field_info = g_union_info_get_field ((GIUnionInfo *) info, i);
-                        field_name = g_base_info_get_name ((GIBaseInfo *) field_info);
-                        av_push (av, newSVpv (field_name, PL_na));
-                        g_base_info_unref ((GIBaseInfo *) field_info);
-                }
-                break;
+		gint n_fields = g_union_info_get_n_fields ((GIUnionInfo *) info);
+		for (i = 0; i < n_fields; i++) {
+			GIFieldInfo *field_info;
+			const gchar *field_name;
+			field_info = g_union_info_get_field ((GIUnionInfo *) info, i);
+			field_name = g_base_info_get_name ((GIBaseInfo *) field_info);
+			av_push (av, newSVpv (field_name, PL_na));
+			g_base_info_unref ((GIBaseInfo *) field_info);
+		}
+		break;
 	    }
 
 	    default:

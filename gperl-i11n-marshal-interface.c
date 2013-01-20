@@ -74,7 +74,7 @@ instance_pointer_to_sv (GICallableInfo *info, gpointer pointer)
 
 	    case GI_INFO_TYPE_BOXED:
 	    case GI_INFO_TYPE_STRUCT:
-            case GI_INFO_TYPE_UNION:
+	    case GI_INFO_TYPE_UNION:
 	    {
 		GType type = get_gtype ((GIRegisteredTypeInfo *) container);
 		if (!type || type == G_TYPE_NONE) {
