@@ -902,6 +902,7 @@ invoke (class, basename, namespace, function, ...)
 	if (!g_typelib_symbol (g_base_info_get_typelib((GIBaseInfo *) info),
 			       symbol, &func_pointer))
 	{
+		g_base_info_unref ((GIBaseInfo *) info);
 		ccroak ("Could not locate symbol %s", symbol);
 	}
 	invoke_c_code (info, func_pointer,

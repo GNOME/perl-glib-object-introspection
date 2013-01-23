@@ -8,6 +8,7 @@ Overview of changes in Glib::Object::Introspection <next>
   double-frees occurring for subclasses of Gtk3::Widget.
 * Rework the way fallback vfuncs are installed.
 * Correctly marshal in-out args when invoking Perl code.
+* Plug a few memory leaks.
 
 Overview of changes in Glib::Object::Introspection 0.013
 ========================================================
