@@ -167,6 +167,7 @@ prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 				dwarn ("  pos %d is automatic (array length)\n", pos);
 				iinfo->is_automatic_arg[pos] = TRUE;
 			}
+			g_base_info_unref (arg_info);
 		}
 	}
 
