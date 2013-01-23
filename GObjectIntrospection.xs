@@ -473,7 +473,7 @@ _register_types (class, namespace, package)
 	gperl_hv_take_sv (namespaced_functions, "", 0,
 	                  newRV_noinc ((SV *) global_functions));
 
-	EXTEND (SP, 4);
+	EXTEND (SP, 5);
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) namespaced_functions)));
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) constants)));
 	PUSHs (sv_2mortal (newRV_noinc ((SV *) fields)));
