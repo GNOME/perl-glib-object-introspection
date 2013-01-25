@@ -156,6 +156,18 @@ set_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer, SV *sv)
 		}
 	}
 
+	/* Neither are void pointers.  We put an RV to the SV into them, which
+	 * goes hand in hand with what get_field() is doing above via
+	 * arg_to_sv(). */
+	else if (tag == GI_TYPE_TAG_VOID &&
+	         g_type_info_is_pointer (field_type))
+	{
+		gsize offset = g_field_info_get_offset (field_info);
+		sv_to_arg (sv, &arg, NULL, field_type,
+		           transfer, TRUE, NULL);
+		G_STRUCT_MEMBER (gpointer, mem, offset) = arg.v_pointer;
+	}
+
 	else {
 		sv_to_arg (sv, &arg, NULL, field_type,
 		           transfer, TRUE, NULL);
