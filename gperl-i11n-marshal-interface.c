@@ -171,11 +171,22 @@ sv_to_interface (GIArgInfo * arg_info,
 			g_assert (!need_value_semantics);
 			arg->v_pointer = gperl_closure_new (sv, NULL, FALSE);
 		} else if (type == G_TYPE_VALUE) {
+			GValue *gvalue = SvGValueWrapper (sv);
 			dwarn ("    value type\n");
-			g_assert (!need_value_semantics);
-			arg->v_pointer = SvGValueWrapper (sv);
-			if (!arg->v_pointer)
+			if (!gvalue)
 				ccroak ("Cannot convert arbitrary SV to GValue");
+			if (need_value_semantics) {
+				g_value_init (arg->v_pointer, G_VALUE_TYPE (gvalue));
+				g_value_copy (gvalue, arg->v_pointer);
+			} else {
+				if (GI_TRANSFER_EVERYTHING == transfer) {
+					arg->v_pointer = g_new0 (GValue, 1);
+					g_value_init (arg->v_pointer, G_VALUE_TYPE (gvalue));
+					g_value_copy (gvalue, arg->v_pointer);
+				} else {
+					arg->v_pointer = gvalue;
+				}
+			}
 		} else {
 			dwarn ("    boxed type: %s, name=%s, caller-allocates=%d, is-pointer=%d\n",
 			       g_type_name (type),
