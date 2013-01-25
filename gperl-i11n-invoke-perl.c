@@ -201,7 +201,14 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 			{
 				GIArgument tmp_arg;
 				GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
-				gboolean may_be_null = g_arg_info_may_be_null (arg_info);
+				/* g_arg_info_may_be_null (arg_info) is not
+				 * appropriate here as it describes whether the
+				 * out/inout arg itself may be NULL.  But we're
+				 * asking here whether it is OK store NULL
+				 * inside the out/inout arg.  This information
+				 * does not seem to be present in the typelib
+				 * (nor is there an annotation for it). */
+				gboolean may_be_null = TRUE;
 				gboolean is_caller_allocated = g_arg_info_is_caller_allocates (arg_info);
 				if (is_caller_allocated) {
 					tmp_arg.v_pointer = out_pointer;
