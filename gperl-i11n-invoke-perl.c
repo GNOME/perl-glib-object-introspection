@@ -54,6 +54,10 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	data_sv = info->data ? SvREFCNT_inc (info->data) : NULL;
 	first_sv = info->swap_data ? data_sv     : instance_sv;
 	last_sv  = info->swap_data ? instance_sv : data_sv;
+	dwarn ("  info->data = %p, info->swap_data = %d\n",
+	       info->data, info->swap_data);
+	dwarn ("  instance = %p, data = %p, first = %p, last = %p\n",
+	       instance_sv, data_sv, first_sv, last_sv);
 	if (first_sv)
 		XPUSHs (sv_2mortal (first_sv));
 
@@ -242,10 +246,12 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 
 		dwarn ("ret type: %p\n"
 		       "  is pointer: %d\n"
-		       "  tag: %d\n",
+		       "  tag: %d\n"
+		       "  transfer: %d\n",
 		       type_info,
 		       g_type_info_is_pointer (type_info),
-		       g_type_info_get_tag (type_info));
+		       g_type_info_get_tag (type_info),
+		       transfer);
 
 		sv_to_arg (POPs, &arg, NULL, type_info,
 		           transfer, may_be_null, &iinfo);
