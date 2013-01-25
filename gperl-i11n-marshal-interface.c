@@ -153,9 +153,12 @@ sv_to_interface (GIArgInfo * arg_info,
 			package = get_package_for_basename (namespace);
 			parent_type = find_union_member_gtype (package, name);
 			if (parent_type && parent_type != G_TYPE_NONE) {
-				/* FIXME: Check transfer setting. */
 				arg->v_pointer = gperl_get_boxed_check (
 				                   sv, parent_type);
+				if (GI_TRANSFER_EVERYTHING == transfer)
+					arg->v_pointer =
+						g_boxed_copy (parent_type,
+						              arg->v_pointer);
 			} else {
 				arg->v_pointer = sv_to_struct (transfer,
 				                               interface,
