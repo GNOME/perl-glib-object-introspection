@@ -990,7 +990,7 @@ _invoke (SV *code, ...)
     PREINIT:
 	GPerlI11nCCallbackInfo *wrapper;
 	UV internal_stack_offset = 1;
-    CODE:
+    PPCODE:
 	wrapper = INT2PTR (GPerlI11nCCallbackInfo*, SvIV (SvRV (code)));
 	if (!wrapper || !wrapper->func)
 		ccroak ("invalid reference encountered");
@@ -998,6 +998,10 @@ _invoke (SV *code, ...)
 	               sp, ax, mark, items,
 	               internal_stack_offset,
 	               NULL, NULL, NULL);
+	/* SPAGAIN since invoke_c_code probably modified the stack
+	 * pointer.  so we need to make sure that our local variable
+	 * 'sp' is correct before the implicit PUTBACK happens. */
+	SPAGAIN;
 
 void
 DESTROY (SV *code)
