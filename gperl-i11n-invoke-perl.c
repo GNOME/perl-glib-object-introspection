@@ -70,14 +70,6 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 
 		iinfo.current_pos = i;
 
-		/* the closure argument, which we handle separately, is marked
-		 * by having get_closure == i */
-		if (g_arg_info_get_closure (arg_info) == (gint) i) {
-			g_base_info_unref ((GIBaseInfo *) arg_info);
-			g_base_info_unref ((GIBaseInfo *) arg_type);
-			continue;
-		}
-
 		dwarn ("arg info: %s (%p)\n"
 		       "  direction: %d\n"
 		       "  is return value: %d\n"
