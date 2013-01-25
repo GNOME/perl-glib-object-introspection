@@ -194,15 +194,21 @@ sv_to_interface (GIArgInfo * arg_info,
 			       g_arg_info_is_caller_allocates (arg_info),
 			       g_type_info_is_pointer (type_info));
 			if (need_value_semantics) {
-				gsize n_bytes = g_struct_info_get_size (interface);
-				gpointer mem = gperl_get_boxed_check (sv, type);
-				g_memmove (arg->v_pointer, mem, n_bytes);
+				if (may_be_null && !gperl_sv_is_defined (sv)) {
+					/* Do nothing. */
+				} else {
+					gsize n_bytes = g_struct_info_get_size (interface);
+					gpointer mem = gperl_get_boxed_check (sv, type);
+					g_memmove (arg->v_pointer, mem, n_bytes);
+				}
 			} else {
 				if (may_be_null && !gperl_sv_is_defined (sv)) {
 					arg->v_pointer = NULL;
 				} else {
-					/* FIXME: Check transfer setting. */
 					arg->v_pointer = gperl_get_boxed_check (sv, type);
+					if (GI_TRANSFER_EVERYTHING == transfer)
+						arg->v_pointer = g_boxed_copy (
+							type, arg->v_pointer);
 				}
 			}
 		}
