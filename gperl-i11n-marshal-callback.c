@@ -10,7 +10,7 @@ sv_to_callback (GIArgInfo * arg_info,
 	GPerlI11nPerlCallbackInfo *callback_info;
 	GIScopeType scope;
 
-	/* the destroy notify func is handled by handle_automatic_arg */
+	/* the destroy notify func is handled by _handle_automatic_arg */
 
 	dwarn ("      Perl callback at %d (%s)\n",
 	       invocation_info->current_pos,

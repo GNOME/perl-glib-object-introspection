@@ -160,27 +160,8 @@ static void invoke_c_code (GICallableInfo *info,
                            const gchar *package,
                            const gchar *namespace,
                            const gchar *function);
-static gpointer allocate_out_mem (GITypeInfo *arg_type);
-static void handle_automatic_arg (guint pos,
-                                  GIArgument * arg,
-                                  GPerlI11nInvocationInfo * invocation_info);
 static void free_after_call (GPerlI11nInvocationInfo *iinfo,
                              GFunc func, gpointer data);
-static void invoke_free_after_call_handlers (GPerlI11nInvocationInfo *iinfo);
-
-/* invocation info */
-static void prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
-                                       GICallableInfo *info,
-                                       IV items,
-                                       UV internal_stack_offset,
-                                       const gchar *package,
-                                       const gchar *namespace,
-                                       const gchar *function);
-static void clear_c_invocation_info (GPerlI11nInvocationInfo *iinfo);
-
-static void prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
-                                          GICallableInfo *info);
-static void clear_perl_invocation_info (GPerlI11nInvocationInfo *iinfo);
 
 /* info finders */
 static GIFunctionInfo * get_function_info (GIRepository *repository,
@@ -296,7 +277,6 @@ static void call_carp_carp (const char *msg);
 #include "gperl-i11n-gvalue.c"
 #include "gperl-i11n-info.c"
 #include "gperl-i11n-invoke-c.c"
-#include "gperl-i11n-invoke-info.c"
 #include "gperl-i11n-invoke-perl.c"
 #include "gperl-i11n-marshal-arg.c"
 #include "gperl-i11n-marshal-array.c"

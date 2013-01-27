@@ -103,7 +103,7 @@ sv_to_array (GITransfer transfer,
 
 	/* Add an array info entry even before the undef check so that the
 	 * corresponding length arg is set to zero later by
-	 * handle_automatic_arg. */
+	 * _handle_automatic_arg. */
 	length_pos = g_type_info_get_array_length (type_info);
 	if (length_pos >= 0) {
 		array_info = g_new0 (GPerlI11nArrayInfo, 1);

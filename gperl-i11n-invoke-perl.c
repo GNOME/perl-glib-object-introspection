@@ -1,5 +1,9 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
+static void _prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
+                                           GICallableInfo *info);
+static void _clear_perl_invocation_info (GPerlI11nInvocationInfo *iinfo);
+
 static void
 invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 {
@@ -19,7 +23,7 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	info = (GPerlI11nPerlCallbackInfo *) userdata;
 	cb_interface = (GICallableInfo *) info->interface;
 
-	prepare_perl_invocation_info (&iinfo, cb_interface);
+	_prepare_perl_invocation_info (&iinfo, cb_interface);
 
 	/* set perl context */
 	GPERL_CALLBACK_MARSHAL_INIT (info);
@@ -262,7 +266,7 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 
 	PUTBACK;
 
-	clear_perl_invocation_info (&iinfo);
+	_clear_perl_invocation_info (&iinfo);
 
 	FREETMPS;
 	LEAVE;
@@ -328,3 +332,67 @@ invoke_perl_signal_handler (ffi_cif* cif, gpointer resp, gpointer* args, gpointe
 }
 
 #endif
+
+/* -------------------------------------------------------------------------- */
+
+static void
+_prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
+                               GICallableInfo *info)
+{
+	dwarn ("Perl invoke: %s\n"
+	       "  n_args: %d\n",
+	       g_base_info_get_name (info),
+	       g_callable_info_get_n_args (info));
+
+	iinfo->interface = info;
+
+	/* When invoking Perl code, we currently always use a complete
+	 * description of the callable (from a record field or some callback
+	 * typedef) for functions, vfuncs and calllbacks.  This implies that
+	 * there is no implicit invocant; it always appears explicitly in the
+	 * arg list.  For signals, however, the invocant is implicit. */
+	iinfo->is_function = GI_IS_FUNCTION_INFO (info);
+	iinfo->is_vfunc = GI_IS_VFUNC_INFO (info);
+	iinfo->is_signal = GI_IS_SIGNAL_INFO (info);
+	iinfo->is_callback = (g_base_info_get_type (info) == GI_INFO_TYPE_CALLBACK);
+	dwarn ("  is_function = %d, is_vfunc = %d, is_callback = %d, is_signal = %d\n",
+	       iinfo->is_function, iinfo->is_vfunc, iinfo->is_callback, iinfo->is_signal);
+
+	iinfo->n_args = g_callable_info_get_n_args (info);
+
+	/* FIXME: 'throws'? */
+
+	iinfo->return_type_info = g_callable_info_get_return_type (info);
+	iinfo->has_return_value =
+		GI_TYPE_TAG_VOID != g_type_info_get_tag (iinfo->return_type_info);
+	iinfo->return_type_ffi = g_type_info_get_ffi_type (iinfo->return_type_info);
+	iinfo->return_type_transfer = g_callable_info_get_caller_owns (info);
+
+	iinfo->dynamic_stack_offset = 0;
+
+	/* If the callback is supposed to return a GInitiallyUnowned object
+	 * then we must enforce GI_TRANSFER_EVERYTHING.  Otherwise, if the Perl
+	 * code returns a newly created object, FREETMPS would finalize it. */
+	if (g_type_info_get_tag (iinfo->return_type_info) == GI_TYPE_TAG_INTERFACE &&
+	    iinfo->return_type_transfer == GI_TRANSFER_NOTHING)
+	{
+		GIBaseInfo *interface = g_type_info_get_interface (iinfo->return_type_info);
+		if (GI_IS_REGISTERED_TYPE_INFO (interface) &&
+		    g_type_is_a (get_gtype (interface),
+		                 G_TYPE_INITIALLY_UNOWNED))
+		{
+			iinfo->return_type_transfer = GI_TRANSFER_EVERYTHING;
+		}
+		g_base_info_unref (interface);
+	}
+}
+
+static void
+_clear_perl_invocation_info (GPerlI11nInvocationInfo *iinfo)
+{
+	/* The actual callback infos might be needed later, so we cannot free
+	 * them here. */
+	g_slist_free (iinfo->callback_infos);
+
+	g_base_info_unref ((GIBaseInfo *) iinfo->return_type_info);
+}
