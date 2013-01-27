@@ -12,6 +12,7 @@ Overview of changes in Glib::Object::Introspection <next>
 * Correctly marshal out/in-out args when invoking Perl code and fix some other
   related bugs.  This makes it possible to implement complicated interfaces
   such as Gtk3::TreeModel.
+* Allow enums and flags to have class functions.
 * Plug a few memory leaks.
 
 Overview of changes in Glib::Object::Introspection 0.013

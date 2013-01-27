@@ -1,5 +1,21 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
+static GIFunctionInfo *
+_find_enum_method (GIEnumInfo *info, const gchar *method)
+{
+	gint n_methods;
+	gint i;
+	n_methods = g_enum_info_get_n_methods (info);
+	for (i = 0; i < n_methods; i++) {
+		GIFunctionInfo *method_info =
+			g_enum_info_get_method (info, i);
+		if (strEQ (g_base_info_get_name (method_info), method))
+			return method_info;
+		g_base_info_unref (method_info);
+	}
+	return NULL;
+}
+
 /* Caller owns return value */
 static GIFunctionInfo *
 get_function_info (GIRepository *repository,
@@ -37,6 +53,12 @@ get_function_info (GIRepository *repository,
                     case GI_INFO_TYPE_UNION:
 			function_info = g_union_info_find_method (
 				(GIUnionInfo *) namespace_info,
+				method);
+			break;
+		    case GI_INFO_TYPE_ENUM:
+		    case GI_INFO_TYPE_FLAGS:
+			function_info = _find_enum_method (
+				(GIEnumInfo *) namespace_info,
 				method);
 			break;
 		    default:

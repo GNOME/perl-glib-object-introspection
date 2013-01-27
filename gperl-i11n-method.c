@@ -46,6 +46,13 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 		break;
 	    }
 
+	    case GI_INFO_TYPE_ENUM:
+	    case GI_INFO_TYPE_FLAGS:
+	    {
+		PUSH_METHODS (enum, av, info);
+		break;
+	    }
+
 	    default:
 		ccroak ("store_methods: unsupported info type %d", info_type);
 	}

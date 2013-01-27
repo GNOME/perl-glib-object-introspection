@@ -366,7 +366,9 @@ _register_types (class, namespace, package)
 		    info_type == GI_INFO_TYPE_INTERFACE ||
 		    info_type == GI_INFO_TYPE_BOXED ||
 		    info_type == GI_INFO_TYPE_STRUCT ||
-		    info_type == GI_INFO_TYPE_UNION)
+		    info_type == GI_INFO_TYPE_UNION ||
+		    info_type == GI_INFO_TYPE_ENUM ||
+		    info_type == GI_INFO_TYPE_FLAGS)
 		{
 			store_methods (namespaced_functions, info, info_type);
 		}
