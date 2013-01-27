@@ -13,6 +13,7 @@ Overview of changes in Glib::Object::Introspection <next>
   related bugs.  This makes it possible to implement complicated interfaces
   such as Gtk3::TreeModel.
 * Allow enums and flags to have class functions.
+* Add API to manually convert between SVs and enums.
 * Plug a few memory leaks.
 
 Overview of changes in Glib::Object::Introspection 0.013

@@ -934,6 +934,26 @@ invoke (class, basename, namespace, function, ...)
 	SPAGAIN;
 	g_base_info_unref ((GIBaseInfo *) info);
 
+gint
+convert_sv_to_enum (class, const gchar *package, SV *sv)
+    PREINIT:
+	GType gtype;
+    CODE:
+	gtype = gperl_type_from_package (package);
+	RETVAL = gperl_convert_enum (gtype, sv);
+    OUTPUT:
+	RETVAL
+
+SV *
+convert_enum_to_sv (class, const gchar *package, gint n)
+    PREINIT:
+	GType gtype;
+    CODE:
+	gtype = gperl_type_from_package (package);
+	RETVAL = gperl_convert_back_enum (gtype, n);
+    OUTPUT:
+	RETVAL
+
 # --------------------------------------------------------------------------- #
 
 MODULE = Glib::Object::Introspection	PACKAGE = Glib::Object::Introspection::GValueWrapper

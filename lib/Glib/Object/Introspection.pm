@@ -470,6 +470,18 @@ wrapper for a function that expects a GValue, do this:
   # substitute $real_value where you'd use $value
   ...
 
+=head2 Handling extendable enumerations
+
+If you need to handle extendable enumerations for which more than the
+pre-defined values might be valid, then use C<<
+Glib::Object::Introspection->convert_enum_to_sv >> and C<<
+Glib::Object::Introspection->convert_sv_to_enum >>.  They will raise an
+exception on unknown values; catching it then allows you to implement fallback
+behavior.
+
+  Glib::Object::Introspection->convert_enum_to_sv (package, enum_value)
+  Glib::Object::Introspection->convert_sv_to_enum (package, sv)
+
 =head1 SEE ALSO
 
 =over
