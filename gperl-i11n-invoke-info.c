@@ -227,13 +227,6 @@ prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	iinfo->is_callback = (g_base_info_get_type (info) == GI_INFO_TYPE_CALLBACK);
 	dwarn ("  is_function = %d, is_vfunc = %d, is_callback = %d, is_signal = %d\n",
 	       iinfo->is_function, iinfo->is_vfunc, iinfo->is_callback, iinfo->is_signal);
-	if (iinfo->is_signal) {
-		 /* FIXME: Need separate iinfo struct for calls into perl, with
-		  * a field "has_implicit_invocant". */
-		iinfo->is_method = TRUE;
-	} else {
-		iinfo->is_method = FALSE;
-	}
 
 	iinfo->n_args = g_callable_info_get_n_args (info);
 

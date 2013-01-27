@@ -10,7 +10,7 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	guint in_inout;
 	guint n_return_values, n_returned;
 	I32 context;
-	SV *instance_sv = NULL, *data_sv = NULL, *first_sv = NULL, *last_sv = NULL;
+	SV *first_sv = NULL, *last_sv = NULL;
 	dGPERL_CALLBACK_MARSHAL_SP;
 
 	PERL_UNUSED_VAR (cif);
@@ -44,22 +44,23 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 
 	/* convert the implicit instance argument and push the first SV onto
 	 * the stack; depending on the "swap" setting, this might be the
-	 * instance or the user data */
-	if (iinfo.is_method) {
+	 * instance or the user data.  this is only relevant for signals. */
+	if (iinfo.is_signal) {
+		SV *instance_sv, *data_sv;
+		args_offset = 1;
 		instance_sv = SAVED_STACK_SV (instance_pointer_to_sv (
 		                                cb_interface,
 		                                CAST_RAW (args[0], gpointer)));
-		args_offset = 1;
+		data_sv = info->data ? SvREFCNT_inc (info->data) : NULL;
+		first_sv = info->swap_data ? data_sv     : instance_sv;
+		last_sv  = info->swap_data ? instance_sv : data_sv;
+		dwarn ("  info->data = %p, info->swap_data = %d\n",
+		       info->data, info->swap_data);
+		dwarn ("  instance = %p, data = %p, first = %p, last = %p\n",
+		       instance_sv, data_sv, first_sv, last_sv);
+		if (first_sv)
+			XPUSHs (sv_2mortal (first_sv));
 	}
-	data_sv = info->data ? SvREFCNT_inc (info->data) : NULL;
-	first_sv = info->swap_data ? data_sv     : instance_sv;
-	last_sv  = info->swap_data ? instance_sv : data_sv;
-	dwarn ("  info->data = %p, info->swap_data = %d\n",
-	       info->data, info->swap_data);
-	dwarn ("  instance = %p, data = %p, first = %p, last = %p\n",
-	       instance_sv, data_sv, first_sv, last_sv);
-	if (first_sv)
-		XPUSHs (sv_2mortal (first_sv));
 
 	/* find arguments; use type information from interface to find in and
 	 * in-out args and their types, count in-out and out args, and find
@@ -125,7 +126,8 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 		g_base_info_unref ((GIBaseInfo *) arg_type);
 	}
 
-	/* push the last SV onto the stack; this might be the user data or the instance */
+	/* push the last SV onto the stack; this might be the user data or the
+	 * instance.  this is only relevant for signals. */
 	if (last_sv)
 		XPUSHs (sv_2mortal (last_sv));
 

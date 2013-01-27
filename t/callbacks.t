@@ -5,11 +5,11 @@ BEGIN { require './t/inc/setup.pl' };
 use strict;
 use warnings;
 
-plan tests => 16;
+plan tests => 25;
 
 my $data = 42;
 my $result = 23;
-my $callback  = sub { is shift, $data; return $result; };
+my $callback  = sub { is @_, 1; is $_[0], $data; return $result; };
 
 is (Regress::test_callback_user_data ($callback, $data), $result);
 
