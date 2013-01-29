@@ -538,17 +538,22 @@ _construct_boxed (class, package)
     CODE:
 	gtype = gperl_boxed_type_from_package (package);
 	if (!gtype)
-		croak ("Could not find GType for package %s", package);
+		ccroak ("Could not find GType for package %s", package);
 	repository = g_irepository_get_default ();
 	info = g_irepository_find_by_gtype (repository, gtype);
 	if (!info) {
 		g_base_info_unref (info);
-		croak ("Could not fetch information for package %s; "
-		       "perhaps it has not been loaded via "
-		       "Glib::Object::Introspection?",
-		       package);
+		ccroak ("Could not fetch information for package %s; "
+		        "perhaps it has not been loaded via "
+		        "Glib::Object::Introspection?",
+		        package);
 	}
 	size = g_struct_info_get_size (info);
+	if (!size) {
+		g_base_info_unref (info);
+		ccroak ("Cannot create boxed struct of unknown size for package %s",
+		        package);
+	}
 	/* We allocate memory for the boxed type here with malloc(), but then
 	 * take a copy of it and discard the original so that the memory we
 	 * hand out is always allocated with the allocator used for the boxed
