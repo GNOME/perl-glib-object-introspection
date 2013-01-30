@@ -5,7 +5,6 @@ gperl-i11n-field.c
 gperl-i11n-gvalue.c
 gperl-i11n-info.c
 gperl-i11n-invoke-c.c
-gperl-i11n-invoke-info.c
 gperl-i11n-invoke-perl.c
 gperl-i11n-marshal-arg.c
 gperl-i11n-marshal-array.c
@@ -29,6 +28,7 @@ NEWS
 perl-Glib-Object-Introspection.doap
 README
 t/00-basic-types.t
+t/arg-checks.t
 t/arrays.t
 t/boxed.t
 t/cairo-integration.t
