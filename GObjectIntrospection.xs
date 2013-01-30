@@ -910,7 +910,7 @@ _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *si
 	warn ("*** Cannot use generic signal marshallers for signal %s of %s "
 	      "unless gobject-introspection >= 1.33.10; "
 	      "any handlers connected to the signal "
-	      "might thus be invoked incorrectly",
+	      "might thus be invoked incorrectly\n",
 	      signal, package);
 }
 #endif

@@ -3,6 +3,7 @@
 static GIFunctionInfo *
 _find_enum_method (GIEnumInfo *info, const gchar *method)
 {
+#if GI_CHECK_VERSION (1, 29, 17)
 	gint n_methods;
 	gint i;
 	n_methods = g_enum_info_get_n_methods (info);
@@ -13,6 +14,7 @@ _find_enum_method (GIEnumInfo *info, const gchar *method)
 			return method_info;
 		g_base_info_unref (method_info);
 	}
+#endif
 	return NULL;
 }
 

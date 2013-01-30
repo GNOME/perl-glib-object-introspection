@@ -49,7 +49,9 @@ store_methods (HV *namespaced_functions, GIBaseInfo *info, GIInfoType info_type)
 	    case GI_INFO_TYPE_ENUM:
 	    case GI_INFO_TYPE_FLAGS:
 	    {
+#if GI_CHECK_VERSION (1, 29, 17)
 		PUSH_METHODS (enum, av, info);
+#endif
 		break;
 	    }
 
