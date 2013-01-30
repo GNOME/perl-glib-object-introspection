@@ -296,6 +296,13 @@ static void call_carp_carp (const char *msg);
 
 MODULE = Glib::Object::Introspection	PACKAGE = Glib::Object::Introspection
 
+gboolean
+CHECK_VERSION (class, gint major, gint minor, gint micro)
+    CODE:
+	RETVAL = GI_CHECK_VERSION (major, minor, micro);
+    OUTPUT:
+	RETVAL
+
 void
 _load_library (class, namespace, version, search_path=NULL)
 	const gchar *namespace
