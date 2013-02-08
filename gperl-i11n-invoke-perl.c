@@ -369,22 +369,6 @@ _prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	iinfo->return_type_transfer = g_callable_info_get_caller_owns (info);
 
 	iinfo->dynamic_stack_offset = 0;
-
-	/* If the callback is supposed to return a GInitiallyUnowned object
-	 * then we must enforce GI_TRANSFER_EVERYTHING.  Otherwise, if the Perl
-	 * code returns a newly created object, FREETMPS would finalize it. */
-	if (g_type_info_get_tag (iinfo->return_type_info) == GI_TYPE_TAG_INTERFACE &&
-	    iinfo->return_type_transfer == GI_TRANSFER_NOTHING)
-	{
-		GIBaseInfo *interface = g_type_info_get_interface (iinfo->return_type_info);
-		if (GI_IS_REGISTERED_TYPE_INFO (interface) &&
-		    g_type_is_a (get_gtype (interface),
-		                 G_TYPE_INITIALLY_UNOWNED))
-		{
-			iinfo->return_type_transfer = GI_TRANSFER_EVERYTHING;
-		}
-		g_base_info_unref (interface);
-	}
 }
 
 static void

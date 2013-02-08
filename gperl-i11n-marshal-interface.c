@@ -124,10 +124,19 @@ sv_to_interface (GIArgInfo * arg_info,
 		} else {
 			arg->v_pointer = gperl_get_object_check (sv, get_gtype (interface));
 		}
-		if (arg->v_pointer && transfer >= GI_TRANSFER_CONTAINER) {
-			g_object_ref (arg->v_pointer);
-			if (G_IS_INITIALLY_UNOWNED (arg->v_pointer)) {
-				g_object_force_floating (arg->v_pointer);
+		if (arg->v_pointer) {
+			GObject *object = arg->v_pointer;
+			if (transfer == GI_TRANSFER_NOTHING &&
+			    object->ref_count == 1 &&
+			    SvTEMP (sv) && SvREFCNT (SvRV (sv)) == 1)
+			{
+				cwarn ("*** Asked to hand out object without ownership transfer, "
+				       "but object is about to be destroyed; "
+				       "adding an additional reference for safety");
+				transfer = GI_TRANSFER_EVERYTHING;
+			}
+			if (transfer >= GI_TRANSFER_CONTAINER) {
+				g_object_ref (arg->v_pointer);
 			}
 		}
 		break;
