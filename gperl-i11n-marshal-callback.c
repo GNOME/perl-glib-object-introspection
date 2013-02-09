@@ -93,7 +93,7 @@ callback_to_sv (GICallableInfo *interface, gpointer func, GPerlI11nInvocationInf
 	GSList *l;
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
 		GPerlI11nCCallbackInfo *callback_info = l->data;
-		if (invocation_info->current_pos == callback_info->destroy_pos) {
+		if ((gint) invocation_info->current_pos == callback_info->destroy_pos) {
 			dwarn ("      destroy notify for C callback %p\n",
 			       callback_info);
 			callback_info->destroy = func;
@@ -146,7 +146,7 @@ callback_data_to_sv (gpointer data,
 		return NULL;
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
 		GPerlI11nCCallbackInfo *callback_info = l->data;
-		if (callback_info->data_pos == invocation_info->current_pos) {
+		if (callback_info->data_pos == (gint) invocation_info->current_pos) {
 			dwarn ("      user data for C callback %p\n",
 			       callback_info);
 			attach_c_callback_data (callback_info, data);

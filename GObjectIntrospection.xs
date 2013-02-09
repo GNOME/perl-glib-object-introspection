@@ -72,8 +72,8 @@ typedef struct {
 	gpointer data;
 	GDestroyNotify destroy;
 
-	guint data_pos;
-	guint destroy_pos;
+	gint data_pos;
+	gint destroy_pos;
 
 	SV *data_sv;
 } GPerlI11nCCallbackInfo;
