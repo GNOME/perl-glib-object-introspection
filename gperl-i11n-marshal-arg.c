@@ -115,7 +115,16 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_ERROR:
-		ccroak ("FIXME - A GError as an in/inout arg?  Should never happen!");
+		if (gperl_sv_is_ref (sv)) {
+			gperl_gerror_from_sv (sv, (GError **) &arg->v_pointer);
+			g_assert (transfer == GI_TRANSFER_EVERYTHING);
+		} else if (gperl_sv_is_defined (sv)) {
+			arg->v_pointer = NULL;
+			g_set_error ((GError **) &arg->v_pointer, 0, 0, "%s", SvPV_nolen (sv));
+			g_assert (transfer == GI_TRANSFER_EVERYTHING);
+		} else {
+			arg->v_pointer = NULL;
+		}
 		break;
 
 	    case GI_TYPE_TAG_UTF8:

@@ -1,6 +1,7 @@
 Overview of changes in Glib::Object::Introspection <next>
 ========================================================
 
+* Allow Perl code to return Glib::Error objects.
 * Register error domains.
 
 Overview of changes in Glib::Object::Introspection 0.014
