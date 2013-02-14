@@ -762,7 +762,6 @@ _find_vfuncs_with_implementation (class, object_package, target_package)
 	GType object_gtype, target_gtype;
 	gpointer object_klass, target_klass;
 	GIObjectInfo *object_info;
-	GIStructInfo *struct_info;
 	gint n_vfuncs, i;
     PPCODE:
 	repository = g_irepository_get_default ();
@@ -774,27 +773,20 @@ _find_vfuncs_with_implementation (class, object_package, target_package)
 	g_assert (target_klass && object_klass);
 	object_info = g_irepository_find_by_gtype (repository, object_gtype);
 	g_assert (object_info && GI_IS_OBJECT_INFO (object_info));
-	struct_info = g_object_info_get_class_struct (object_info);
-	g_assert (struct_info);
 	n_vfuncs = g_object_info_get_n_vfuncs (object_info);
 	for (i = 0; i < n_vfuncs; i++) {
 		GIVFuncInfo *vfunc_info;
 		const gchar *vfunc_name;
-		GIFieldInfo *field_info;
 		gint field_offset;
 		vfunc_info = g_object_info_get_vfunc (object_info, i);
 		vfunc_name = g_base_info_get_name (vfunc_info);
 		/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
-		field_info = get_field_info (struct_info, vfunc_name);
-		g_assert (field_info);
-		field_offset = g_field_info_get_offset (field_info);
+		field_offset = get_vfunc_offset (object_info, vfunc_name);
 		if (G_STRUCT_MEMBER (gpointer, target_klass, field_offset)) {
 			XPUSHs (sv_2mortal (newSVpv (vfunc_name, PL_na)));
 		}
-		g_base_info_unref (field_info);
 		g_base_info_unref (vfunc_info);
 	}
-	g_base_info_unref (struct_info);
 	g_base_info_unref (object_info);
 
 void
@@ -808,9 +800,7 @@ _invoke_fallback_vfunc (class, vfunc_package, vfunc_name, target_package, ...)
 	GIObjectInfo *info;
 	GType gtype;
 	gpointer klass;
-	GIStructInfo *struct_info;
 	GIVFuncInfo *vfunc_info;
-	GIFieldInfo *field_info;
 	gint field_offset;
 	gpointer func_pointer;
     PPCODE:
@@ -823,14 +813,10 @@ _invoke_fallback_vfunc (class, vfunc_package, vfunc_name, target_package, ...)
 	info = g_irepository_find_by_gtype (
 		repository, gperl_object_type_from_package (vfunc_package));
 	g_assert (info && GI_IS_OBJECT_INFO (info));
-	struct_info = g_object_info_get_class_struct (info);
-	g_assert (struct_info);
 	vfunc_info = g_object_info_find_vfunc (info, vfunc_name);
 	g_assert (vfunc_info);
 	/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
-	field_info = get_field_info (struct_info, vfunc_name);
-	g_assert (field_info);
-	field_offset = g_field_info_get_offset (field_info);
+	field_offset = get_vfunc_offset (info, vfunc_name);
 	func_pointer = G_STRUCT_MEMBER (gpointer, klass, field_offset);
 	g_assert (func_pointer);
 	invoke_c_code (vfunc_info, func_pointer,
@@ -841,7 +827,6 @@ _invoke_fallback_vfunc (class, vfunc_package, vfunc_name, target_package, ...)
 	 * pointer.  so we need to make sure that our local variable
 	 * 'sp' is correct before the implicit PUTBACK happens. */
 	SPAGAIN;
-	g_base_info_unref (field_info);
 	g_base_info_unref (vfunc_info);
 	g_base_info_unref (info);
 

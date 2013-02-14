@@ -56,7 +56,9 @@ generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer cl
 			}
 		}
 
-		/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
+		/* We use the field information here rather than the vfunc
+		 * information so that the Perl invoker does not have to deal
+		 * with an implicit invocant. */
 		field_info = get_field_info (struct_info, vfunc_name);
 		g_assert (field_info);
 		field_offset = g_field_info_get_offset (field_info);
@@ -79,3 +81,27 @@ generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer cl
 	}
 	g_base_info_unref (struct_info);
 }
+
+/* ------------------------------------------------------------------------- */
+
+static gint
+get_vfunc_offset (GIObjectInfo *info, const gchar *vfunc_name)
+{
+	GIStructInfo *struct_info;
+	GIFieldInfo *field_info;
+	gint field_offset;
+
+	struct_info = g_object_info_get_class_struct (info);
+	g_assert (struct_info);
+
+	field_info = get_field_info (struct_info, vfunc_name);
+	g_assert (field_info);
+	field_offset = g_field_info_get_offset (field_info);
+
+	g_base_info_unref (field_info);
+	g_base_info_unref (struct_info);
+
+	return field_offset;
+}
+
+

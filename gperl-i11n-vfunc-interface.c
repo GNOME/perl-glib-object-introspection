@@ -30,7 +30,9 @@ generic_interface_init (gpointer iface, gpointer data)
 			perl_method_name = replacement;
 		}
 
-		/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
+		/* We use the field information here rather than the vfunc
+		 * information so that the Perl invoker does not have to deal
+		 * with an implicit invocant. */
 		field_info = get_field_info (struct_info, vfunc_name);
 		g_assert (field_info);
 		field_offset = g_field_info_get_offset (field_info);
