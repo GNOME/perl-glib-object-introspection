@@ -448,6 +448,15 @@ _register_types (class, namespace, package)
 		    case GI_INFO_TYPE_ENUM:
 		    case GI_INFO_TYPE_FLAGS:
 			gperl_register_fundamental (type, full_package);
+#if GI_CHECK_VERSION (1, 29, 17)
+			{
+				const gchar *domain = g_enum_info_get_error_domain (info);
+				if (domain) {
+					gperl_register_error_domain (g_quark_from_string (domain),
+								     type, full_package);
+				}
+			}
+#endif
 			break;
 
 		    default:
