@@ -733,6 +733,7 @@ _find_non_perl_parents (class, basename, object_name, target_package)
 	GIRepository *repository;
 	GIObjectInfo *info;
 	GType gtype, object_gtype;
+	/* FIXME: we should export gperl_type_reg_quark from Glib */
 	GQuark reg_quark = g_quark_from_static_string ("__gperl_type_reg");
     PPCODE:
 	repository = g_irepository_get_default ();
@@ -742,7 +743,6 @@ _find_non_perl_parents (class, basename, object_name, target_package)
 	object_gtype = get_gtype (info);
 	/* find all non-Perl parents up to and including the object type */
 	while ((gtype = g_type_parent (gtype))) {
-		/* FIXME: we should export gperl_type_reg_quark from Glib */
 		if (!g_type_get_qdata (gtype, reg_quark)) {
 			const gchar *package = gperl_object_package_from_type (gtype);
 			XPUSHs (sv_2mortal (newSVpv (package, PL_na)));
