@@ -160,7 +160,7 @@ sv_to_interface (GIArgInfo * arg_info,
 			name = g_base_info_get_name (interface);
 			namespace = g_base_info_get_namespace (interface);
 			package = get_package_for_basename (namespace);
-			parent_type = find_union_member_gtype (package, name);
+			parent_type = package ? find_union_member_gtype (package, name) : 0;
 			if (parent_type && parent_type != G_TYPE_NONE) {
 				arg->v_pointer = gperl_get_boxed_check (
 				                   sv, parent_type);

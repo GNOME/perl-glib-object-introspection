@@ -612,7 +612,8 @@ _get_field (class, basename, namespace, field, invocant)
 		 * {$package}::_i11n_gtype SV.  It gets set for members of
 		 * boxed unions. */
 		const gchar *package = get_package_for_basename (basename);
-		invocant_type = find_union_member_gtype (package, namespace);
+		if (package)
+			invocant_type = find_union_member_gtype (package, namespace);
 	}
 	if (!g_type_is_a (invocant_type, G_TYPE_BOXED))
 		ccroak ("Unable to handle access to field '%s' for type '%s'",
@@ -654,7 +655,8 @@ _set_field (class, basename, namespace, field, invocant, new_value)
 		 * {$package}::_i11n_gtype SV.  It gets set for members of
 		 * boxed unions. */
 		const gchar *package = get_package_for_basename (basename);
-		invocant_type = find_union_member_gtype (package, namespace);
+		if (package)
+			invocant_type = find_union_member_gtype (package, namespace);
 	}
 	if (!g_type_is_a (invocant_type, G_TYPE_BOXED))
 		ccroak ("Unable to handle access to field '%s' for type '%s'",

@@ -6,7 +6,8 @@ get_struct_package (GIBaseInfo* info)
 	const gchar *basename, *package, *name;
 	basename = g_base_info_get_namespace (info);
 	package = get_package_for_basename (basename);
-	g_assert (package);
+	if (!package)
+		return NULL;
 	name = g_base_info_get_name (info);
 	return g_strconcat (package, "::", name, NULL);
 }
@@ -41,6 +42,7 @@ struct_to_sv (GIBaseInfo* info,
 		dwarn ("  disguised struct\n");
 		g_assert (!own);
 		package = get_struct_package (info);
+		g_assert (package);
 		sv = newSV (0);
 		sv_setref_pv (sv, package, pointer);
 		g_free (package);
@@ -112,6 +114,7 @@ sv_to_struct (GITransfer transfer,
 		gchar *package;
 		dwarn ("  disguised struct\n");
 		package = get_struct_package (info);
+		g_assert (package);
 		if (!gperl_sv_is_ref (sv) || !sv_derived_from (sv, package))
 			ccroak ("Cannot convert scalar %p to an object of type %s",
 			        sv, package);

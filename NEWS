@@ -4,6 +4,7 @@ Overview of changes in Glib::Object::Introspection <next>
 * Add support for array arguments to Perl callbacks.
 * Allow Perl code to return Glib::Error objects.
 * Register error domains.
+* Support conversion to raw structs from unregistered libraries.
 
 Overview of changes in Glib::Object::Introspection 0.014
 ========================================================
