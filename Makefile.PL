@@ -35,6 +35,7 @@ my %CONFIG_REQ_PM = (
 
 my %BUILD_REQ = (
   'gobject-introspection-1.0' => '0.10.0',
+  'gmodule-2.0'               => '2.0.0',
   'libffi'                    => '3.0.0',
 );
 
@@ -103,6 +104,18 @@ my %cfg;
 my $cfg_success = eval {
   %cfg = ExtUtils::PkgConfig->find (
     "gobject-introspection-1.0 >= $BUILD_REQ{'gobject-introspection-1.0'}");
+  1;
+};
+if (!$cfg_success) {
+  warn $@;
+  exit 0;
+}
+
+$cfg_success = eval {
+  my %cfg_gmod = ExtUtils::PkgConfig->find (
+    "gmodule-2.0 >= $BUILD_REQ{'gmodule-2.0'}");
+  $cfg{cflags} .= " $cfg_gmod{cflags}";
+  $cfg{libs} .= " $cfg_gmod{libs}";
   1;
 };
 if (!$cfg_success) {
@@ -286,5 +299,9 @@ sub test {
 
 sub postamble {
   my $additional_deps = "\n\n\$(OBJECT) : gperl-i11n-*.c\n\n";
+  if ($^O eq 'MSWin32') {
+    # FIXME: Might need tweaking for nmake...
+    $additional_deps = "\n\n\$(OBJECT) : \$(wildcard gperl-i11n-*.c)\n\n";
+  }
   return Glib::MakeHelper->postamble_clean () . $additional_deps;
 }
