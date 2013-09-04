@@ -39,6 +39,7 @@ raw_to_arg (gpointer raw, GIArgument *arg, GITypeInfo *info)
 		break;
 
 	    case GI_TYPE_TAG_UINT32:
+	    case GI_TYPE_TAG_UNICHAR:
 		arg->v_uint32 = CAST_RAW (raw, guint32);
 		break;
 
@@ -116,6 +117,7 @@ arg_to_raw (GIArgument *arg, gpointer raw, GITypeInfo *info)
 		break;
 
 	    case GI_TYPE_TAG_UINT32:
+	    case GI_TYPE_TAG_UNICHAR:
 		* (guint32 *) raw = arg->v_uint32;
 		break;
 

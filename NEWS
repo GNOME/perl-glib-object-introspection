@@ -1,6 +1,7 @@
 Overview of changes in Glib::Object::Introspection <next>
 ========================================================
 
+* Add support for unicode character arguments to Perl callbacks.
 * Avoid misusing the macro PL_na, thus preventing issues when
   Glib::Object::Introspection is used in conjunction with certain XS modules,
   among them XML::Parser and String::Approx.
