@@ -21,7 +21,7 @@ store_fields (HV *fields, GIBaseInfo *info, GIInfoType info_type)
 			const gchar *field_name;
 			field_info = g_struct_info_get_field ((GIStructInfo *) info, i);
 			field_name = g_base_info_get_name ((GIBaseInfo *) field_info);
-			av_push (av, newSVpv (field_name, PL_na));
+			av_push (av, newSVpv (field_name, 0));
 			g_base_info_unref ((GIBaseInfo *) field_info);
 		}
 		break;
@@ -35,7 +35,7 @@ store_fields (HV *fields, GIBaseInfo *info, GIInfoType info_type)
 			const gchar *field_name;
 			field_info = g_union_info_get_field ((GIUnionInfo *) info, i);
 			field_name = g_base_info_get_name ((GIBaseInfo *) field_info);
-			av_push (av, newSVpv (field_name, PL_na));
+			av_push (av, newSVpv (field_name, 0));
 			g_base_info_unref ((GIBaseInfo *) field_info);
 		}
 		break;

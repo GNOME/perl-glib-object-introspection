@@ -6,7 +6,7 @@ store_objects_with_vfuncs (AV *objects_with_vfuncs, GIObjectInfo *info)
 	if (g_object_info_get_n_vfuncs (info) <= 0)
 		return;
 	av_push (objects_with_vfuncs,
-	         newSVpv (g_base_info_get_name (info), PL_na));
+	         newSVpv (g_base_info_get_name (info), 0));
 }
 
 /* ------------------------------------------------------------------------- */

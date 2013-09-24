@@ -12,7 +12,7 @@ call_carp_croak (const char *msg)
 	SAVETMPS;
 
 	PUSHMARK (SP);
-	XPUSHs (sv_2mortal (newSVpv(msg, PL_na)));
+	XPUSHs (sv_2mortal (newSVpv(msg, 0)));
 	PUTBACK;
 
 	call_pv("Carp::croak", G_VOID | G_DISCARD);
@@ -31,7 +31,7 @@ call_carp_carp (const char *msg)
 	SAVETMPS;
 
 	PUSHMARK (SP);
-	XPUSHs (sv_2mortal (newSVpv(msg, PL_na)));
+	XPUSHs (sv_2mortal (newSVpv(msg, 0)));
 	PUTBACK;
 
 	call_pv("Carp::carp", G_VOID | G_DISCARD);

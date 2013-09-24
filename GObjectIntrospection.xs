@@ -358,15 +358,15 @@ _register_types (class, namespace, package)
 		dwarn ("setting up %s.%s\n", namespace, name);
 
 		if (info_type == GI_INFO_TYPE_CONSTANT) {
-			av_push (constants, newSVpv (name, PL_na));
+			av_push (constants, newSVpv (name, 0));
 		}
 
 		if (info_type == GI_INFO_TYPE_FUNCTION) {
-			av_push (global_functions, newSVpv (name, PL_na));
+			av_push (global_functions, newSVpv (name, 0));
 		}
 
 		if (info_type == GI_INFO_TYPE_INTERFACE) {
-			av_push (interfaces, newSVpv (name, PL_na));
+			av_push (interfaces, newSVpv (name, 0));
 		}
 
 		if (info_type == GI_INFO_TYPE_OBJECT ||
@@ -747,7 +747,7 @@ _find_non_perl_parents (class, basename, object_name, target_package)
 	while ((gtype = g_type_parent (gtype))) {
 		if (!g_type_get_qdata (gtype, reg_quark)) {
 			const gchar *package = gperl_object_package_from_type (gtype);
-			XPUSHs (sv_2mortal (newSVpv (package, PL_na)));
+			XPUSHs (sv_2mortal (newSVpv (package, 0)));
 		}
 		if (gtype == object_gtype) {
 			break;
@@ -785,7 +785,7 @@ _find_vfuncs_with_implementation (class, object_package, target_package)
 		/* FIXME: g_vfunc_info_get_offset does not seem to work here. */
 		field_offset = get_vfunc_offset (object_info, vfunc_name);
 		if (G_STRUCT_MEMBER (gpointer, target_klass, field_offset)) {
-			XPUSHs (sv_2mortal (newSVpv (vfunc_name, PL_na)));
+			XPUSHs (sv_2mortal (newSVpv (vfunc_name, 0)));
 		}
 		g_base_info_unref (vfunc_info);
 	}

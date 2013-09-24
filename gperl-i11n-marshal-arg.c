@@ -228,7 +228,7 @@ arg_to_sv (GIArgument * arg,
 		package = gperl_package_from_type (gtype);
 		if (!package)
 			package = g_type_name (gtype);
-		return package ? newSVpv (package, PL_na) : &PL_sv_undef;
+		return package ? newSVpv (package, 0) : &PL_sv_undef;
 	    }
 
 	    case GI_TYPE_TAG_ARRAY:
@@ -258,7 +258,7 @@ arg_to_sv (GIArgument * arg,
 
 	    case GI_TYPE_TAG_FILENAME:
 	    {
-		SV *sv = newSVpv (arg->v_string, PL_na);
+		SV *sv = newSVpv (arg->v_string, 0);
 		if (own)
 			g_free (arg->v_string);
 		return sv;

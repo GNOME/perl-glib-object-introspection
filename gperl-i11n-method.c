@@ -7,7 +7,7 @@
 		const gchar *function_name; \
 		function_info = g_ ## prefix ## _info_get_method (info, i); \
 		function_name = g_base_info_get_name (function_info); \
-		av_push (av, newSVpv (function_name, PL_na)); \
+		av_push (av, newSVpv (function_name, 0)); \
 		g_base_info_unref (function_info); \
 	}
 

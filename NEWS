@@ -1,3 +1,11 @@
+Overview of changes in Glib::Object::Introspection <next>
+========================================================
+
+* Avoid misusing the macro PL_na, thus preventing issues when
+  Glib::Object::Introspection is used in conjunction with certain XS modules,
+  among them XML::Parser and String::Approx.
+* Fix build on MinGW with dmake.
+
 Overview of changes in Glib::Object::Introspection 0.015
 ========================================================
 
