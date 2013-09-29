@@ -1,4 +1,4 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.016
 ========================================================
 
 * Add support for unicode character arguments to Perl callbacks.
