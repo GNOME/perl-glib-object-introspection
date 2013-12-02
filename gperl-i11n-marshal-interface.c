@@ -227,6 +227,10 @@ sv_to_interface (GIArgInfo * arg_info,
 	    case GI_INFO_TYPE_ENUM:
 	    {
 		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
+		if (G_TYPE_NONE == type) {
+			ccroak ("Could not handle unknown enum type %s",
+			        g_base_info_get_name (interface));
+		}
 		/* FIXME: Check storage type? */
 		arg->v_long = gperl_convert_enum (type, sv);
 		break;
@@ -235,6 +239,10 @@ sv_to_interface (GIArgInfo * arg_info,
 	    case GI_INFO_TYPE_FLAGS:
 	    {
 		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
+		if (G_TYPE_NONE == type) {
+			ccroak ("Could not handle unknown flags type %s",
+			        g_base_info_get_name (interface));
+		}
 		/* FIXME: Check storage type? */
 		arg->v_long = gperl_convert_flags (type, sv);
 		break;
@@ -305,6 +313,10 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 	    case GI_INFO_TYPE_ENUM:
 	    {
 		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
+		if (G_TYPE_NONE == type) {
+			ccroak ("Could not handle unknown enum type %s",
+			        g_base_info_get_name (interface));
+		}
 		/* FIXME: Is it right to just use v_long here? */
 		sv = gperl_convert_back_enum (type, arg->v_long);
 		break;
@@ -313,6 +325,10 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 	    case GI_INFO_TYPE_FLAGS:
 	    {
 		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
+		if (G_TYPE_NONE == type) {
+			ccroak ("Could not handle unknown flags type %s",
+			        g_base_info_get_name (interface));
+		}
 		/* FIXME: Is it right to just use v_long here? */
 		sv = gperl_convert_back_flags (type, arg->v_long);
 		break;

@@ -172,7 +172,11 @@ static GIFieldInfo * get_field_info (GIBaseInfo *info,
                                      const gchar *field_name);
 static GISignalInfo * get_signal_info (GIBaseInfo *container_info,
                                        const gchar *signal_name);
+
+static gchar * sythesize_gtype_name (GIBaseInfo *info);
+static gchar * sythesize_prefixed_gtype_name (GIBaseInfo *info);
 static GType get_gtype (GIRegisteredTypeInfo *info);
+
 static const gchar * get_package_for_basename (const gchar *basename);
 static gboolean is_forbidden_sub_name (const gchar *name);
 
@@ -231,6 +235,9 @@ static gsize size_of_type_tag (GITypeTag type_tag);
 static gsize size_of_interface (GITypeInfo *type_info);
 static gsize size_of_type_info (GITypeInfo *type_info);
 
+/* enums/flags */
+static GType register_unregistered_enum (GIEnumInfo *info);
+
 /* fields */
 static void store_fields (HV *fields, GIBaseInfo *info, GIInfoType info_type);
 static SV * get_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer);
@@ -273,6 +280,7 @@ static void call_carp_carp (const char *msg);
 
 #include "gperl-i11n-callback.c"
 #include "gperl-i11n-croak.c"
+#include "gperl-i11n-enums.c"
 #include "gperl-i11n-field.c"
 #include "gperl-i11n-gvalue.c"
 #include "gperl-i11n-info.c"
@@ -410,8 +418,16 @@ _register_types (class, namespace, package)
 			       namespace, name);
 		}
 		if (type == G_TYPE_NONE) {
-			g_base_info_unref ((GIBaseInfo *) info);
-			continue;
+			/* Try registering unregistered enums/flags. */
+			if (info_type == GI_INFO_TYPE_ENUM || info_type == GI_INFO_TYPE_FLAGS) {
+				type = register_unregistered_enum (info);
+			}
+			/* If there is still no GType, stop this iteration and
+			 * go to the next item. */
+			if (!type || type == G_TYPE_NONE) {
+				g_base_info_unref ((GIBaseInfo *) info);
+				continue;
+			}
 		}
 
 		full_package = g_strconcat (package, "::", name, NULL);

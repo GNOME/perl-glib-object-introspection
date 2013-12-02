@@ -1,6 +1,7 @@
 GObjectIntrospection.xs
 gperl-i11n-callback.c
 gperl-i11n-croak.c
+gperl-i11n-enums.c
 gperl-i11n-field.c
 gperl-i11n-gvalue.c
 gperl-i11n-info.c

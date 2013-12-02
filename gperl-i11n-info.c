@@ -164,31 +164,58 @@ get_signal_info (GIBaseInfo *container_info, const gchar *signal_name)
 	return NULL;
 }
 
+/* Caller owns return value. */
+static gchar *
+sythesize_gtype_name (GIBaseInfo *info)
+{
+	const gchar *namespace = g_base_info_get_namespace (info);
+	const gchar *name = g_base_info_get_name (info);
+	if (0 == strncmp (namespace, "GObject", 8) ||
+	    0 == strncmp (namespace, "GLib", 4))
+	{
+		namespace = "G";
+	}
+	return g_strconcat (namespace, name, NULL);
+}
+
+/* Caller owns return value. */
+static gchar *
+sythesize_prefixed_gtype_name (GIBaseInfo *info)
+{
+	const gchar *namespace = g_base_info_get_namespace (info);
+	const gchar *name = g_base_info_get_name (info);
+	if (0 == strncmp (namespace, "GObject", 8) ||
+	    0 == strncmp (namespace, "GLib", 4))
+	{
+		namespace = "G";
+	}
+	return g_strconcat ("GPerlI11n", namespace, name, NULL);
+}
+
 static GType
 get_gtype (GIRegisteredTypeInfo *info)
 {
 	GType gtype = g_registered_type_info_get_g_type (info);
-	if (gtype == G_TYPE_NONE) {
-		/* Fall back to the registered type name, and if that doesn't
-		 * work either, construct the full name and try that. */
+	/* Fall back to the registered type name, and if that doesn't work
+	 * either, construct the full name and the prefixed full name and try
+	 * them. */
+	if (!gtype || gtype == G_TYPE_NONE) {
 		const gchar *type_name = g_registered_type_info_get_type_name (info);
 		if (type_name) {
 			gtype = g_type_from_name (type_name);
-			return gtype ? gtype : G_TYPE_NONE;
-		} else {
-			gchar *full_name;
-			const gchar *namespace = g_base_info_get_namespace (info);
-			const gchar *name = g_base_info_get_name (info);
-			if (0 == strncmp (namespace, "GObject", 8)) {
-				namespace = "G";
-			}
-			full_name = g_strconcat (namespace, name, NULL);
-			gtype = g_type_from_name (full_name);
-			g_free (full_name);
-			return gtype ? gtype : G_TYPE_NONE;
 		}
 	}
-	return gtype;
+	if (!gtype || gtype == G_TYPE_NONE) {
+		gchar *full_name = sythesize_gtype_name (info);
+		gtype = g_type_from_name (full_name);
+		g_free (full_name);
+	}
+	if (!gtype || gtype == G_TYPE_NONE) {
+		gchar *full_name = sythesize_prefixed_gtype_name (info);
+		gtype = g_type_from_name (full_name);
+		g_free (full_name);
+	}
+	return gtype ? gtype : G_TYPE_NONE;
 }
 
 static const gchar *

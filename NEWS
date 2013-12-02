@@ -1,3 +1,9 @@
+Overview of changes in Glib::Object::Introspection <next>
+========================================================
+
+* Register unregistered enums so that, e.g., GSpawnFlags and VtePtyFlags become
+  usable.
+
 Overview of changes in Glib::Object::Introspection 0.016
 ========================================================
 
