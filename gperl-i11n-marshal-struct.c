@@ -139,7 +139,7 @@ sv_to_struct (GITransfer transfer,
 		g_assert_not_reached ();
 	}
 
-	dwarn ("  size: %d\n", size);
+	dwarn ("  size: %"G_GSIZE_FORMAT"\n", size);
 
 	field_transfer = GI_TRANSFER_NOTHING;
 	dwarn ("  transfer: %d\n", transfer);

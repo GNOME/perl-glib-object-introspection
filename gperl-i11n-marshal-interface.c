@@ -33,7 +33,7 @@ instance_sv_to_pointer (GICallableInfo *info, SV *sv)
 			                        info_type,
 			                        sv);
 		} else {
-			dwarn ("    boxed type: %s (%d)\n",
+			dwarn ("    boxed type: %s (%"G_GSIZE_FORMAT")\n",
 			       g_type_name (type), type);
 			pointer = gperl_get_boxed_check (sv, type);
 		}
@@ -81,11 +81,11 @@ instance_pointer_to_sv (GICallableInfo *info, gpointer pointer)
 			dwarn ("    unboxed type\n");
 			sv = struct_to_sv (container, info_type, pointer, FALSE);
 		} else {
-			dwarn ("    boxed type: %s (%d)\n",
+			dwarn ("    boxed type: %s (%"G_GSIZE_FORMAT")\n",
 			       g_type_name (type), type);
 			sv = gperl_new_boxed (pointer, type, FALSE);
 		}
-		warn ("    -> boxed pointer: %p\n", pointer);
+		dwarn ("    -> boxed pointer: %p\n", pointer);
 		break;
 	    }
 
@@ -246,7 +246,7 @@ sv_to_interface (GIArgInfo * arg_info,
 		break;
 
 	    default:
-		ccroak ("sv_to_interface: Don't know how to handle info type %s (%d)",
+		ccroak ("sv_to_interface: Could not handle info type %s (%d)",
 		        g_info_type_to_string (info_type),
 		        info_type);
 	}
@@ -295,7 +295,7 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 			if (own)
 				g_boxed_free (type, arg->v_pointer);
 		} else {
-			dwarn ("    boxed type: %d (%s)\n",
+			dwarn ("    boxed type: %"G_GSIZE_FORMAT" (%s)\n",
 			       type, g_type_name (type));
 			sv = gperl_new_boxed (arg->v_pointer, type, own);
 		}

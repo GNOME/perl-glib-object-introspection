@@ -55,7 +55,7 @@ array_to_sv (GITypeInfo *info,
 
 	av = newAV ();
 
-	dwarn ("    C array: pointer %p, length %d, item size %d, "
+	dwarn ("    C array: pointer %p, length %"G_GSSIZE_FORMAT", item size %"G_GSIZE_FORMAT", "
 	       "param_info %p with type tag %d (%s)\n",
 	       pointer,
 	       length,

@@ -55,7 +55,8 @@ associate_union_members_with_gtype (GIUnionInfo *info, const gchar *package, GTy
 
 		type_name = g_base_info_get_name (field_interface);
 		full_name = g_strconcat (package, "::", type_name, UNION_MEMBER_TYPE_SUFFIX, NULL);
-		dwarn ("associating %s with GType %d\n", type_name, type);
+		dwarn ("associating %s with GType %"G_GSIZE_FORMAT"\n",
+		       type_name, type);
 		sv = get_sv (full_name, GV_ADD);
 		sv_setuv (sv, type);
 		g_free (full_name);

@@ -523,7 +523,7 @@ _handle_automatic_arg (guint pos,
 	for (l = invocation_info->array_infos; l != NULL; l = l->next) {
 		GPerlI11nArrayInfo *ainfo = l->data;
 		if (pos == ainfo->length_pos) {
-			dwarn ("  setting automatic arg %d (array length) to %d\n",
+			dwarn ("  setting automatic arg %d (array length) to %"G_GSIZE_FORMAT"\n",
 			       pos, ainfo->length);
 			/* FIXME: Is it OK to always use v_size here? */
 			arg->v_size = ainfo->length;

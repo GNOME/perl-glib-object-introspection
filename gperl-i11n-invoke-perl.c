@@ -390,7 +390,8 @@ _prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
 				GIArgInfo *length_arg_info = g_callable_info_get_arg (info, i);
 				GITypeInfo *length_arg_type = g_arg_info_get_type (arg_info);
 				raw_to_arg (args[pos], &iinfo->aux_args[pos], length_arg_type);
-				dwarn ("  pos %d is array length => %d\n", pos, iinfo->aux_args[pos].v_size);
+				dwarn ("  pos %d is array length => %"G_GSIZE_FORMAT"\n",
+				       pos, iinfo->aux_args[pos].v_size);
 				g_base_info_unref (length_arg_type);
 				g_base_info_unref (length_arg_info);
 			}
