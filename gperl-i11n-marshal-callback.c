@@ -71,6 +71,19 @@ sv_to_callback_data (SV * sv,
 			dwarn ("      user data for Perl callback %p\n",
 			       callback_info);
 			attach_perl_callback_data (callback_info, sv);
+			/* If the user did not specify any code and data and if
+			 * there is no destroy notify function, then there is
+			 * no need for us to pass on our callback info struct
+			 * as C user data.  Some libraries (e.g., vte) even
+			 * assert that the C user data be NULL if the C
+			 * function pointer is NULL. */
+			if (!gperl_sv_is_defined (callback_info->code) &&
+			    !gperl_sv_is_defined (callback_info->data) &&
+			    -1 == callback_info->destroy_pos)
+			{
+				dwarn ("        handing over NULL");
+				return NULL;
+			}
 			return callback_info;
 		}
 	}
