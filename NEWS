@@ -1,3 +1,8 @@
+Overview of changes in Glib::Object::Introspection <next>
+========================================================
+
+* Fix registering unregistered enums.
+
 Overview of changes in Glib::Object::Introspection 0.017
 ========================================================
 

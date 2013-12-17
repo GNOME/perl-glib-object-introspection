@@ -27,11 +27,13 @@ register_unregistered_enum (GIEnumInfo *info)
 		return gtype;
 	}
 
-	/* We have to leak enum_values as g_enum_register_static and
+	info_type = g_base_info_get_type (info);
+
+	/* We have to leak 'values' as g_enum_register_static and
 	 * g_flags_register_static assume that what we pass in will be valid
 	 * throughout the lifetime of the program. */
 	gint i, n_values = g_enum_info_get_n_values (info);
-	if (info_type ==  GI_INFO_TYPE_ENUM) {
+	if (info_type == GI_INFO_TYPE_ENUM) {
 		values = g_new0 (GEnumValue, n_values+1); /* zero-terminated */
 		FILL_VALUES ((GEnumValue *) values);
 	} else {
@@ -39,8 +41,7 @@ register_unregistered_enum (GIEnumInfo *info)
 		FILL_VALUES ((GFlagsValue *) values);
 	}
 
-	info_type = g_base_info_get_type(info);
-	if (info_type ==  GI_INFO_TYPE_ENUM) {
+	if (info_type == GI_INFO_TYPE_ENUM) {
 		gtype = g_enum_register_static (full_name, (GEnumValue *) values);
 	} else {
 		gtype = g_flags_register_static (full_name, (GFlagsValue *) values);
