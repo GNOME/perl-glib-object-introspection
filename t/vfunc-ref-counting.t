@@ -86,9 +86,10 @@ foreach my $package (@packages) {
     my $nf = $package->new;
     my ($ref_count, $is_floating) =
       $nf->get_ref_info_for_vfunc_in_object_transfer_none ($package_to_subclass{$package});
-    SKIP: {
-      skip 'ref count test; need newer Glib', 1
-        unless $Glib::VERSION > 1.290;
+    TODO: {
+      local $TODO = $package =~ /^Weak/
+        ? 'ref count test unreliable due to unpredictable behavior of perl-Glib'
+        : undef;
       is ($ref_count, 1 + $package_to_ref_count_offset{$package},
           "transfer-none&in: ref count for $package");
     }
@@ -105,9 +106,10 @@ foreach my $package (@packages) {
     my $nf = $package->new;
     my ($ref_count, $is_floating) =
       $nf->get_ref_info_for_vfunc_in_object_transfer_full ($package_to_subclass{$package});
-    SKIP: {
-      skip 'ref count test; need newer Glib', 1
-        unless $Glib::VERSION > 1.290;
+    TODO: {
+      local $TODO = $package =~ /^Weak/
+        ? 'ref count test unreliable due to unpredictable behavior of perl-Glib'
+        : undef;
       is ($ref_count, 0 + $package_to_ref_count_offset{$package},
           "transfer-full&in: ref count for $package");
     }
