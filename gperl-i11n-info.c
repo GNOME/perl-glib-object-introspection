@@ -171,7 +171,7 @@ sythesize_gtype_name (GIBaseInfo *info)
 	const gchar *namespace = g_base_info_get_namespace (info);
 	const gchar *name = g_base_info_get_name (info);
 	if (0 == strncmp (namespace, "GObject", 8) ||
-	    0 == strncmp (namespace, "GLib", 4))
+	    0 == strncmp (namespace, "GLib", 5))
 	{
 		namespace = "G";
 	}
@@ -185,7 +185,7 @@ sythesize_prefixed_gtype_name (GIBaseInfo *info)
 	const gchar *namespace = g_base_info_get_namespace (info);
 	const gchar *name = g_base_info_get_name (info);
 	if (0 == strncmp (namespace, "GObject", 8) ||
-	    0 == strncmp (namespace, "GLib", 4))
+	    0 == strncmp (namespace, "GLib", 5))
 	{
 		namespace = "G";
 	}
