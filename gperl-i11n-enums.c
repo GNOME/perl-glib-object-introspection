@@ -21,7 +21,7 @@ register_unregistered_enum (GIEnumInfo *info)
 	void *values;
 
 	/* Abort if there already is a GType under this name. */
-	full_name = sythesize_prefixed_gtype_name (info);
+	full_name = synthesize_prefixed_gtype_name (info);
 	if (g_type_from_name (full_name)) {
 		g_free (full_name);
 		return gtype;
