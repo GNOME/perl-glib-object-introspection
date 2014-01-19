@@ -67,7 +67,7 @@ sv_to_callback_data (SV * sv,
 		return NULL;
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
 		GPerlI11nPerlCallbackInfo *callback_info = l->data;
-		if (callback_info->data_pos == invocation_info->current_pos) {
+		if (callback_info->data_pos == ((gint) invocation_info->current_pos)) {
 			dwarn ("      user data for Perl callback %p\n",
 			       callback_info);
 			attach_perl_callback_data (callback_info, sv);

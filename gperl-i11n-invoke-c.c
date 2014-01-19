@@ -522,7 +522,7 @@ _handle_automatic_arg (guint pos,
 	/* array length */
 	for (l = invocation_info->array_infos; l != NULL; l = l->next) {
 		GPerlI11nArrayInfo *ainfo = l->data;
-		if (pos == ainfo->length_pos) {
+		if (((gint) pos) == ainfo->length_pos) {
 			dwarn ("  setting automatic arg %d (array length) to %"G_GSIZE_FORMAT"\n",
 			       pos, ainfo->length);
 			/* FIXME: Is it OK to always use v_size here? */
@@ -534,7 +534,7 @@ _handle_automatic_arg (guint pos,
 	/* callback destroy notify */
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
 		GPerlI11nPerlCallbackInfo *cinfo = l->data;
-		if (pos == cinfo->destroy_pos) {
+		if (((gint) pos) == cinfo->destroy_pos) {
 			dwarn ("  setting automatic arg %d (destroy notify for calllback %p)\n",
 			       pos, cinfo);
 			/* If the code pointer is NULL, then the user actually

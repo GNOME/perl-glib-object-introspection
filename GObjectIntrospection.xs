@@ -52,8 +52,8 @@ typedef struct {
 	gboolean swap_data;
 	SV *args_converter;
 
-	guint data_pos;
-	guint destroy_pos;
+	gint data_pos;
+	gint destroy_pos;
 
 	gboolean free_after_use;
 
@@ -80,7 +80,7 @@ typedef struct {
 
 typedef struct {
 	gsize length;
-	guint length_pos;
+	gint length_pos;
 } GPerlI11nArrayInfo;
 
 /* This stores information that the different marshallers might need to
