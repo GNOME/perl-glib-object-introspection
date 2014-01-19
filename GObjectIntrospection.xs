@@ -173,8 +173,8 @@ static GIFieldInfo * get_field_info (GIBaseInfo *info,
 static GISignalInfo * get_signal_info (GIBaseInfo *container_info,
                                        const gchar *signal_name);
 
-static gchar * sythesize_gtype_name (GIBaseInfo *info);
-static gchar * sythesize_prefixed_gtype_name (GIBaseInfo *info);
+static gchar * synthesize_gtype_name (GIBaseInfo *info);
+static gchar * synthesize_prefixed_gtype_name (GIBaseInfo *info);
 static GType get_gtype (GIRegisteredTypeInfo *info);
 
 static const gchar * get_package_for_basename (const gchar *basename);
