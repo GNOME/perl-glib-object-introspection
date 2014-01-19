@@ -1,6 +1,7 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
 #define FILL_VALUES(values) \
+	{ gint i; \
 	for (i = 0; i < n_values; i++) { \
 		GIValueInfo *value_info = g_enum_info_get_value (info, i); \
 		(values)[i].value = g_value_info_get_value (value_info); \
@@ -10,7 +11,7 @@
 		if (!(values)[i].value_name) \
 			(values)[i].value_name = (values)[i].value_nick; \
 		g_base_info_unref (value_info); \
-	}
+	} }
 
 static GType
 register_unregistered_enum (GIEnumInfo *info)
@@ -19,6 +20,7 @@ register_unregistered_enum (GIEnumInfo *info)
 	gchar *full_name;
 	GIInfoType info_type;
 	void *values;
+	gint n_values;
 
 	/* Abort if there already is a GType under this name. */
 	full_name = synthesize_prefixed_gtype_name (info);
@@ -32,7 +34,7 @@ register_unregistered_enum (GIEnumInfo *info)
 	/* We have to leak 'values' as g_enum_register_static and
 	 * g_flags_register_static assume that what we pass in will be valid
 	 * throughout the lifetime of the program. */
-	gint i, n_values = g_enum_info_get_n_values (info);
+	n_values = g_enum_info_get_n_values (info);
 	if (info_type == GI_INFO_TYPE_ENUM) {
 		values = g_new0 (GEnumValue, n_values+1); /* zero-terminated */
 		FILL_VALUES ((GEnumValue *) values);
