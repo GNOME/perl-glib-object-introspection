@@ -369,7 +369,6 @@ _prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	iinfo->return_type_info = g_callable_info_get_return_type (info);
 	iinfo->has_return_value =
 		GI_TYPE_TAG_VOID != g_type_info_get_tag (iinfo->return_type_info);
-	iinfo->return_type_ffi = g_type_info_get_ffi_type (iinfo->return_type_info);
 	iinfo->return_type_transfer = g_callable_info_get_caller_owns (info);
 
 	iinfo->dynamic_stack_offset = 0;
