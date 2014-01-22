@@ -29,6 +29,10 @@ invoke_c_code (GICallableInfo *info,
 	guint i;
 	GPerlI11nInvocationInfo iinfo = {0,};
 	guint n_return_values;
+#if GI_CHECK_VERSION (1, 32, 0)
+	GIFFIReturnValue ffi_return_value;
+#endif
+	gpointer return_value_p;
 	GIArgument return_value;
 	GError * local_error = NULL;
 	gpointer local_error_address = &local_error;
@@ -45,6 +49,10 @@ invoke_c_code (GICallableInfo *info,
 		iinfo.arg_types[0] = &ffi_type_pointer;
 		iinfo.args[0] = &instance;
 	}
+
+	/*
+	 * --- handle arguments -----------------------------------------------
+	 */
 
 	for (i = 0 ; i < iinfo.n_args ; i++) {
 		GIArgInfo * arg_info;
@@ -172,6 +180,10 @@ invoke_c_code (GICallableInfo *info,
 		iinfo.arg_types[iinfo.n_invoke_args - 1] = &ffi_type_pointer;
 	}
 
+	/*
+	 * --- prepare & call -------------------------------------------------
+	 */
+
 	/* prepare and call the function */
 	if (FFI_OK != ffi_prep_cif (&cif, FFI_DEFAULT_ABI, iinfo.n_invoke_args,
 	                            iinfo.return_type_ffi, iinfo.arg_types))
@@ -180,7 +192,13 @@ invoke_c_code (GICallableInfo *info,
 		ccroak ("Could not prepare a call interface");
 	}
 
-	ffi_call (&cif, func_pointer, &return_value, iinfo.args);
+#if GI_CHECK_VERSION (1, 32, 0)
+	return_value_p = &ffi_return_value;
+#else
+	return_value_p = &return_value;
+#endif
+
+	ffi_call (&cif, func_pointer, return_value_p, iinfo.args);
 
 	/* free call-scoped data */
 	_invoke_free_after_call_handlers (&iinfo);
@@ -190,8 +208,17 @@ invoke_c_code (GICallableInfo *info,
 	}
 
 	/*
-	 * handle return values
+	 * --- handle return values -------------------------------------------
 	 */
+
+#if GI_CHECK_VERSION (1, 32, 0)
+	/* libffi has special semantics for return value storage; see `man
+	 * ffi_call`.  We use gobject-introspection's extraction helper. */
+	gi_type_info_extract_ffi_return_value (iinfo.return_type_info,
+	                                       &ffi_return_value,
+	                                       &return_value);
+#endif
+
 	n_return_values = 0;
 
 	/* place return value and output args on the stack */
