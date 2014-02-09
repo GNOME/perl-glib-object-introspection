@@ -8,10 +8,12 @@ use warnings;
 use utf8;
 use POSIX qw(FLT_MIN FLT_MAX DBL_MIN DBL_MAX);
 
-plan tests => 34;
+plan tests => 36;
 
 ok (Regress::test_boolean (1));
 ok (!Regress::test_boolean (0));
+ok (!Regress::test_boolean (''));
+ok (!Regress::test_boolean (undef));
 is (Regress::test_int8 (-127), -127);
 is (Regress::test_uint8 (255), 255);
 is (Regress::test_int16 (-32767), -32767);

@@ -1,6 +1,7 @@
 Overview of changes in Glib::Object::Introspection <next>
 ========================================================
 
+* Allow undefined values for boolean arguments (and interpret them as "false").
 * Fix a few internal signed/unsigned integer mismatches.
 
 Overview of changes in Glib::Object::Introspection 0.019

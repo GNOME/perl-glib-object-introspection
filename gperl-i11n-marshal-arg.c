@@ -14,9 +14,10 @@ sv_to_arg (SV * sv,
 	GITypeTag tag = g_type_info_get_tag (type_info);
 
 	if (!gperl_sv_is_defined (sv))
-		/* Interfaces and void types need to be able to handle undef
-		 * separately. */
+		/* Interfaces, booleans and void types need to be able to
+		 * handle undef separately.*/
 		if (!may_be_null && tag != GI_TYPE_TAG_INTERFACE
+		                 && tag != GI_TYPE_TAG_BOOLEAN
 		                 && tag != GI_TYPE_TAG_VOID)
 		{
 			if (arg_info) {
