@@ -1,4 +1,4 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.020
 ========================================================
 
 * Allow undefined values for boolean arguments (and interpret them as "false").
