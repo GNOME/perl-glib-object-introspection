@@ -295,8 +295,8 @@ include gtk+, webkit, libsoup and many more.
 
 =head2 C<< Glib::Object::Introspection->setup >>
 
-To allow Glib::Object::Introspection to create bindings for a library, it must
-have installed a typelib file, for example
+To allow Glib::Object::Introspection to create bindings for a library, the
+library must have installed a typelib file, for example
 C<$prefix/lib/girepository-1.0/Gtk-3.0.typelib>.  In your code you then simply
 call C<< Glib::Object::Introspection->setup >> to set everything up.  This
 method takes a couple of key-value pairs as arguments.  These three are
