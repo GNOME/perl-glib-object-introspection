@@ -330,8 +330,8 @@ The rest are optional:
 =item search_path => $search_path
 
 A path that should be used when looking for typelibs.  If you use typelibs from
-system directories, or if your environment is set up correctly, then this
-should not be necessary.
+system directories, or if your environment contains a properly set
+C<GI_TYPELIB_PATH> variable, then this should not be necessary.
 
 =item name_corrections => { auto_name => new_name, ... }
 
