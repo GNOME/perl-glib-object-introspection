@@ -1,4 +1,4 @@
-# Copyright (C) 2010-2013 Torsten Schoenfeld <kaffeetisch@gmx.de>
+# Copyright (C) 2010-2014 Torsten Schoenfeld <kaffeetisch@gmx.de>
 #
 # This library is free software; you can redistribute it and/or modify it under
 # the terms of the GNU Library General Public License as published by the Free
@@ -10,9 +10,8 @@
 # FOR A PARTICULAR PURPOSE.  See the GNU Library General Public License for
 # more details.
 #
-# You should have received a copy of the GNU Library General Public License
-# along with this library; if not, write to the Free Software Foundation, Inc.,
-# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+# See the LICENSE file in the top-level directory of this distribution for the
+# full license terms.
 
 package Glib::Object::Introspection;
 
