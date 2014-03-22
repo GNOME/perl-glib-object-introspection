@@ -1,3 +1,10 @@
+Overview of changes in Glib::Object::Introspection 0.021
+========================================================
+
+* Clarify a statement about typelib files in the docs
+* Mention GI_TYPELIB_PATH in the docs for "search_path"
+* Remove address in GPL notices, refer to LICENSE file
+
 Overview of changes in Glib::Object::Introspection 0.020
 ========================================================
 
