@@ -1,4 +1,4 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.023
 ========================================================
 
 * Fix return value handling on big-endian architectures.
