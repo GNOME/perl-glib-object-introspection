@@ -198,7 +198,12 @@ invoke_c_code (GICallableInfo *info,
 	return_value_p = &return_value;
 #endif
 
+	/* Wrap the call in PUTBACK/SPAGAIN because the C function might end up
+	 * calling Perl code (via a vfunc), which might reallocate the stack
+	 * and hence invalidate 'sp'. */
+	PUTBACK;
 	ffi_call (&cif, func_pointer, return_value_p, iinfo.args);
+	SPAGAIN;
 
 	/* free call-scoped data */
 	_invoke_free_after_call_handlers (&iinfo);

@@ -2,6 +2,7 @@ Overview of changes in Glib::Object::Introspection 0.023
 ========================================================
 
 * Fix return value handling on big-endian architectures.
+* Fix a stack handling bug for Perl vfuncs.
 
 Overview of changes in Glib::Object::Introspection 0.022
 ========================================================
