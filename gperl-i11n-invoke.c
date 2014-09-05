@@ -40,15 +40,19 @@ static void
 clear_invocation_info (GPerlI11nInvocationInfo *iinfo)
 {
 	g_slist_free (iinfo->free_after_call);
+	iinfo->free_after_call = NULL;
 
 	/* The actual callback infos might be needed later, so we cannot free
 	 * them here. */
 	g_slist_free (iinfo->callback_infos);
+	iinfo->callback_infos = NULL;
 
 	g_slist_foreach (iinfo->array_infos, (GFunc) g_free, NULL);
 	g_slist_free (iinfo->array_infos);
+	iinfo->array_infos = NULL;
 
 	g_base_info_unref ((GIBaseInfo *) iinfo->return_type_info);
+	iinfo->return_type_info = NULL;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -78,8 +82,8 @@ _invoke_free_closure (FreeClosure *closure)
 static void
 invoke_free_after_call_handlers (GPerlI11nInvocationInfo *iinfo)
 {
+	/* We free the FreeClosures themselves directly after invoking them.  The list
+	   is freed in clear_invocation_info. */
 	g_slist_foreach (iinfo->free_after_call,
 	                 (GFunc) _invoke_free_closure, NULL);
-	g_slist_free (iinfo->free_after_call);
-	iinfo->free_after_call = NULL;
 }
