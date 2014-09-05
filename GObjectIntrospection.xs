@@ -82,52 +82,76 @@ typedef struct {
 	gint length_pos;
 } GPerlI11nArrayInfo;
 
-/* This stores information that the different marshallers might need to
- * communicate to each other.  This struct is used for invoking C and Perl
- * code. */
+/* The next three structs store information that the different marshallers
+ * might need to communicate to each other.  This struct is the basis used for
+ * invoking C and Perl code. */
 typedef struct {
 	GICallableInfo *interface;
-	const gchar *target_package;
-	const gchar *target_namespace;
-	const gchar *target_function;
 
 	gboolean is_function;
 	gboolean is_vfunc;
 	gboolean is_callback;
 	gboolean is_signal;
 
+	/* The number of args described by the typelib. */
 	guint n_args;
-	guint n_invoke_args;
-	guint n_expected_args;
-	guint n_nullable_args;
-	guint n_given_args;
-	gboolean is_constructor;
-	gboolean is_method;
-	gboolean throws;
 
-	gpointer * args;
-	ffi_type ** arg_types;
-	GIArgument * in_args;
-	GIArgument * out_args;
-	GITypeInfo ** out_arg_infos;
+	/* The current position under investigation in the list of typelib
+	 * args. */
+	guint current_pos;
+
+	/* An array of places for storing out out/in-out or automatic args. */
 	GIArgument * aux_args;
-	gboolean * is_automatic_arg;
 
 	gboolean has_return_value;
 	ffi_type * return_type_ffi;
 	GITypeInfo * return_type_info;
 	GITransfer return_type_transfer;
 
-	guint current_pos;
+	GSList * callback_infos;
+	GSList * array_infos;
+
+	GSList * free_after_call;
+} GPerlI11nInvocationInfo;
+
+/* This struct is used when invoking C code. */
+typedef struct {
+	GPerlI11nInvocationInfo base;
+
+	const gchar *target_package;
+	const gchar *target_namespace;
+	const gchar *target_function;
+
+	gboolean is_constructor;
+	gboolean is_method;
+	gboolean throws;
+
+	/* The number of args that need to be given to the C function. */
+	guint n_invoke_args;
+	/* The number of args for which no value is required. */
+	guint n_nullable_args;
+	/* The number of necessary args, i.e. those that are not automatic or
+	 * nullable. */
+	guint n_expected_args;
+	/* The number of args given by the caller. */
+	guint n_given_args;
+
+	gpointer * args;
+	ffi_type ** arg_types;
+	GIArgument * in_args;
+	GIArgument * out_args;
+	GITypeInfo ** out_arg_infos;
+	gboolean * is_automatic_arg;
+
 	guint method_offset;
 	guint stack_offset;
 	gint dynamic_stack_offset;
+} GPerlI11nCInvocationInfo;
 
-	GSList * callback_infos;
-	GSList * free_after_call;
-
-	GSList * array_infos;
-} GPerlI11nInvocationInfo;
+/* This struct is used when invoking Perl code. */
+typedef struct {
+	GPerlI11nInvocationInfo base;
+} GPerlI11nPerlInvocationInfo;
 
 /* callbacks */
 static GPerlI11nPerlCallbackInfo * create_perl_callback_closure_for_named_sub (GIBaseInfo *cb_info, gchar *sub_name);
@@ -140,6 +164,14 @@ static void attach_c_callback_data (GPerlI11nCCallbackInfo *info, gpointer data)
 static void release_c_callback (gpointer data);
 
 /* invocation */
+static void prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
+                                     GICallableInfo *info);
+static void clear_invocation_info (GPerlI11nInvocationInfo *iinfo);
+
+static void free_after_call (GPerlI11nInvocationInfo *iinfo,
+                             GFunc func, gpointer data);
+static void invoke_free_after_call_handlers (GPerlI11nInvocationInfo *iinfo);
+
 #if GI_CHECK_VERSION (1, 33, 10)
 static void invoke_perl_signal_handler (ffi_cif* cif,
                                         gpointer resp,
@@ -159,8 +191,6 @@ static void invoke_c_code (GICallableInfo *info,
                            const gchar *package,
                            const gchar *namespace,
                            const gchar *function);
-static void free_after_call (GPerlI11nInvocationInfo *iinfo,
-                             GFunc func, gpointer data);
 
 /* info finders */
 static GIFunctionInfo * get_function_info (GIRepository *repository,
@@ -283,6 +313,7 @@ static void call_carp_carp (const char *msg);
 #include "gperl-i11n-field.c"
 #include "gperl-i11n-gvalue.c"
 #include "gperl-i11n-info.c"
+#include "gperl-i11n-invoke.c"
 #include "gperl-i11n-invoke-c.c"
 #include "gperl-i11n-invoke-perl.c"
 #include "gperl-i11n-marshal-arg.c"

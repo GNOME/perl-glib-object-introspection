@@ -1,19 +1,18 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
-static void _prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
+static void _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
                                         GICallableInfo *info,
                                         IV items,
                                         UV internal_stack_offset,
                                         const gchar *package,
                                         const gchar *namespace,
                                         const gchar *function);
-static void _clear_c_invocation_info (GPerlI11nInvocationInfo *iinfo);
-static void _check_n_args (GPerlI11nInvocationInfo *iinfo);
+static void _clear_c_invocation_info (GPerlI11nCInvocationInfo *iinfo);
+static void _check_n_args (GPerlI11nCInvocationInfo *iinfo);
 static void _handle_automatic_arg (guint pos,
                                    GIArgument * arg,
-                                   GPerlI11nInvocationInfo * invocation_info);
+                                   GPerlI11nCInvocationInfo * invocation_info);
 static gpointer _allocate_out_mem (GITypeInfo *arg_type);
-static void _invoke_free_after_call_handlers (GPerlI11nInvocationInfo *iinfo);
 
 static void
 invoke_c_code (GICallableInfo *info,
@@ -27,7 +26,7 @@ invoke_c_code (GICallableInfo *info,
 	ffi_cif cif;
 	gpointer instance = NULL;
 	guint i;
-	GPerlI11nInvocationInfo iinfo = {0,};
+	GPerlI11nCInvocationInfo iinfo;
 	guint n_return_values;
 #if GI_CHECK_VERSION (1, 32, 0)
 	GIFFIReturnValue ffi_return_value;
@@ -54,7 +53,7 @@ invoke_c_code (GICallableInfo *info,
 	 * --- handle arguments -----------------------------------------------
 	 */
 
-	for (i = 0 ; i < iinfo.n_args ; i++) {
+	for (i = 0 ; i < iinfo.base.n_args ; i++) {
 		GIArgInfo * arg_info;
 		GITypeInfo * arg_type;
 		GITransfer transfer;
@@ -83,7 +82,7 @@ invoke_c_code (GICallableInfo *info,
 		 * g_arg_info_get_closure and g_arg_info_get_destroy.  We used
 		 * to add method_offset, but that stopped being correct at some
 		 * point. */
-		iinfo.current_pos = i; /* + method_offset; */
+		iinfo.base.current_pos = i; /* + method_offset; */
 
 		dwarn ("  arg %d, tag: %d (%s), is_pointer: %d, is_automatic: %d\n",
 		       i,
@@ -105,7 +104,7 @@ invoke_c_code (GICallableInfo *info,
 			} else {
 				sv_to_arg (current_sv,
 				           &iinfo.in_args[i], arg_info, arg_type,
-				           transfer, may_be_null, &iinfo);
+				           transfer, may_be_null, &iinfo.base);
 			}
 			iinfo.arg_types[ffi_stack_pos] =
 				g_type_info_get_ffi_type (arg_type);
@@ -115,12 +114,12 @@ invoke_c_code (GICallableInfo *info,
 
 		    case GI_DIRECTION_OUT:
 			if (g_arg_info_is_caller_allocates (arg_info)) {
-				iinfo.aux_args[i].v_pointer =
+				iinfo.base.aux_args[i].v_pointer =
 					_allocate_out_mem (arg_type);
-				iinfo.out_args[i].v_pointer = &iinfo.aux_args[i];
-				iinfo.args[ffi_stack_pos] = &iinfo.aux_args[i];
+				iinfo.out_args[i].v_pointer = &iinfo.base.aux_args[i];
+				iinfo.args[ffi_stack_pos] = &iinfo.base.aux_args[i];
 			} else {
-				iinfo.out_args[i].v_pointer = &iinfo.aux_args[i];
+				iinfo.out_args[i].v_pointer = &iinfo.base.aux_args[i];
 				iinfo.args[ffi_stack_pos] = &iinfo.out_args[i];
 			}
 			iinfo.out_arg_infos[i] = arg_type;
@@ -133,7 +132,7 @@ invoke_c_code (GICallableInfo *info,
 		    case GI_DIRECTION_INOUT:
 			iinfo.in_args[i].v_pointer =
 				iinfo.out_args[i].v_pointer =
-					&iinfo.aux_args[i];
+					&iinfo.base.aux_args[i];
 			if (iinfo.is_automatic_arg[i]) {
 				iinfo.dynamic_stack_offset--;
 			} else if (is_skipped) {
@@ -144,7 +143,7 @@ invoke_c_code (GICallableInfo *info,
 				 * pointed to is filled from the SV. */
 				sv_to_arg (current_sv,
 				           iinfo.in_args[i].v_pointer, arg_info, arg_type,
-				           transfer, may_be_null, &iinfo);
+				           transfer, may_be_null, &iinfo.base);
 			}
 			iinfo.out_arg_infos[i] = arg_type;
 			iinfo.arg_types[ffi_stack_pos] = &ffi_type_pointer;
@@ -156,7 +155,7 @@ invoke_c_code (GICallableInfo *info,
 	}
 
 	/* do another pass to handle automatic args */
-	for (i = 0 ; i < iinfo.n_args ; i++) {
+	for (i = 0 ; i < iinfo.base.n_args ; i++) {
 		GIArgInfo * arg_info;
 		if (!iinfo.is_automatic_arg[i])
 			continue;
@@ -166,7 +165,7 @@ invoke_c_code (GICallableInfo *info,
 			_handle_automatic_arg (i, &iinfo.in_args[i], &iinfo);
 			break;
 		    case GI_DIRECTION_INOUT:
-			_handle_automatic_arg (i, &iinfo.aux_args[i], &iinfo);
+			_handle_automatic_arg (i, &iinfo.base.aux_args[i], &iinfo);
 			break;
 		    case GI_DIRECTION_OUT:
 			/* handled later */
@@ -186,7 +185,7 @@ invoke_c_code (GICallableInfo *info,
 
 	/* prepare and call the function */
 	if (FFI_OK != ffi_prep_cif (&cif, FFI_DEFAULT_ABI, iinfo.n_invoke_args,
-	                            iinfo.return_type_ffi, iinfo.arg_types))
+	                            iinfo.base.return_type_ffi, iinfo.arg_types))
 	{
 		_clear_c_invocation_info (&iinfo);
 		ccroak ("Could not prepare a call interface");
@@ -206,7 +205,7 @@ invoke_c_code (GICallableInfo *info,
 	SPAGAIN;
 
 	/* free call-scoped data */
-	_invoke_free_after_call_handlers (&iinfo);
+	invoke_free_after_call_handlers (&iinfo.base);
 
 	if (local_error) {
 		gperl_croak_gerror (NULL, local_error);
@@ -219,7 +218,7 @@ invoke_c_code (GICallableInfo *info,
 #if GI_CHECK_VERSION (1, 32, 0)
 	/* libffi has special semantics for return value storage; see `man
 	 * ffi_call`.  We use gobject-introspection's extraction helper. */
-	gi_type_info_extract_ffi_return_value (iinfo.return_type_info,
+	gi_type_info_extract_ffi_return_value (iinfo.base.return_type_info,
 	                                       &ffi_return_value,
 	                                       &return_value);
 #endif
@@ -227,7 +226,7 @@ invoke_c_code (GICallableInfo *info,
 	n_return_values = 0;
 
 	/* place return value and output args on the stack */
-	if (iinfo.has_return_value
+	if (iinfo.base.has_return_value
 #if GI_CHECK_VERSION (1, 29, 0)
 	    && !g_callable_info_skip_return ((GICallableInfo *) info)
 #endif
@@ -235,9 +234,9 @@ invoke_c_code (GICallableInfo *info,
 	{
 		SV *value;
 		value = SAVED_STACK_SV (arg_to_sv (&return_value,
-		                                   iinfo.return_type_info,
-		                                   iinfo.return_type_transfer,
-		                                   &iinfo));
+		                                   iinfo.base.return_type_info,
+		                                   iinfo.base.return_type_transfer,
+		                                   &iinfo.base));
 		if (value) {
 			XPUSHs (sv_2mortal (value));
 			n_return_values++;
@@ -245,7 +244,7 @@ invoke_c_code (GICallableInfo *info,
 	}
 
 	/* out args */
-	for (i = 0 ; i < iinfo.n_args ; i++) {
+	for (i = 0 ; i < iinfo.base.n_args ; i++) {
 		GIArgInfo * arg_info;
 		if (iinfo.is_automatic_arg[i])
 			continue;
@@ -269,7 +268,7 @@ invoke_c_code (GICallableInfo *info,
 			sv = SAVED_STACK_SV (arg_to_sv (iinfo.out_args[i].v_pointer,
 			                                iinfo.out_arg_infos[i],
 			                                transfer,
-			                                &iinfo));
+			                                &iinfo.base));
 			if (sv) {
 				XPUSHs (sv_2mortal (sv));
 				n_return_values++;
@@ -294,7 +293,7 @@ invoke_c_code (GICallableInfo *info,
 /* ------------------------------------------------------------------------- */
 
 static void
-_prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
+_prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
                             GICallableInfo *info,
                             IV items,
                             UV internal_stack_offset,
@@ -304,52 +303,49 @@ _prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 {
 	guint i;
 
+	prepare_invocation_info ((GPerlI11nInvocationInfo *) iinfo, info);
+
 	dwarn ("C invoke: %s::%s::%s => %s\n"
 	       "  n_args: %d\n",
 	       package, namespace, function,
 	       g_base_info_get_name (info),
 	       g_callable_info_get_n_args (info));
 
-	iinfo->interface = info;
 	iinfo->target_package = package;
 	iinfo->target_namespace = namespace;
 	iinfo->target_function = function;
 
-	iinfo->is_function = GI_IS_FUNCTION_INFO (info);
-	iinfo->is_vfunc = GI_IS_VFUNC_INFO (info);
-	iinfo->is_callback = (g_base_info_get_type (info) == GI_INFO_TYPE_CALLBACK);
-	dwarn ("  is_function = %d, is_vfunc = %d, is_callback = %d\n",
-	       iinfo->is_function, iinfo->is_vfunc, iinfo->is_callback);
-
 	iinfo->stack_offset = internal_stack_offset;
 
 	iinfo->is_constructor = FALSE;
-	if (iinfo->is_function) {
+	if (iinfo->base.is_function) {
 		iinfo->is_constructor =
 			g_function_info_get_flags (info) & GI_FUNCTION_IS_CONSTRUCTOR;
 	}
 	if (iinfo->is_constructor) {
+		/* If we call a constructor, we skip the initial package name
+		 * resulting from the "Package->new" syntax. */
 		iinfo->stack_offset++;
 	}
 
 	iinfo->n_given_args = items - iinfo->stack_offset;
 
-	iinfo->n_invoke_args = iinfo->n_args =
-		g_callable_info_get_n_args ((GICallableInfo *) info);
+	iinfo->n_invoke_args = iinfo->base.n_args;
 
 	/* FIXME: can a vfunc not throw? */
 	iinfo->throws = FALSE;
-	if (iinfo->is_function) {
+	if (iinfo->base.is_function) {
 		iinfo->throws =
 			g_function_info_get_flags (info) & GI_FUNCTION_THROWS;
 	}
 	if (iinfo->throws) {
+		/* Add one for the implicit GError arg. */
 		iinfo->n_invoke_args++;
 	}
 
-	if (iinfo->is_vfunc) {
+	if (iinfo->base.is_vfunc) {
 		iinfo->is_method = TRUE;
-	} else if (iinfo->is_callback) {
+	} else if (iinfo->base.is_callback) {
 		iinfo->is_method = FALSE;
 	} else {
 		iinfo->is_method =
@@ -357,6 +353,7 @@ _prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 			&& !iinfo->is_constructor;
 	}
 	if (iinfo->is_method) {
+		/* Add one for the implicit invocant arg. */
 		iinfo->n_invoke_args++;
 	}
 
@@ -366,13 +363,6 @@ _prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	       iinfo->is_vfunc ? g_base_info_get_name (info) : g_function_info_get_symbol (info),
 	       iinfo->n_args, iinfo->n_invoke_args, iinfo->n_given_args,
 	       iinfo->is_constructor, iinfo->is_method);
-
-	iinfo->return_type_info =
-		g_callable_info_get_return_type ((GICallableInfo *) info);
-	iinfo->has_return_value =
-		GI_TYPE_TAG_VOID != g_type_info_get_tag (iinfo->return_type_info);
-	iinfo->return_type_ffi = g_type_info_get_ffi_type (iinfo->return_type_info);
-	iinfo->return_type_transfer = g_callable_info_get_caller_owns ((GICallableInfo *) info);
 
 	/* allocate enough space for all args in both the out and in lists.
 	 * we'll only use as much as we need.  since function argument lists
@@ -384,7 +374,6 @@ _prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 		iinfo->out_arg_infos = gperl_alloc_temp (sizeof (GITypeInfo*) * n);
 		iinfo->arg_types = gperl_alloc_temp (sizeof (ffi_type *) * n);
 		iinfo->args = gperl_alloc_temp (sizeof (gpointer) * n);
-		iinfo->aux_args = gperl_alloc_temp (sizeof (GIArgument) * n);
 		iinfo->is_automatic_arg = gperl_alloc_temp (sizeof (gboolean) * n);
 	}
 
@@ -393,7 +382,7 @@ _prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 
 	/* Make a first pass to mark args that are filled in automatically, and
 	 * thus have no counterpart on the Perl side. */
-	for (i = 0 ; i < iinfo->n_args ; i++) {
+	for (i = 0 ; i < iinfo->base.n_args ; i++) {
 		GIArgInfo * arg_info =
 			g_callable_info_get_arg ((GICallableInfo *) info, i);
 		GITypeInfo * arg_type = g_arg_info_get_type (arg_info);
@@ -427,7 +416,7 @@ _prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	/* Make another pass to count the expected args. */
 	iinfo->n_expected_args = iinfo->method_offset;
 	iinfo->n_nullable_args = 0;
-	for (i = 0 ; i < iinfo->n_args ; i++) {
+	for (i = 0 ; i < iinfo->base.n_args ; i++) {
 		GIArgInfo * arg_info =
 			g_callable_info_get_arg ((GICallableInfo *) info, i);
 		GITypeInfo * arg_type = g_arg_info_get_type (arg_info);
@@ -451,8 +440,8 @@ _prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 
 	/* If the return value is an array which comes with an outbound length
 	 * arg, then mark that length arg as automatic, too. */
-	if (g_type_info_get_tag (iinfo->return_type_info) == GI_TYPE_TAG_ARRAY) {
-		gint pos = g_type_info_get_array_length (iinfo->return_type_info);
+	if (g_type_info_get_tag (iinfo->base.return_type_info) == GI_TYPE_TAG_ARRAY) {
+		gint pos = g_type_info_get_array_length (iinfo->base.return_type_info);
 		if (pos >= 0) {
 			GIArgInfo * arg_info =
 				g_callable_info_get_arg ((GICallableInfo *) info, pos);
@@ -468,38 +457,29 @@ _prepare_c_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	 * descendants receive from gobject-introspection: values of this type
 	 * are always marked transfer=none, even for constructors. */
 	if (iinfo->is_constructor &&
-	    g_type_info_get_tag (iinfo->return_type_info) == GI_TYPE_TAG_INTERFACE)
+	    g_type_info_get_tag (iinfo->base.return_type_info) == GI_TYPE_TAG_INTERFACE)
 	{
-		GIBaseInfo * interface = g_type_info_get_interface (iinfo->return_type_info);
+		GIBaseInfo * interface = g_type_info_get_interface (iinfo->base.return_type_info);
 		if (GI_IS_REGISTERED_TYPE_INFO (interface) &&
 		    g_type_is_a (get_gtype (interface),
 		                 G_TYPE_INITIALLY_UNOWNED))
 		{
-			iinfo->return_type_transfer = GI_TRANSFER_EVERYTHING;
+			iinfo->base.return_type_transfer = GI_TRANSFER_EVERYTHING;
 		}
 		g_base_info_unref ((GIBaseInfo *) interface);
 	}
 }
 
 static void
-_clear_c_invocation_info (GPerlI11nInvocationInfo *iinfo)
+_clear_c_invocation_info (GPerlI11nCInvocationInfo *iinfo)
 {
-	g_slist_free (iinfo->free_after_call);
-
-	/* The actual callback infos might be needed later, so we cannot free
-	 * them here. */
-	g_slist_free (iinfo->callback_infos);
-
-	g_slist_foreach (iinfo->array_infos, (GFunc) g_free, NULL);
-	g_slist_free (iinfo->array_infos);
-
-	g_base_info_unref ((GIBaseInfo *) iinfo->return_type_info);
+	clear_invocation_info ((GPerlI11nInvocationInfo *) iinfo);
 }
 
 /* ------------------------------------------------------------------------- */
 
 static gchar *
-_format_target (GPerlI11nInvocationInfo *iinfo)
+_format_target (GPerlI11nCInvocationInfo *iinfo)
 {
 	gchar *caller = NULL;
 	if (iinfo->target_package && iinfo->target_namespace && iinfo->target_function) {
@@ -513,14 +493,14 @@ _format_target (GPerlI11nInvocationInfo *iinfo)
 		                      NULL);
 	} else {
 		caller = g_strconcat ("Callable ",
-		                      g_base_info_get_name (iinfo->interface),
+		                      g_base_info_get_name (iinfo->base.interface),
 		                      NULL);
 	}
 	return caller;
 }
 
 static void
-_check_n_args (GPerlI11nInvocationInfo *iinfo)
+_check_n_args (GPerlI11nCInvocationInfo *iinfo)
 {
 	if (iinfo->n_expected_args != iinfo->n_given_args) {
 		/* Avoid the cost of formatting the target until we know we
@@ -547,12 +527,12 @@ _check_n_args (GPerlI11nInvocationInfo *iinfo)
 static void
 _handle_automatic_arg (guint pos,
                        GIArgument * arg,
-                       GPerlI11nInvocationInfo * invocation_info)
+                       GPerlI11nCInvocationInfo * invocation_info)
 {
 	GSList *l;
 
 	/* array length */
-	for (l = invocation_info->array_infos; l != NULL; l = l->next) {
+	for (l = invocation_info->base.array_infos; l != NULL; l = l->next) {
 		GPerlI11nArrayInfo *ainfo = l->data;
 		if (((gint) pos) == ainfo->length_pos) {
 			dwarn ("  setting automatic arg %d (array length) to %"G_GSIZE_FORMAT"\n",
@@ -564,7 +544,7 @@ _handle_automatic_arg (guint pos,
 	}
 
 	/* callback destroy notify */
-	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
+	for (l = invocation_info->base.callback_infos; l != NULL; l = l->next) {
 		GPerlI11nPerlCallbackInfo *cinfo = l->data;
 		if (((gint) pos) == cinfo->destroy_pos) {
 			dwarn ("  setting automatic arg %d (destroy notify for calllback %p)\n",
@@ -622,37 +602,4 @@ _allocate_out_mem (GITypeInfo *arg_type)
 		g_assert_not_reached ();
 		return NULL;
 	}
-}
-
-/* ------------------------------------------------------------------------- */
-
-typedef struct {
-	GFunc func;
-	gpointer data;
-} FreeClosure;
-
-static void
-free_after_call (GPerlI11nInvocationInfo *iinfo, GFunc func, gpointer data)
-{
-	FreeClosure *closure = g_new (FreeClosure, 1);
-	closure->func = func;
-	closure->data = data;
-	iinfo->free_after_call
-		= g_slist_prepend (iinfo->free_after_call, closure);
-}
-
-static void
-_invoke_free_closure (FreeClosure *closure)
-{
-	closure->func (closure->data, NULL);
-	g_free (closure);
-}
-
-static void
-_invoke_free_after_call_handlers (GPerlI11nInvocationInfo *iinfo)
-{
-	g_slist_foreach (iinfo->free_after_call,
-	                 (GFunc) _invoke_free_closure, NULL);
-	g_slist_free (iinfo->free_after_call);
-	iinfo->free_after_call = NULL;
 }

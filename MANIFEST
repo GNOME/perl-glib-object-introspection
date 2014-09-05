@@ -5,6 +5,7 @@ gperl-i11n-enums.c
 gperl-i11n-field.c
 gperl-i11n-gvalue.c
 gperl-i11n-info.c
+gperl-i11n-invoke.c
 gperl-i11n-invoke-c.c
 gperl-i11n-invoke-perl.c
 gperl-i11n-marshal-arg.c

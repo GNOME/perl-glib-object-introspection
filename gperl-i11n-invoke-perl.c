@@ -1,16 +1,16 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
-static void _prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
+static void _prepare_perl_invocation_info (GPerlI11nPerlInvocationInfo *iinfo,
                                            GICallableInfo *info,
                                            gpointer *args);
-static void _clear_perl_invocation_info (GPerlI11nInvocationInfo *iinfo);
+static void _clear_perl_invocation_info (GPerlI11nPerlInvocationInfo *iinfo);
 
 static void
 invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
 {
 	GPerlI11nPerlCallbackInfo *info;
 	GICallableInfo *cb_interface;
-	GPerlI11nInvocationInfo iinfo = {0,};
+	GPerlI11nPerlInvocationInfo iinfo;
 	guint args_offset = 0, i;
 	guint in_inout;
 	guint n_return_values, n_returned;
@@ -50,7 +50,7 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	/* convert the implicit instance argument and push the first SV onto
 	 * the stack; depending on the "swap" setting, this might be the
 	 * instance or the user data.  this is only relevant for signals. */
-	if (iinfo.is_signal) {
+	if (iinfo.base.is_signal) {
 		SV *instance_sv, *data_sv;
 		args_offset = 1;
 		instance_sv = SAVED_STACK_SV (instance_pointer_to_sv (
@@ -72,13 +72,13 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	 * suitable converters; push in and in-out arguments onto the perl
 	 * stack */
 	in_inout = 0;
-	for (i = 0; i < iinfo.n_args; i++) {
+	for (i = 0; i < iinfo.base.n_args; i++) {
 		GIArgInfo *arg_info = g_callable_info_get_arg (cb_interface, i);
 		GITypeInfo *arg_type = g_arg_info_get_type (arg_info);
 		GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
 		GIDirection direction = g_arg_info_get_direction (arg_info);
 
-		iinfo.current_pos = i;
+		iinfo.base.current_pos = i;
 
 		dwarn ("arg info: %s (%p)\n"
 		       "  direction: %d\n"
@@ -113,7 +113,7 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 				? *((gpointer *) args[i+args_offset])
 				: args[i+args_offset];
 			raw_to_arg (raw, &arg, arg_type);
-			sv = SAVED_STACK_SV (arg_to_sv (&arg, arg_type, transfer, &iinfo));
+			sv = SAVED_STACK_SV (arg_to_sv (&arg, arg_type, transfer, &iinfo.base));
 			/* If arg_to_sv returns NULL, we take that as 'skip
 			 * this argument'; happens for GDestroyNotify, for
 			 * example. */
@@ -149,7 +149,7 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 
 	/* determine suitable Perl call context */
 	context = G_VOID | G_DISCARD;
-	if (iinfo.has_return_value) {
+	if (iinfo.base.has_return_value) {
 		context = in_inout > 0
 		  ? G_ARRAY
 		  : G_SCALAR;
@@ -162,7 +162,7 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	}
 
 	/* do the call, demand #in-out+#out+#return-value return values */
-	n_return_values = iinfo.has_return_value
+	n_return_values = iinfo.base.has_return_value
 	  ? in_inout + 1
 	  : in_inout;
 	n_returned = info->sub_name
@@ -194,7 +194,7 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 		}
 
 		out_index = 0;
-		for (i = 0; i < iinfo.n_args; i++) {
+		for (i = 0; i < iinfo.base.n_args; i++) {
 			GIArgInfo *arg_info = g_callable_info_get_arg (cb_interface, i);
 			GITypeInfo *arg_type = g_arg_info_get_type (arg_info);
 			GIDirection direction = g_arg_info_get_direction (arg_info);
@@ -226,7 +226,7 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 				}
 				sv_to_arg (returned_values[out_index], &tmp_arg,
 				           arg_info, arg_type,
-				           transfer, may_be_null, &iinfo);
+				           transfer, may_be_null, &iinfo.base);
 				if (!is_caller_allocated) {
 					arg_to_raw (&tmp_arg, out_pointer, arg_type);
 				}
@@ -241,14 +241,14 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	}
 
 	/* store return value in resp, if any */
-	if (iinfo.has_return_value) {
+	if (iinfo.base.has_return_value) {
 		GIArgument arg;
 		GITypeInfo *type_info;
 		GITransfer transfer;
 		gboolean may_be_null;
 
-		type_info = iinfo.return_type_info;
-		transfer = iinfo.return_type_transfer;
+		type_info = iinfo.base.return_type_info;
+		transfer = iinfo.base.return_type_transfer;
 		may_be_null = g_callable_info_may_return_null (cb_interface); /* FIXME */
 
 		dwarn ("ret type: %p\n"
@@ -261,7 +261,7 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 		       transfer);
 
 		sv_to_arg (POPs, &arg, NULL, type_info,
-		           transfer, may_be_null, &iinfo);
+		           transfer, may_be_null, &iinfo.base);
 		arg_to_raw (&arg, resp, type_info);
 	}
 
@@ -337,48 +337,30 @@ invoke_perl_signal_handler (ffi_cif* cif, gpointer resp, gpointer* args, gpointe
 /* -------------------------------------------------------------------------- */
 
 static void
-_prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
+_prepare_perl_invocation_info (GPerlI11nPerlInvocationInfo *iinfo,
                                GICallableInfo *info,
                                gpointer *args)
 {
 	guint i;
+
+	prepare_invocation_info ((GPerlI11nInvocationInfo *) iinfo, info);
 
 	dwarn ("Perl invoke: %s\n"
 	       "  n_args: %d\n",
 	       g_base_info_get_name (info),
 	       g_callable_info_get_n_args (info));
 
-	iinfo->interface = info;
-
 	/* When invoking Perl code, we currently always use a complete
 	 * description of the callable (from a record field or some callback
 	 * typedef) for functions, vfuncs and calllbacks.  This implies that
 	 * there is no implicit invocant; it always appears explicitly in the
 	 * arg list.  For signals, however, the invocant is implicit. */
-	iinfo->is_function = GI_IS_FUNCTION_INFO (info);
-	iinfo->is_vfunc = GI_IS_VFUNC_INFO (info);
-	iinfo->is_signal = GI_IS_SIGNAL_INFO (info);
-	iinfo->is_callback = (g_base_info_get_type (info) == GI_INFO_TYPE_CALLBACK);
-	dwarn ("  is_function = %d, is_vfunc = %d, is_callback = %d, is_signal = %d\n",
-	       iinfo->is_function, iinfo->is_vfunc, iinfo->is_callback, iinfo->is_signal);
-
-	iinfo->n_args = g_callable_info_get_n_args (info);
 
 	/* FIXME: 'throws'? */
 
-	iinfo->return_type_info = g_callable_info_get_return_type (info);
-	iinfo->has_return_value =
-		GI_TYPE_TAG_VOID != g_type_info_get_tag (iinfo->return_type_info);
-	iinfo->return_type_transfer = g_callable_info_get_caller_owns (info);
-
-	iinfo->dynamic_stack_offset = 0;
-
 	/* Find array length arguments and store their value in aux_args so
 	 * that array_to_sv can later fetch them. */
-	if (iinfo->n_args) {
-		iinfo->aux_args = gperl_alloc_temp (sizeof (GIArgument) * iinfo->n_args);
-	}
-	for (i = 0 ; i < iinfo->n_args ; i++) {
+	for (i = 0 ; i < iinfo->base.n_args ; i++) {
 		GIArgInfo *arg_info = g_callable_info_get_arg (info, i);
 		GITypeInfo *arg_type = g_arg_info_get_type (arg_info);
 		GITypeTag arg_tag = g_type_info_get_tag (arg_type);
@@ -388,7 +370,7 @@ _prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
 			if (pos >= 0) {
 				GIArgInfo *length_arg_info = g_callable_info_get_arg (info, i);
 				GITypeInfo *length_arg_type = g_arg_info_get_type (arg_info);
-				raw_to_arg (args[pos], &iinfo->aux_args[pos], length_arg_type);
+				raw_to_arg (args[pos], &iinfo->base.aux_args[pos], length_arg_type);
 				dwarn ("  pos %d is array length => %"G_GSIZE_FORMAT"\n",
 				       pos, iinfo->aux_args[pos].v_size);
 				g_base_info_unref (length_arg_type);
@@ -402,11 +384,7 @@ _prepare_perl_invocation_info (GPerlI11nInvocationInfo *iinfo,
 }
 
 static void
-_clear_perl_invocation_info (GPerlI11nInvocationInfo *iinfo)
+_clear_perl_invocation_info (GPerlI11nPerlInvocationInfo *iinfo)
 {
-	/* The actual callback infos might be needed later, so we cannot free
-	 * them here. */
-	g_slist_free (iinfo->callback_infos);
-
-	g_base_info_unref ((GIBaseInfo *) iinfo->return_type_info);
+	clear_invocation_info ((GPerlI11nInvocationInfo *) iinfo);
 }
