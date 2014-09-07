@@ -10,6 +10,8 @@ static void _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 static void _clear_c_invocation_info (GPerlI11nCInvocationInfo *iinfo);
 static void _check_n_args (GPerlI11nCInvocationInfo *iinfo);
 static void _handle_automatic_arg (guint pos,
+                                   GIArgInfo * arg_info,
+                                   GITypeInfo * arg_type,
                                    GIArgument * arg,
                                    GPerlI11nCInvocationInfo * invocation_info);
 static gpointer _allocate_out_mem (GITypeInfo *arg_type);
@@ -150,15 +152,17 @@ invoke_c_code (GICallableInfo *info,
 	/* do another pass to handle automatic args */
 	for (i = 0 ; i < iinfo.base.n_args ; i++) {
 		GIArgInfo * arg_info;
+		GITypeInfo * arg_type;
 		if (!iinfo.is_automatic_arg[i])
 			continue;
 		arg_info = iinfo.base.arg_infos[i];
+		arg_type = iinfo.base.arg_types[i];
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
-			_handle_automatic_arg (i, &iinfo.in_args[i], &iinfo);
+			_handle_automatic_arg (i, arg_info, arg_type, &iinfo.in_args[i], &iinfo);
 			break;
 		    case GI_DIRECTION_INOUT:
-			_handle_automatic_arg (i, &iinfo.base.aux_args[i], &iinfo);
+			_handle_automatic_arg (i, arg_info, arg_type, &iinfo.base.aux_args[i], &iinfo);
 			break;
 		    case GI_DIRECTION_OUT:
 			/* handled later */
@@ -505,6 +509,8 @@ _check_n_args (GPerlI11nCInvocationInfo *iinfo)
 
 static void
 _handle_automatic_arg (guint pos,
+                       GIArgInfo * arg_info,
+                       GITypeInfo * arg_type,
                        GIArgument * arg,
                        GPerlI11nCInvocationInfo * invocation_info)
 {
@@ -514,10 +520,13 @@ _handle_automatic_arg (guint pos,
 	for (l = invocation_info->base.array_infos; l != NULL; l = l->next) {
 		GPerlI11nArrayInfo *ainfo = l->data;
 		if (((gint) pos) == ainfo->length_pos) {
+			SV *conversion_sv;
 			dwarn ("  setting automatic arg %d (array length) to %"G_GSIZE_FORMAT"\n",
 			       pos, ainfo->length);
-			/* FIXME: Is it OK to always use v_size here? */
-			arg->v_size = ainfo->length;
+			conversion_sv = newSVuv (ainfo->length);
+			sv_to_arg (conversion_sv, arg, arg_info, arg_type,
+			           GI_TRANSFER_NOTHING, FALSE, NULL);
+			SvREFCNT_dec (conversion_sv);
 			return;
 		}
 	}

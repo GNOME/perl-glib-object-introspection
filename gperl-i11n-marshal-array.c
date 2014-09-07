@@ -42,10 +42,14 @@ array_to_sv (GITypeInfo *info,
 	} else {
 		length = g_type_info_get_array_fixed_size (info);
 		if (length < 0) {
-			guint length_pos = g_type_info_get_array_length (info);
+			SV *conversion_sv;
+			gint length_pos = g_type_info_get_array_length (info);
 			g_assert (iinfo && iinfo->aux_args);
-			/* FIXME: Is it OK to always use v_size here? */
-			length = iinfo->aux_args[length_pos].v_size;
+			conversion_sv = arg_to_sv (&(iinfo->aux_args[length_pos]),
+			                           iinfo->arg_types[length_pos],
+			                           GI_TRANSFER_NOTHING, NULL);
+			length = SvIV (conversion_sv);
+			SvREFCNT_dec (conversion_sv);
 		}
 	}
 
