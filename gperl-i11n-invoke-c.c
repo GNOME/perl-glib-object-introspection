@@ -200,6 +200,7 @@ invoke_c_code (GICallableInfo *info,
 	invoke_free_after_call_handlers (&iinfo.base);
 
 	if (local_error) {
+		_clear_c_invocation_info (&iinfo);
 		gperl_croak_gerror (NULL, local_error);
 	}
 
