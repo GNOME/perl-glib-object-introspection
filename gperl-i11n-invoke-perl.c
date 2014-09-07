@@ -73,8 +73,8 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	 * stack */
 	in_inout = 0;
 	for (i = 0; i < iinfo.base.n_args; i++) {
-		GIArgInfo *arg_info = g_callable_info_get_arg (cb_interface, i);
-		GITypeInfo *arg_type = g_arg_info_get_type (arg_info);
+		GIArgInfo *arg_info = iinfo.base.arg_infos[i];
+		GITypeInfo *arg_type = iinfo.base.arg_types[i];
 		GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
 		GIDirection direction = g_arg_info_get_direction (arg_info);
 
@@ -126,9 +126,6 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 		{
 			in_inout++;
 		}
-
-		g_base_info_unref ((GIBaseInfo *) arg_info);
-		g_base_info_unref ((GIBaseInfo *) arg_type);
 	}
 
 	/* push the last SV onto the stack; this might be the user data or the
@@ -195,15 +192,13 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 
 		out_index = 0;
 		for (i = 0; i < iinfo.base.n_args; i++) {
-			GIArgInfo *arg_info = g_callable_info_get_arg (cb_interface, i);
-			GITypeInfo *arg_type = g_arg_info_get_type (arg_info);
+			GIArgInfo *arg_info = iinfo.base.arg_infos[i];
+			GITypeInfo *arg_type = iinfo.base.arg_types[i];
 			GIDirection direction = g_arg_info_get_direction (arg_info);
 			gpointer out_pointer = * (gpointer *) args[i+args_offset];
 
 			if (!out_pointer) {
 				dwarn ("skipping out arg %d\n", i);
-				g_base_info_unref (arg_info);
-				g_base_info_unref (arg_type);
 				continue;
 			}
 
@@ -232,9 +227,6 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 				}
 				out_index++;
 			}
-
-			g_base_info_unref (arg_info);
-			g_base_info_unref (arg_type);
 		}
 
 		g_free (returned_values);
@@ -361,25 +353,18 @@ _prepare_perl_invocation_info (GPerlI11nPerlInvocationInfo *iinfo,
 	/* Find array length arguments and store their value in aux_args so
 	 * that array_to_sv can later fetch them. */
 	for (i = 0 ; i < iinfo->base.n_args ; i++) {
-		GIArgInfo *arg_info = g_callable_info_get_arg (info, i);
-		GITypeInfo *arg_type = g_arg_info_get_type (arg_info);
+		GITypeInfo *arg_type = iinfo->base.arg_types[i];
 		GITypeTag arg_tag = g_type_info_get_tag (arg_type);
 
 		if (arg_tag == GI_TYPE_TAG_ARRAY) {
 			gint pos = g_type_info_get_array_length (arg_type);
 			if (pos >= 0) {
-				GIArgInfo *length_arg_info = g_callable_info_get_arg (info, i);
-				GITypeInfo *length_arg_type = g_arg_info_get_type (arg_info);
+				GITypeInfo *length_arg_type = iinfo->base.arg_types[i];
 				raw_to_arg (args[pos], &iinfo->base.aux_args[pos], length_arg_type);
 				dwarn ("  pos %d is array length => %"G_GSIZE_FORMAT"\n",
 				       pos, iinfo->aux_args[pos].v_size);
-				g_base_info_unref (length_arg_type);
-				g_base_info_unref (length_arg_info);
 			}
 		}
-
-		g_base_info_unref (arg_type);
-		g_base_info_unref (arg_info);
 	}
 }
 

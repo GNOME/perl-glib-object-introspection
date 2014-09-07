@@ -100,6 +100,10 @@ typedef struct {
 	 * args. */
 	guint current_pos;
 
+	/* Information about the args from the typelib. */
+	GIArgInfo ** arg_infos;
+	GITypeInfo ** arg_types;
+
 	/* An array of places for storing out out/in-out or automatic args. */
 	GIArgument * aux_args;
 
@@ -137,10 +141,9 @@ typedef struct {
 	guint n_given_args;
 
 	gpointer * args;
-	ffi_type ** arg_types;
+	ffi_type ** arg_types_ffi;
 	GIArgument * in_args;
 	GIArgument * out_args;
-	GITypeInfo ** out_arg_infos;
 	gboolean * is_automatic_arg;
 
 	guint method_offset;

@@ -45,7 +45,7 @@ invoke_c_code (GICallableInfo *info,
 
 	if (iinfo.is_method) {
 		instance = instance_sv_to_pointer (info, ST (0 + iinfo.stack_offset));
-		iinfo.arg_types[0] = &ffi_type_pointer;
+		iinfo.arg_types_ffi[0] = &ffi_type_pointer;
 		iinfo.args[0] = &instance;
 	}
 
@@ -61,10 +61,8 @@ invoke_c_code (GICallableInfo *info,
 		gint perl_stack_pos, ffi_stack_pos;
 		SV *current_sv;
 
-		arg_info = g_callable_info_get_arg ((GICallableInfo *) info, i);
-		/* In case of out and in-out args, arg_type is unref'ed after
-		 * the function has been invoked */
-		arg_type = g_arg_info_get_type (arg_info);
+		arg_info = iinfo.base.arg_infos[i];
+		arg_type = iinfo.base.arg_types[i];
 		transfer = g_arg_info_get_ownership_transfer (arg_info);
 		may_be_null = g_arg_info_may_be_null (arg_info);
 #if GI_CHECK_VERSION (1, 29, 0)
@@ -106,10 +104,9 @@ invoke_c_code (GICallableInfo *info,
 				           &iinfo.in_args[i], arg_info, arg_type,
 				           transfer, may_be_null, &iinfo.base);
 			}
-			iinfo.arg_types[ffi_stack_pos] =
+			iinfo.arg_types_ffi[ffi_stack_pos] =
 				g_type_info_get_ffi_type (arg_type);
 			iinfo.args[ffi_stack_pos] = &iinfo.in_args[i];
-			g_base_info_unref ((GIBaseInfo *) arg_type);
 			break;
 
 		    case GI_DIRECTION_OUT:
@@ -122,8 +119,7 @@ invoke_c_code (GICallableInfo *info,
 				iinfo.out_args[i].v_pointer = &iinfo.base.aux_args[i];
 				iinfo.args[ffi_stack_pos] = &iinfo.out_args[i];
 			}
-			iinfo.out_arg_infos[i] = arg_type;
-			iinfo.arg_types[ffi_stack_pos] = &ffi_type_pointer;
+			iinfo.arg_types_ffi[ffi_stack_pos] = &ffi_type_pointer;
 			/* Adjust the dynamic stack offset so that this out
 			 * argument doesn't inadvertedly eat up an in argument. */
 			iinfo.dynamic_stack_offset--;
@@ -145,13 +141,10 @@ invoke_c_code (GICallableInfo *info,
 				           iinfo.in_args[i].v_pointer, arg_info, arg_type,
 				           transfer, may_be_null, &iinfo.base);
 			}
-			iinfo.out_arg_infos[i] = arg_type;
-			iinfo.arg_types[ffi_stack_pos] = &ffi_type_pointer;
+			iinfo.arg_types_ffi[ffi_stack_pos] = &ffi_type_pointer;
 			iinfo.args[ffi_stack_pos] = &iinfo.in_args[i];
 			break;
 		}
-
-		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
 
 	/* do another pass to handle automatic args */
@@ -159,7 +152,7 @@ invoke_c_code (GICallableInfo *info,
 		GIArgInfo * arg_info;
 		if (!iinfo.is_automatic_arg[i])
 			continue;
-		arg_info = g_callable_info_get_arg ((GICallableInfo *) info, i);
+		arg_info = iinfo.base.arg_infos[i];
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
 			_handle_automatic_arg (i, &iinfo.in_args[i], &iinfo);
@@ -171,12 +164,11 @@ invoke_c_code (GICallableInfo *info,
 			/* handled later */
 			break;
 		}
-		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
 
 	if (iinfo.throws) {
 		iinfo.args[iinfo.n_invoke_args - 1] = &local_error_address;
-		iinfo.arg_types[iinfo.n_invoke_args - 1] = &ffi_type_pointer;
+		iinfo.arg_types_ffi[iinfo.n_invoke_args - 1] = &ffi_type_pointer;
 	}
 
 	/*
@@ -185,7 +177,7 @@ invoke_c_code (GICallableInfo *info,
 
 	/* prepare and call the function */
 	if (FFI_OK != ffi_prep_cif (&cif, FFI_DEFAULT_ABI, iinfo.n_invoke_args,
-	                            iinfo.base.return_type_ffi, iinfo.arg_types))
+	                            iinfo.base.return_type_ffi, iinfo.arg_types_ffi))
 	{
 		_clear_c_invocation_info (&iinfo);
 		ccroak ("Could not prepare a call interface");
@@ -248,10 +240,9 @@ invoke_c_code (GICallableInfo *info,
 		GIArgInfo * arg_info;
 		if (iinfo.is_automatic_arg[i])
 			continue;
-		arg_info = g_callable_info_get_arg ((GICallableInfo *) info, i);
+		arg_info = iinfo.base.arg_infos[i];
 #if GI_CHECK_VERSION (1, 29, 0)
 		if (g_arg_info_is_skip (arg_info)) {
-			g_base_info_unref ((GIBaseInfo *) arg_info);
 			continue;
 		}
 #endif
@@ -266,21 +257,19 @@ invoke_c_code (GICallableInfo *info,
 			         ? GI_TRANSFER_CONTAINER
 			         : g_arg_info_get_ownership_transfer (arg_info);
 			sv = SAVED_STACK_SV (arg_to_sv (iinfo.out_args[i].v_pointer,
-			                                iinfo.out_arg_infos[i],
+			                                iinfo.base.arg_types[i],
 			                                transfer,
 			                                &iinfo.base));
 			if (sv) {
 				XPUSHs (sv_2mortal (sv));
 				n_return_values++;
 			}
-			g_base_info_unref ((GIBaseInfo*) iinfo.out_arg_infos[i]);
 			break;
 		    }
 
 		    default:
 			break;
 		}
-		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
 
 	_clear_c_invocation_info (&iinfo);
@@ -371,8 +360,7 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 		gint n = iinfo->n_invoke_args;
 		iinfo->in_args = gperl_alloc_temp (sizeof (GIArgument) * n);
 		iinfo->out_args = gperl_alloc_temp (sizeof (GIArgument) * n);
-		iinfo->out_arg_infos = gperl_alloc_temp (sizeof (GITypeInfo*) * n);
-		iinfo->arg_types = gperl_alloc_temp (sizeof (ffi_type *) * n);
+		iinfo->arg_types_ffi = gperl_alloc_temp (sizeof (ffi_type *) * n);
 		iinfo->args = gperl_alloc_temp (sizeof (gpointer) * n);
 		iinfo->is_automatic_arg = gperl_alloc_temp (sizeof (gboolean) * n);
 	}
@@ -383,9 +371,8 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 	/* Make a first pass to mark args that are filled in automatically, and
 	 * thus have no counterpart on the Perl side. */
 	for (i = 0 ; i < iinfo->base.n_args ; i++) {
-		GIArgInfo * arg_info =
-			g_callable_info_get_arg ((GICallableInfo *) info, i);
-		GITypeInfo * arg_type = g_arg_info_get_type (arg_info);
+		GIArgInfo * arg_info = iinfo->base.arg_infos[i];
+		GITypeInfo * arg_type = iinfo->base.arg_types[i];
 		GITypeTag arg_tag = g_type_info_get_tag (arg_type);
 
 		if (arg_tag == GI_TYPE_TAG_ARRAY) {
@@ -408,18 +395,14 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 			}
 			g_base_info_unref ((GIBaseInfo *) interface);
 		}
-
-		g_base_info_unref ((GIBaseInfo *) arg_type);
-		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
 
 	/* Make another pass to count the expected args. */
 	iinfo->n_expected_args = iinfo->method_offset;
 	iinfo->n_nullable_args = 0;
 	for (i = 0 ; i < iinfo->base.n_args ; i++) {
-		GIArgInfo * arg_info =
-			g_callable_info_get_arg ((GICallableInfo *) info, i);
-		GITypeInfo * arg_type = g_arg_info_get_type (arg_info);
+		GIArgInfo * arg_info = iinfo->base.arg_infos[i];
+		GITypeInfo * arg_type = iinfo->base.arg_types[i];
 		GITypeTag arg_tag = g_type_info_get_tag (arg_type);
 		gboolean is_out = GI_DIRECTION_OUT == g_arg_info_get_direction (arg_info);
 		gboolean is_automatic = iinfo->is_automatic_arg[i];
@@ -433,9 +416,6 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 		/* Callback user data may always be NULL. */
 		if (g_arg_info_may_be_null (arg_info) || arg_tag == GI_TYPE_TAG_VOID)
 			iinfo->n_nullable_args++;
-
-		g_base_info_unref ((GIBaseInfo *) arg_type);
-		g_base_info_unref ((GIBaseInfo *) arg_info);
 	}
 
 	/* If the return value is an array which comes with an outbound length
@@ -443,13 +423,11 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 	if (g_type_info_get_tag (iinfo->base.return_type_info) == GI_TYPE_TAG_ARRAY) {
 		gint pos = g_type_info_get_array_length (iinfo->base.return_type_info);
 		if (pos >= 0) {
-			GIArgInfo * arg_info =
-				g_callable_info_get_arg ((GICallableInfo *) info, pos);
+			GIArgInfo * arg_info = iinfo->base.arg_infos[pos];
 			if (GI_DIRECTION_OUT == g_arg_info_get_direction (arg_info)) {
 				dwarn ("  pos %d is automatic (array length)\n", pos);
 				iinfo->is_automatic_arg[pos] = TRUE;
 			}
-			g_base_info_unref (arg_info);
 		}
 	}
 

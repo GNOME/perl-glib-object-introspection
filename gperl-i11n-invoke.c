@@ -4,6 +4,8 @@ static void
 prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
                          GICallableInfo *info)
 {
+	guint i;
+
 	dwarn ("invoke: %s\n"
 	       "  n_args: %d\n",
 	       g_base_info_get_name (info),
@@ -20,9 +22,19 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 
 	iinfo->n_args = g_callable_info_get_n_args (info);
 
-	iinfo->aux_args = NULL;
 	if (iinfo->n_args) {
+		iinfo->arg_infos = gperl_alloc_temp (sizeof (GITypeInfo*) * iinfo->n_args);
+		iinfo->arg_types = gperl_alloc_temp (sizeof (GITypeInfo*) * iinfo->n_args);
 		iinfo->aux_args = gperl_alloc_temp (sizeof (GIArgument) * iinfo->n_args);
+	} else {
+		iinfo->arg_infos = NULL;
+		iinfo->arg_types = NULL;
+		iinfo->aux_args = NULL;
+	}
+
+	for (i = 0 ; i < iinfo->n_args ; i++) {
+		iinfo->arg_infos[i] = g_callable_info_get_arg (info, i);
+		iinfo->arg_types[i] = g_arg_info_get_type (iinfo->arg_infos[i]);
 	}
 
 	iinfo->return_type_info = g_callable_info_get_return_type (info);
@@ -33,12 +45,20 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 
 	iinfo->callback_infos = NULL;
 	iinfo->array_infos = NULL;
+
 	iinfo->free_after_call = NULL;
 }
 
 static void
 clear_invocation_info (GPerlI11nInvocationInfo *iinfo)
 {
+	guint i;
+
+	for (i = 0 ; i < iinfo->n_args ; i++) {
+		g_base_info_unref ((GIBaseInfo *) iinfo->arg_types[i]);
+		g_base_info_unref ((GIBaseInfo *) iinfo->arg_infos[i]);
+	}
+
 	g_slist_free (iinfo->free_after_call);
 	iinfo->free_after_call = NULL;
 
