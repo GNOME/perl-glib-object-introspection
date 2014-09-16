@@ -71,9 +71,10 @@ invoke_c_code (GICallableInfo *info,
 		is_skipped = g_arg_info_is_skip (arg_info);
 #endif
 		perl_stack_pos = i
-                               + iinfo.method_offset
-                               + iinfo.stack_offset
-                               + iinfo.dynamic_stack_offset;
+		               + iinfo.constructor_offset
+		               + iinfo.method_offset
+		               + iinfo.stack_offset
+		               + iinfo.dynamic_stack_offset;
 		ffi_stack_pos = i
 		              + iinfo.method_offset;
 
@@ -310,21 +311,14 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 	iinfo->target_function = function;
 
 	iinfo->stack_offset = internal_stack_offset;
+	iinfo->n_given_args = items - iinfo->stack_offset;
+	iinfo->n_invoke_args = iinfo->base.n_args;
 
 	iinfo->is_constructor = FALSE;
 	if (iinfo->base.is_function) {
 		iinfo->is_constructor =
 			g_function_info_get_flags (info) & GI_FUNCTION_IS_CONSTRUCTOR;
 	}
-	if (iinfo->is_constructor) {
-		/* If we call a constructor, we skip the initial package name
-		 * resulting from the "Package->new" syntax. */
-		iinfo->stack_offset++;
-	}
-
-	iinfo->n_given_args = items - iinfo->stack_offset;
-
-	iinfo->n_invoke_args = iinfo->base.n_args;
 
 	/* FIXME: can a vfunc not throw? */
 	iinfo->throws = FALSE;
@@ -370,6 +364,10 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 		iinfo->is_automatic_arg = gperl_alloc_temp (sizeof (gboolean) * n);
 	}
 
+	/* If we call a constructor, we skip the initial package name resulting
+	 * from the "Package->new" syntax.  If we call a method, we handle the
+	 * invocant separately. */
+	iinfo->constructor_offset = iinfo->is_constructor ? 1 : 0;
 	iinfo->method_offset = iinfo->is_method ? 1 : 0;
 	iinfo->dynamic_stack_offset = 0;
 
@@ -403,7 +401,7 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 	}
 
 	/* Make another pass to count the expected args. */
-	iinfo->n_expected_args = iinfo->method_offset;
+	iinfo->n_expected_args = iinfo->constructor_offset + iinfo->method_offset;
 	iinfo->n_nullable_args = 0;
 	for (i = 0 ; i < iinfo->base.n_args ; i++) {
 		GIArgInfo * arg_info = iinfo->base.arg_infos[i];
@@ -492,12 +490,12 @@ _check_n_args (GPerlI11nCInvocationInfo *iinfo)
 		if (iinfo->n_given_args < (iinfo->n_expected_args - iinfo->n_nullable_args)) {
 			caller = _format_target (iinfo);
 			ccroak ("%s: passed too few parameters "
-			        "(expected %d, got %d)",
+			        "(expected %u, got %u)",
 			        caller, iinfo->n_expected_args, iinfo->n_given_args);
 		} else if (iinfo->n_given_args > iinfo->n_expected_args) {
 			caller = _format_target (iinfo);
 			cwarn ("*** %s: passed too many parameters "
-			       "(expected %d, got %d); ignoring excess",
+			       "(expected %u, got %u); ignoring excess",
 			       caller, iinfo->n_expected_args, iinfo->n_given_args);
 		}
 		if (caller)

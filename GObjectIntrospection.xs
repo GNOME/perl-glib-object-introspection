@@ -146,6 +146,7 @@ typedef struct {
 	GIArgument * out_args;
 	gboolean * is_automatic_arg;
 
+	guint constructor_offset;
 	guint method_offset;
 	guint stack_offset;
 	gint dynamic_stack_offset;
