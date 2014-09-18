@@ -4,6 +4,10 @@ static void _prepare_perl_invocation_info (GPerlI11nPerlInvocationInfo *iinfo,
                                            GICallableInfo *info,
                                            gpointer *args);
 static void _clear_perl_invocation_info (GPerlI11nPerlInvocationInfo *iinfo);
+static void _fill_ffi_return_value (GITypeInfo *return_info,
+                                    gpointer resp,
+                                    GIArgument *arg);
+
 
 static void
 invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata)
@@ -255,7 +259,7 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 
 		sv_to_arg (POPs, &arg, NULL, type_info,
 		           transfer, may_be_null, &iinfo.base);
-		arg_to_raw (&arg, resp, type_info);
+		_fill_ffi_return_value (type_info, resp, &arg);
 	}
 
 	PUTBACK;
@@ -373,4 +377,77 @@ static void
 _clear_perl_invocation_info (GPerlI11nPerlInvocationInfo *iinfo)
 {
 	clear_invocation_info ((GPerlI11nInvocationInfo *) iinfo);
+}
+
+/* ------------------------------------------------------------------------- */
+
+/* Copied from pygobject's pygi-closure.c. */
+static void
+_fill_ffi_return_value (GITypeInfo *return_info,
+                        gpointer resp,
+                        GIArgument *arg)
+{
+	if (!resp)
+		return;
+	switch (g_type_info_get_tag (return_info)) {
+	    case GI_TYPE_TAG_BOOLEAN:
+		*((ffi_sarg *) resp) = arg->v_boolean;
+		break;
+	    case GI_TYPE_TAG_INT8:
+		*((ffi_sarg *) resp) = arg->v_int8;
+		break;
+	    case GI_TYPE_TAG_UINT8:
+		*((ffi_arg *) resp) = arg->v_uint8;
+		break;
+	    case GI_TYPE_TAG_INT16:
+		*((ffi_sarg *) resp) = arg->v_int16;
+		break;
+	    case GI_TYPE_TAG_UINT16:
+		*((ffi_arg *) resp) = arg->v_uint16;
+		break;
+	    case GI_TYPE_TAG_INT32:
+		*((ffi_sarg *) resp) = arg->v_int32;
+		break;
+	    case GI_TYPE_TAG_UINT32:
+		*((ffi_arg *) resp) = arg->v_uint32;
+		break;
+	    case GI_TYPE_TAG_INT64:
+		*((ffi_sarg *) resp) = arg->v_int64;
+		break;
+	    case GI_TYPE_TAG_UINT64:
+		*((ffi_arg *) resp) = arg->v_uint64;
+		break;
+	    case GI_TYPE_TAG_FLOAT:
+		*((gfloat *) resp) = arg->v_float;
+		break;
+	    case GI_TYPE_TAG_DOUBLE:
+		*((gdouble *) resp) = arg->v_double;
+		break;
+	    case GI_TYPE_TAG_GTYPE:
+		*((ffi_arg *) resp) = arg->v_size;
+		break;
+	    case GI_TYPE_TAG_UNICHAR:
+		*((ffi_arg *) resp) = arg->v_uint32;
+		break;
+	    case GI_TYPE_TAG_INTERFACE:
+		{
+			GIBaseInfo *interface_info;
+			interface_info = g_type_info_get_interface (return_info);
+			switch (g_base_info_get_type (interface_info)) {
+			    case GI_INFO_TYPE_ENUM:
+				*(ffi_sarg *) resp = arg->v_int;
+				break;
+			    case GI_INFO_TYPE_FLAGS:
+				*(ffi_arg *) resp = arg->v_uint;
+				break;
+			    default:
+				*(ffi_arg *) resp = (ffi_arg) arg->v_pointer;
+				break;
+			}
+			break;
+		}
+	    default:
+		*(ffi_arg *) resp = (ffi_arg) arg->v_pointer;
+		break;
+	}
 }
