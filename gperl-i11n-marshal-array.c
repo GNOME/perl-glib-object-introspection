@@ -71,7 +71,7 @@ array_to_sv (GITypeInfo *info,
 	for (i = 0; i < length; i++) {
 		GIArgument *arg;
 		SV *value;
-		arg = pointer + i * item_size;
+		arg = pointer + ((gsize) i) * item_size;
 		value = arg_to_sv (arg, param_info, item_transfer, iinfo);
 		if (value)
 			av_push (av, value);
@@ -95,7 +95,8 @@ sv_to_array (GITransfer transfer,
 	GITransfer item_transfer;
 	GITypeInfo *param_info;
 	GITypeTag param_tag;
-	gint i, length, length_pos;
+	gint length_pos;
+	gsize i, length;
 	GPerlI11nArrayInfo *array_info = NULL;
         GArray *array;
         gpointer raw_array;
@@ -137,7 +138,7 @@ sv_to_array (GITransfer transfer,
 
 	is_zero_terminated = g_type_info_is_zero_terminated (type_info);
 	item_size = size_of_type_info (param_info);
-	length = av_len (av) + 1;
+	length = (gsize) (av_len (av) + 1); /* av_len always returns at least -1 */
 	array = g_array_sized_new (is_zero_terminated, FALSE, item_size, length);
 
 	/* Arrays containing non-basic types as non-pointers need to be treated

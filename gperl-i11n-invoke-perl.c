@@ -13,7 +13,8 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	GPerlI11nPerlInvocationInfo iinfo;
 	guint args_offset = 0, i;
 	guint in_inout;
-	guint n_return_values, n_returned;
+	guint n_return_values;
+	I32 n_returned;
 	I32 context;
 	SV *first_sv = NULL, *last_sv = NULL;
 	dGPERL_CALLBACK_MARSHAL_SP;
@@ -165,9 +166,9 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	n_returned = info->sub_name
 		? call_method (info->sub_name, context)
 		: call_sv (info->code, context);
-	if (n_return_values != 0 && n_returned != n_return_values) {
+	if (n_return_values != 0 && (n_returned < 0 || ((guint) n_returned) != n_return_values)) {
 		ccroak ("callback returned %d values "
-		        "but is supposed to return %d values",
+		        "but is supposed to return %u values",
 		        n_returned, n_return_values);
 	}
 

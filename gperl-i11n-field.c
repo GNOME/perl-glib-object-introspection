@@ -67,7 +67,7 @@ get_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer)
 	    g_type_info_get_tag (field_type) == GI_TYPE_TAG_INTERFACE &&
 	    g_base_info_get_type (interface_info) == GI_INFO_TYPE_STRUCT)
 	{
-		gsize offset;
+		gint offset;
 		offset = g_field_info_get_offset (field_info);
 		value.v_pointer = mem + offset;
 		sv = arg_to_sv (&value,
@@ -114,9 +114,9 @@ set_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer, SV *sv)
 		/* FIXME: No GIArgInfo and no GPerlI11nInvocationInfo here.
 		 * What if the struct contains an object pointer, or a callback
 		 * field? */
-		gsize offset = g_field_info_get_offset (field_info);
+		gint offset = g_field_info_get_offset (field_info);
 		if (!g_type_info_is_pointer (field_type)) {	/* By value */
-			gssize size;
+			gsize size;
 			/* Enforce GI_TRANSFER_NOTHING since we will copy into
 			 * the memory that has already been allocated inside
 			 * 'mem' */
@@ -162,7 +162,7 @@ set_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer, SV *sv)
 	else if (tag == GI_TYPE_TAG_VOID &&
 	         g_type_info_is_pointer (field_type))
 	{
-		gsize offset = g_field_info_get_offset (field_info);
+		gint offset = g_field_info_get_offset (field_info);
 		sv_to_arg (sv, &arg, NULL, field_type,
 		           transfer, TRUE, NULL);
 		G_STRUCT_MEMBER (gpointer, mem, offset) = arg.v_pointer;

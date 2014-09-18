@@ -1,10 +1,10 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
-#define FILL_VALUES(values) \
+#define FILL_VALUES(values, value_type)                                 \
 	{ gint i; \
 	for (i = 0; i < n_values; i++) { \
 		GIValueInfo *value_info = g_enum_info_get_value (info, i); \
-		(values)[i].value = g_value_info_get_value (value_info); \
+		(values)[i].value = (value_type) g_value_info_get_value (value_info); \
 		/* FIXME: Can we assume that the strings will stick around long enough? */ \
 		(values)[i].value_nick = g_base_info_get_name (value_info); \
 		(values)[i].value_name = g_base_info_get_attribute (value_info, "c:identifier"); \
@@ -37,10 +37,10 @@ register_unregistered_enum (GIEnumInfo *info)
 	n_values = g_enum_info_get_n_values (info);
 	if (info_type == GI_INFO_TYPE_ENUM) {
 		values = g_new0 (GEnumValue, n_values+1); /* zero-terminated */
-		FILL_VALUES ((GEnumValue *) values);
+		FILL_VALUES ((GEnumValue *) values, gint);
 	} else {
 		values = g_new0 (GFlagsValue, n_values+1); /* zero-terminated */
-		FILL_VALUES ((GFlagsValue *) values);
+		FILL_VALUES ((GFlagsValue *) values, guint);
 	}
 
 	if (info_type == GI_INFO_TYPE_ENUM) {

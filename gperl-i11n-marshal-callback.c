@@ -117,7 +117,7 @@ callback_to_sv (GICallableInfo *interface, gpointer func, GPerlI11nInvocationInf
 	}
 
 	arg_info = g_callable_info_get_arg (invocation_info->interface,
-	                                    invocation_info->current_pos);
+	                                    (gint) invocation_info->current_pos);
 
 	dwarn ("      C callback at %d (%s)\n",
 	       invocation_info->current_pos,

@@ -4,6 +4,7 @@ static void
 prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
                          GICallableInfo *info)
 {
+	gint orig_n_args;
 	guint i;
 
 	dwarn ("invoke: %s\n"
@@ -20,7 +21,9 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	dwarn ("  is_function = %d, is_vfunc = %d, is_callback = %d\n",
 	       iinfo->is_function, iinfo->is_vfunc, iinfo->is_callback);
 
-	iinfo->n_args = g_callable_info_get_n_args (info);
+	orig_n_args = g_callable_info_get_n_args (info);
+	g_assert (orig_n_args >= 0);
+	iinfo->n_args = (guint) orig_n_args;
 
 	if (iinfo->n_args) {
 		iinfo->arg_infos = gperl_alloc_temp (sizeof (GITypeInfo*) * iinfo->n_args);
@@ -33,7 +36,7 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	}
 
 	for (i = 0 ; i < iinfo->n_args ; i++) {
-		iinfo->arg_infos[i] = g_callable_info_get_arg (info, i);
+		iinfo->arg_infos[i] = g_callable_info_get_arg (info, (gint) i);
 		iinfo->arg_types[i] = g_arg_info_get_type (iinfo->arg_infos[i]);
 	}
 

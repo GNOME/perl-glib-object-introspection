@@ -215,7 +215,8 @@ arg_to_sv (GIArgument * arg,
 		SV *sv;
 		gchar buffer[6];
 		gint length = g_unichar_to_utf8 (arg->v_uint32, buffer);
-		sv = newSVpv (buffer, length);
+		g_assert (length >= 0);
+		sv = newSVpv (buffer, (STRLEN) length);
 		SvUTF8_on (sv);
 		return sv;
 	    }

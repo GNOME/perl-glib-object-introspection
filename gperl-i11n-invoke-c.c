@@ -70,13 +70,14 @@ invoke_c_code (GICallableInfo *info,
 #if GI_CHECK_VERSION (1, 29, 0)
 		is_skipped = g_arg_info_is_skip (arg_info);
 #endif
-		perl_stack_pos = i
-		               + iinfo.constructor_offset
-		               + iinfo.method_offset
-		               + iinfo.stack_offset
+		perl_stack_pos = (gint) i
+		               + (gint) iinfo.constructor_offset
+		               + (gint) iinfo.method_offset
+		               + (gint) iinfo.stack_offset
 		               + iinfo.dynamic_stack_offset;
-		ffi_stack_pos = i
-		              + iinfo.method_offset;
+		ffi_stack_pos = (gint) i
+		              + (gint) iinfo.method_offset;
+		g_assert (perl_stack_pos >= 0 && ffi_stack_pos >= 0);
 
 		/* FIXME: Is this right?  I'm confused about the relation of
 		 * the numbers in g_callable_info_get_arg and
@@ -310,8 +311,9 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 	iinfo->target_namespace = namespace;
 	iinfo->target_function = function;
 
-	iinfo->stack_offset = internal_stack_offset;
-	iinfo->n_given_args = items - iinfo->stack_offset;
+	iinfo->stack_offset = (guint) internal_stack_offset;
+	g_assert (items >= iinfo->stack_offset);
+	iinfo->n_given_args = ((guint) items) - iinfo->stack_offset;
 	iinfo->n_invoke_args = iinfo->base.n_args;
 
 	iinfo->is_constructor = FALSE;
@@ -356,7 +358,7 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 	 * we'll only use as much as we need.  since function argument lists
 	 * are typically small, this shouldn't be a big problem. */
 	if (iinfo->n_invoke_args) {
-		gint n = iinfo->n_invoke_args;
+		guint n = iinfo->n_invoke_args;
 		iinfo->in_args = gperl_alloc_temp (sizeof (GIArgument) * n);
 		iinfo->out_args = gperl_alloc_temp (sizeof (GIArgument) * n);
 		iinfo->arg_types_ffi = gperl_alloc_temp (sizeof (ffi_type *) * n);
