@@ -1,5 +1,8 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
+void _store_enum (GIEnumInfo * info, gint value, GIArgument * arg);
+gint _retrieve_enum (GIEnumInfo * info, GIArgument * arg);
+
 static gpointer
 instance_sv_to_pointer (GICallableInfo *info, SV *sv)
 {
@@ -226,25 +229,27 @@ sv_to_interface (GIArgInfo * arg_info,
 
 	    case GI_INFO_TYPE_ENUM:
 	    {
+		gint value;
 		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		if (G_TYPE_NONE == type) {
 			ccroak ("Could not handle unknown enum type %s",
 			        g_base_info_get_name (interface));
 		}
-		/* FIXME: Check storage type? */
-		arg->v_long = gperl_convert_enum (type, sv);
+		value = gperl_convert_enum (type, sv);
+		_store_enum (interface, value, arg);
 		break;
 	    }
 
 	    case GI_INFO_TYPE_FLAGS:
 	    {
+		gint value;
 		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		if (G_TYPE_NONE == type) {
 			ccroak ("Could not handle unknown flags type %s",
 			        g_base_info_get_name (interface));
 		}
-		/* FIXME: Check storage type? */
-		arg->v_long = gperl_convert_flags (type, sv);
+		value = gperl_convert_flags (type, sv);
+		_store_enum (interface, value, arg);
 		break;
 	    }
 
@@ -312,25 +317,27 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 
 	    case GI_INFO_TYPE_ENUM:
 	    {
+		gint value;
 		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		if (G_TYPE_NONE == type) {
 			ccroak ("Could not handle unknown enum type %s",
 			        g_base_info_get_name (interface));
 		}
-		/* FIXME: Is it right to just use v_long here? */
-		sv = gperl_convert_back_enum (type, arg->v_long);
+		value = _retrieve_enum (interface, arg);
+		sv = gperl_convert_back_enum (type, value);
 		break;
 	    }
 
 	    case GI_INFO_TYPE_FLAGS:
 	    {
+		gint value;
 		GType type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		if (G_TYPE_NONE == type) {
 			ccroak ("Could not handle unknown flags type %s",
 			        g_base_info_get_name (interface));
 		}
-		/* FIXME: Is it right to just use v_long here? */
-		sv = gperl_convert_back_flags (type, arg->v_long);
+		value = _retrieve_enum (interface, arg);
+		sv = gperl_convert_back_flags (type, value);
 		break;
 	    }
 
@@ -347,4 +354,92 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 	g_base_info_unref ((GIBaseInfo *) interface);
 
 	return sv;
+}
+
+/* ------------------------------------------------------------------------- */
+
+void
+_store_enum (GIEnumInfo * info, gint value, GIArgument * arg)
+{
+	GITypeTag tag = g_enum_info_get_storage_type (info);
+	switch (tag) {
+	    case GI_TYPE_TAG_BOOLEAN:
+		arg->v_boolean = (gboolean) value;
+		break;
+
+	    case GI_TYPE_TAG_INT8:
+		arg->v_int8 = (gint8) value;
+		break;
+
+	    case GI_TYPE_TAG_UINT8:
+		arg->v_uint8 = (guint8) value;
+		break;
+
+	    case GI_TYPE_TAG_INT16:
+		arg->v_int16 = (gint16) value;
+		break;
+
+	    case GI_TYPE_TAG_UINT16:
+		arg->v_uint16 = (guint16) value;
+		break;
+
+	    case GI_TYPE_TAG_INT32:
+		arg->v_int32 = (gint32) value;
+		break;
+
+	    case GI_TYPE_TAG_UINT32:
+		arg->v_uint32 = (guint32) value;
+		break;
+
+	    case GI_TYPE_TAG_INT64:
+		arg->v_int64 = (gint64) value;
+		break;
+
+	    case GI_TYPE_TAG_UINT64:
+		arg->v_uint64 = (guint64) value;
+		break;
+
+	    default:
+		ccroak ("Unhandled enumeration type %s (%d) encountered",
+		        g_type_tag_to_string (tag), tag);
+	}
+}
+
+gint
+_retrieve_enum (GIEnumInfo * info, GIArgument * arg)
+{
+	GITypeTag tag = g_enum_info_get_storage_type (info);
+	switch (tag) {
+	    case GI_TYPE_TAG_BOOLEAN:
+		return (gint) arg->v_boolean;
+
+	    case GI_TYPE_TAG_INT8:
+		return (gint) arg->v_int8;
+
+	    case GI_TYPE_TAG_UINT8:
+		return (gint) arg->v_uint8;
+
+	    case GI_TYPE_TAG_INT16:
+		return (gint) arg->v_int16;
+
+	    case GI_TYPE_TAG_UINT16:
+		return (gint) arg->v_uint16;
+
+	    case GI_TYPE_TAG_INT32:
+		return (gint) arg->v_int32;
+
+	    case GI_TYPE_TAG_UINT32:
+		return (gint) arg->v_uint32;
+
+	    case GI_TYPE_TAG_INT64:
+		return (gint) arg->v_int64;
+
+	    case GI_TYPE_TAG_UINT64:
+		return (gint) arg->v_uint64;
+
+	    default:
+		ccroak ("Unhandled enumeration type %s (%d) encountered",
+		        g_type_tag_to_string (tag), tag);
+		return 0;
+	}
 }
