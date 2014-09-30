@@ -1,7 +1,8 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.025
 ========================================================
 
 * Fix many argument conversion bugs on 64bit big-endian architectures.
+* Added 'x_IRC' metadata tag so MetaCPAN displays a link to the IRC channel
 
 Overview of changes in Glib::Object::Introspection 0.024
 ========================================================
