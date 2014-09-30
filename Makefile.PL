@@ -62,6 +62,7 @@ my %meta_merge = (
             homepage    => 'http://gtk2-perl.sourceforge.net',
             x_MailingList =>
                 'https://mail.gnome.org/mailman/listinfo/gtk-perl-list',
+            x_IRC => "irc://irc.gimp.org/#gtk-perl",
             bugtracker  => {
                     web     =>
                     'http://rt.cpan.org/Public/Dist/Display.html?Name=Glib-Object-Introspection',
