@@ -1,3 +1,8 @@
+Overview of changes in Glib::Object::Introspection 0.026
+========================================================
+
+* Fix t/enums.t for older versions of Test::More
+
 Overview of changes in Glib::Object::Introspection 0.025
 ========================================================
 
