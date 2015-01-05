@@ -55,23 +55,23 @@ static SV *
 get_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer)
 {
 	GITypeInfo *field_type;
+	GITypeTag field_tag;
 	GIBaseInfo *interface_info;
-	GITypeTag tag;
-	GIInfoType info_type;
+	GIInfoType interface_type;
 	GIArgument value;
 	SV *sv = NULL;
 
 	field_type = g_field_info_get_type (field_info);
-	tag = g_type_info_get_tag (field_type);
+	field_tag = g_type_info_get_tag (field_type);
 	interface_info = g_type_info_get_interface (field_type);
-	info_type = interface_info
+	interface_type = interface_info
 		? g_base_info_get_type (interface_info)
 		: GI_INFO_TYPE_INVALID;
 
-	/* Non-pointer structs are not handled by g_field_info_set_field. */
+	/* Non-pointer structs are not handled by g_field_info_get_field. */
 	if (!g_type_info_is_pointer (field_type) &&
-	    tag == GI_TYPE_TAG_INTERFACE &&
-	    info_type == GI_INFO_TYPE_STRUCT)
+	    field_tag == GI_TYPE_TAG_INTERFACE &&
+	    interface_type == GI_INFO_TYPE_STRUCT)
 	{
 		gint offset = g_field_info_get_offset (field_info);
 		value.v_pointer = G_STRUCT_MEMBER_P (mem, offset);
@@ -83,7 +83,7 @@ get_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer)
 
 	/* Neither are void pointers.  We retrieve the RV to the SV that
 	 * set_field put into them. */
-	else if (tag == GI_TYPE_TAG_VOID &&
+	else if (field_tag == GI_TYPE_TAG_VOID &&
 	         g_type_info_is_pointer (field_type))
 	{
 		gint offset = g_field_info_get_offset (field_info);
@@ -116,21 +116,21 @@ static void
 set_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer, SV *sv)
 {
 	GITypeInfo *field_type;
+	GITypeTag field_tag;
 	GIBaseInfo *interface_info;
-	GITypeTag tag;
-	GIInfoType info_type;
+	GIInfoType interface_type;
 	GIArgument arg;
 
 	field_type = g_field_info_get_type (field_info);
-	tag = g_type_info_get_tag (field_type);
+	field_tag = g_type_info_get_tag (field_type);
 	interface_info = g_type_info_get_interface (field_type);
-	info_type = interface_info
+	interface_type = interface_info
 		? g_base_info_get_type (interface_info)
 		: GI_INFO_TYPE_INVALID;
 
 	/* Structs are not handled by g_field_info_set_field. */
-	if (tag == GI_TYPE_TAG_INTERFACE &&
-	    info_type == GI_INFO_TYPE_STRUCT)
+	if (field_tag == GI_TYPE_TAG_INTERFACE &&
+	    interface_type == GI_INFO_TYPE_STRUCT)
 	{
 		/* FIXME: No GIArgInfo and no GPerlI11nInvocationInfo here.
 		 * What if the struct contains an object pointer, or a callback
@@ -143,7 +143,7 @@ set_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer, SV *sv)
 			 * 'mem' */
 			arg.v_pointer = sv_to_struct (GI_TRANSFER_NOTHING,
 			                              interface_info,
-			                              info_type,
+			                              interface_type,
 			                              sv);
 			size = g_struct_info_get_size (interface_info);
 			g_memmove (G_STRUCT_MEMBER_P (mem, offset), arg.v_pointer, size);
@@ -171,7 +171,7 @@ set_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer, SV *sv)
 				G_STRUCT_MEMBER (gpointer, mem, offset) =
 					sv_to_struct (GI_TRANSFER_NOTHING,
 					              interface_info,
-					              info_type,
+					              interface_type,
 					              sv);
 			}
 		}
@@ -179,7 +179,7 @@ set_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer, SV *sv)
 
 	/* Neither are void pointers.  We put an RV to the SV into them, which
 	 * goes hand in hand with what get_field() is doing above. */
-	else if (tag == GI_TYPE_TAG_VOID &&
+	else if (field_tag == GI_TYPE_TAG_VOID &&
 	         g_type_info_is_pointer (field_type))
 	{
 		gint offset = g_field_info_get_offset (field_info);
