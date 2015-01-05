@@ -350,8 +350,8 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 	dwarn ("C invoke: %s\n"
 	       "  n_args: %d, n_invoke_args: %d, n_given_args: %d\n"
 	       "  is_constructor: %d, is_method: %d\n",
-	       iinfo->is_vfunc ? g_base_info_get_name (info) : g_function_info_get_symbol (info),
-	       iinfo->n_args, iinfo->n_invoke_args, iinfo->n_given_args,
+	       iinfo->base.is_vfunc ? g_base_info_get_name (info) : g_function_info_get_symbol (info),
+	       iinfo->base.n_args, iinfo->n_invoke_args, iinfo->n_given_args,
 	       iinfo->is_constructor, iinfo->is_method);
 
 	/* allocate enough space for all args in both the out and in lists.
