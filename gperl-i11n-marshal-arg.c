@@ -32,11 +32,6 @@ sv_to_arg (SV * sv,
 	    case GI_TYPE_TAG_VOID:
 		/* returns NULL if no match is found */
 		arg->v_pointer = sv_to_callback_data (sv, invocation_info);
-		if (!arg->v_pointer && g_type_info_is_pointer (type_info)
-		    && gperl_sv_is_ref (sv))
-		{
-			arg->v_pointer = SvRV (sv);
-		}
 		dwarn ("    argument with no type information -> pointer %p\n",
 		       arg->v_pointer);
 		break;
@@ -168,10 +163,6 @@ arg_to_sv (GIArgument * arg,
 		SV *sv = callback_data_to_sv (arg->v_pointer, iinfo);
 		if (sv) {
 			SvREFCNT_inc (sv);
-		} else {
-			if (arg->v_pointer && g_type_info_is_pointer (info)) {
-				sv = newRV (arg->v_pointer);
-			}
 		}
 		dwarn ("    argument with no type information -> SV %p\n", sv);
 		return sv ? sv : &PL_sv_undef;

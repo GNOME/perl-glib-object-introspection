@@ -56,30 +56,51 @@ get_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer)
 {
 	GITypeInfo *field_type;
 	GIBaseInfo *interface_info;
+	GITypeTag tag;
+	GIInfoType info_type;
 	GIArgument value;
 	SV *sv = NULL;
 
 	field_type = g_field_info_get_type (field_info);
+	tag = g_type_info_get_tag (field_type);
 	interface_info = g_type_info_get_interface (field_type);
+	info_type = interface_info
+		? g_base_info_get_type (interface_info)
+		: GI_INFO_TYPE_INVALID;
 
-	/* This case is not handled by g_field_info_set_field. */
+	/* Non-pointer structs are not handled by g_field_info_set_field. */
 	if (!g_type_info_is_pointer (field_type) &&
-	    g_type_info_get_tag (field_type) == GI_TYPE_TAG_INTERFACE &&
-	    g_base_info_get_type (interface_info) == GI_INFO_TYPE_STRUCT)
+	    tag == GI_TYPE_TAG_INTERFACE &&
+	    info_type == GI_INFO_TYPE_STRUCT)
 	{
-		gint offset;
-		offset = g_field_info_get_offset (field_info);
-		value.v_pointer = mem + offset;
+		gint offset = g_field_info_get_offset (field_info);
+		value.v_pointer = G_STRUCT_MEMBER_P (mem, offset);
 		sv = arg_to_sv (&value,
 		                field_type,
 		                GI_TRANSFER_NOTHING,
 		                NULL);
-	} else if (g_field_info_get_field (field_info, mem, &value)) {
+	}
+
+	/* Neither are void pointers.  We retrieve the RV to the SV that
+	 * set_field put into them. */
+	else if (tag == GI_TYPE_TAG_VOID &&
+	         g_type_info_is_pointer (field_type))
+	{
+		gint offset = g_field_info_get_offset (field_info);
+		value.v_pointer = G_STRUCT_MEMBER (gpointer, mem, offset);
+		sv = value.v_pointer
+			? newRV (value.v_pointer)
+			: &PL_sv_undef;
+	}
+
+	else if (g_field_info_get_field (field_info, mem, &value)) {
 		sv = arg_to_sv (&value,
 		                field_type,
 		                transfer,
 		                NULL);
-	} else {
+	}
+
+	else {
 		ccroak ("Could not get field '%s'",
 		        g_base_info_get_name (field_info));
 	}
@@ -125,7 +146,7 @@ set_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer, SV *sv)
 			                              info_type,
 			                              sv);
 			size = g_struct_info_get_size (interface_info);
-			g_memmove (mem + offset, arg.v_pointer, size);
+			g_memmove (G_STRUCT_MEMBER_P (mem, offset), arg.v_pointer, size);
 		} else {					/* Pointer */
 			GType gtype = get_gtype (interface_info);
 			if (g_type_is_a (gtype, G_TYPE_BOXED)) {
@@ -157,15 +178,14 @@ set_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer, SV *sv)
 	}
 
 	/* Neither are void pointers.  We put an RV to the SV into them, which
-	 * goes hand in hand with what get_field() is doing above via
-	 * arg_to_sv(). */
+	 * goes hand in hand with what get_field() is doing above. */
 	else if (tag == GI_TYPE_TAG_VOID &&
 	         g_type_info_is_pointer (field_type))
 	{
 		gint offset = g_field_info_get_offset (field_info);
-		sv_to_arg (sv, &arg, NULL, field_type,
-		           transfer, TRUE, NULL);
-		G_STRUCT_MEMBER (gpointer, mem, offset) = arg.v_pointer;
+		if (!gperl_sv_is_ref (sv))
+			ccroak ("Can only put references into void fields");
+		G_STRUCT_MEMBER (gpointer, mem, offset) = SvRV (sv);
 	}
 
 	else {
