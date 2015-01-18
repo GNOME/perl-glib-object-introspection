@@ -438,7 +438,24 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 
 	/* We need to undo the special handling that GInitiallyUnowned
 	 * descendants receive from gobject-introspection: values of this type
-	 * are always marked transfer=none, even for constructors. */
+	 * are always marked transfer=none, even for constructors.
+	 *
+	 * FIXME: This is not correct for GtkWindow and its descendants, as
+	 * gtk+ keeps an internal reference to each window.  Hence,
+	 * constructors like gtk_window_new return a non-floating object and do
+	 * not pass ownership of a reference on to us.  But the sink func
+	 * currently registered for GInitiallyUnowned (sink_initially_unowned
+	 * in GObject.xs in Glib) is actually inadvertently conforming to this
+	 * requirement.  It runs ref_sink+unref regardless of whether the
+	 * object is floating or not.  So, in the non-floating window case, it
+	 * does nothing, resulting in an extra reference taken, despite the
+	 * request to transfer ownership.
+	 *
+	 * If we ever encounter a constructor of a GInitiallyUnowned descendant
+	 * that returns a non-floating object and passes ownership of a
+	 * reference on to us, or a constructor of a GInitiallyUnowned
+	 * descendant that returns a floating object but passes no reference on
+	 * to us, then we need to revisit this. */
 	if (iinfo->is_constructor &&
 	    g_type_info_get_tag (iinfo->base.return_type_info) == GI_TYPE_TAG_INTERFACE)
 	{
