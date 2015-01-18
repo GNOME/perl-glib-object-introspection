@@ -397,7 +397,7 @@ _register_types (class, namespace, package)
 		info_type = g_base_info_get_type (info);
 		name = g_base_info_get_name (info);
 
-		dwarn ("setting up %s.%s\n", namespace, name);
+		dwarn ("setting up %s::%s\n", namespace, name);
 
 		if (info_type == GI_INFO_TYPE_CONSTANT) {
 			av_push (constants, newSVpv (name, 0));
@@ -448,7 +448,7 @@ _register_types (class, namespace, package)
 
 		type = get_gtype ((GIRegisteredTypeInfo *) info);
 		if (!type) {
-			ccroak ("Could not find GType for type %s::%s",
+			ccroak ("Could not find GType for type %s%s",
 			       namespace, name);
 		}
 		if (type == G_TYPE_NONE) {
@@ -543,7 +543,7 @@ _register_boxed_synonym (class, const gchar *reg_basename, const gchar *reg_name
 	reg_info = g_irepository_find_by_name (repository, reg_basename, reg_name);
 	reg_type = reg_info ? get_gtype (reg_info) : 0;
 	if (!reg_type)
-		ccroak ("Could not lookup GType for type %s.%s",
+		ccroak ("Could not lookup GType for type %s%s",
 		        reg_basename, reg_name);
 
 	/* The GType in question (e.g., GdkRectangle) hasn't been loaded yet,
@@ -759,7 +759,7 @@ _install_overrides (class, basename, object_name, target_package)
 	GType gtype;
 	gpointer klass;
     CODE:
-	dwarn ("_install_overrides: %s.%s for %s\n",
+	dwarn ("_install_overrides: %s%s for %s\n",
 	       basename, object_name, target_package);
 	repository = g_irepository_get_default ();
 	info = g_irepository_find_by_name (repository, basename, object_name);
@@ -856,7 +856,7 @@ _invoke_fallback_vfunc (class, vfunc_package, vfunc_name, target_package, ...)
 	gint field_offset;
 	gpointer func_pointer;
     PPCODE:
-	dwarn ("_invoke_fallback_vfunc: %s.%s, target = %s\n",
+	dwarn ("_invoke_fallback_vfunc: %s::%s, target = %s\n",
 	       vfunc_package, vfunc_name, target_package);
 	gtype = gperl_object_type_from_package (target_package);
 	klass = g_type_class_peek (gtype);
