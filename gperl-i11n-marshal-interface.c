@@ -155,9 +155,9 @@ sv_to_interface (GIArgInfo * arg_info,
 		if (!type || type == G_TYPE_NONE) {
 			const gchar *namespace, *name, *package;
 			GType parent_type;
-			dwarn ("    unboxed type\n");
+			dwarn ("    untyped record\n");
 			g_assert (!need_value_semantics);
-			/* Find out whether this untyped struct is a member of
+			/* Find out whether this untyped record is a member of
 			 * a boxed union before using raw hash-to-struct
 			 * conversion. */
 			name = g_base_info_get_name (interface);
@@ -177,12 +177,16 @@ sv_to_interface (GIArgInfo * arg_info,
 				                               info_type,
 				                               sv);
 			}
-		} else if (type == G_TYPE_CLOSURE) {
+		}
+
+		else if (type == G_TYPE_CLOSURE) {
 			/* FIXME: User cannot supply user data. */
 			dwarn ("    closure type\n");
 			g_assert (!need_value_semantics);
 			arg->v_pointer = gperl_closure_new (sv, NULL, FALSE);
-		} else if (type == G_TYPE_VALUE) {
+		}
+
+		else if (type == G_TYPE_VALUE) {
 			GValue *gvalue = SvGValueWrapper (sv);
 			dwarn ("    value type\n");
 			if (!gvalue)
@@ -199,7 +203,9 @@ sv_to_interface (GIArgInfo * arg_info,
 					arg->v_pointer = gvalue;
 				}
 			}
-		} else {
+		}
+
+		else if (g_type_is_a (type, G_TYPE_BOXED)) {
 			dwarn ("    boxed type: %s, name=%s, caller-allocates=%d, is-pointer=%d\n",
 			       g_type_name (type),
 			       g_base_info_get_name (interface),
@@ -223,6 +229,21 @@ sv_to_interface (GIArgInfo * arg_info,
 							type, arg->v_pointer);
 				}
 			}
+		}
+
+#if GLIB_CHECK_VERSION (2, 24, 0)
+		else if (g_type_is_a (type, G_TYPE_VARIANT)) {
+			dwarn ("    variant type\n");
+			g_assert (!need_value_semantics);
+			arg->v_pointer = SvGVariant (sv);
+			if (GI_TRANSFER_EVERYTHING == transfer)
+				g_variant_ref (arg->v_pointer);
+		}
+#endif
+
+		else {
+			ccroak ("Cannot convert SV to record value of unknown type %s (%" G_GSIZE_FORMAT ")",
+			        g_type_name (type), type);
 		}
 		break;
 	    }
@@ -300,17 +321,34 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 		GType type;
 		type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		if (!type || type == G_TYPE_NONE) {
-			dwarn ("    unboxed type\n");
+			dwarn ("    untyped record\n");
 			sv = struct_to_sv (interface, info_type, arg->v_pointer, own);
-		} else if (type == G_TYPE_VALUE) {
+		}
+
+		else if (type == G_TYPE_VALUE) {
 			dwarn ("    value type\n");
 			sv = gperl_sv_from_value (arg->v_pointer);
 			if (own)
 				g_boxed_free (type, arg->v_pointer);
-		} else {
+		}
+
+		else if (g_type_is_a (type, G_TYPE_BOXED)) {
 			dwarn ("    boxed type: %"G_GSIZE_FORMAT" (%s)\n",
 			       type, g_type_name (type));
 			sv = gperl_new_boxed (arg->v_pointer, type, own);
+		}
+
+#if GLIB_CHECK_VERSION (2, 24, 0)
+		else if (g_type_is_a (type, G_TYPE_VARIANT)) {
+			dwarn ("    variant type\n");
+			sv = own ? newSVGVariant_noinc (arg->v_pointer)
+			         : newSVGVariant (arg->v_pointer);
+		}
+#endif
+
+		else {
+			ccroak ("Cannot convert record value of unknown type %s (%" G_GSIZE_FORMAT ") to SV",
+			        g_type_name (type), type);
 		}
 		break;
 	    }
