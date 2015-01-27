@@ -1,3 +1,10 @@
+Overview of changes in Glib::Object::Introspection 0.027
+========================================================
+
+* Fix compilation problems when NOISY is defined
+* Move the handling of void record fields into the field accessors
+* Rename a few variables for clarity
+
 Overview of changes in Glib::Object::Introspection 0.026
 ========================================================
 
