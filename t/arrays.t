@@ -6,7 +6,7 @@ use strict;
 use warnings;
 use utf8;
 
-plan tests => 29;
+plan tests => 30;
 
 ok (Regress::test_strv_in ([ '1', '2', '3' ]));
 
@@ -50,3 +50,7 @@ Regress::test_gslist_nothing_in ($test_list);
 Regress::test_gslist_nothing_in2 ($test_list);
 Regress::test_gslist_null_in (undef);
 is (Regress::test_gslist_null_out (), undef);
+
+# -----------------------------------------------------------------------------
+
+is_deeply (GI::array_fixed_out_struct (), [{long_ => 7, int8 => 6}, {long_ => 6, int8 => 7}]);

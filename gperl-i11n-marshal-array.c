@@ -17,9 +17,11 @@ array_to_sv (GITypeInfo *info,
 {
 	GITypeInfo *param_info;
 	gboolean is_zero_terminated;
+	GITypeTag param_tag;
 	gsize item_size;
 	GITransfer item_transfer;
 	gssize length, i;
+	gboolean need_struct_value_semantics;
 	AV *av;
 
 	if (pointer == NULL) {
@@ -27,8 +29,6 @@ array_to_sv (GITypeInfo *info,
 	}
 
 	is_zero_terminated = g_type_info_is_zero_terminated (info);
-	param_info = g_type_info_get_param_type (info, 0);
-	item_size = size_of_type_info (param_info);
 
 	/* FIXME: What about an array containing arrays of strings, where the
 	 * outer array is GI_TRANSFER_EVERYTHING but the inner arrays are
@@ -56,8 +56,20 @@ array_to_sv (GITypeInfo *info,
 	if (length < 0) {
 		ccroak ("Could not determine the length of the array");
 	}
+	param_info = g_type_info_get_param_type (info, 0);
+	param_tag = g_type_info_get_tag (param_info);
+	item_size = size_of_type_info (param_info);
 
 	av = newAV ();
+
+	/* Arrays containing non-basic types as non-pointers need to be treated
+	 * specially.  Prime example: GValue *values = g_new0 (GValue, n);
+	 */
+	need_struct_value_semantics =
+		/* is a compound type, and... */
+		!G_TYPE_TAG_IS_BASIC (param_tag) &&
+		/* ... a non-pointer is wanted */
+		!g_type_info_is_pointer (param_info);
 
 	dwarn ("    C array: pointer %p, length %"G_GSSIZE_FORMAT", item size %"G_GSIZE_FORMAT", "
 	       "param_info %p with type tag %d (%s)\n",
@@ -69,10 +81,15 @@ array_to_sv (GITypeInfo *info,
 	       g_type_tag_to_string (g_type_info_get_tag (param_info)));
 
 	for (i = 0; i < length; i++) {
-		GIArgument *arg;
+		GIArgument arg;
 		SV *value;
-		arg = pointer + ((gsize) i) * item_size;
-		value = arg_to_sv (arg, param_info, item_transfer, iinfo);
+		gpointer element = pointer + ((gsize) i) * item_size;
+		if (need_struct_value_semantics) {
+			raw_to_arg (&element, &arg, param_info);
+		} else {
+			raw_to_arg (element, &arg, param_info);
+		}
+		value = arg_to_sv (&arg, param_info, item_transfer, iinfo);
 		if (value)
 			av_push (av, value);
 	}

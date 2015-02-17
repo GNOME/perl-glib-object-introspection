@@ -2,6 +2,7 @@ Overview of changes in Glib::Object::Introspection <next>
 ========================================================
 
 * Add support for marshalling GVariants.
+* Support flat arrays when converting from C to Perl.
 
 Overview of changes in Glib::Object::Introspection 0.028
 ========================================================
