@@ -1,3 +1,9 @@
+Overview of changes in Glib::Object::Introspection 0.028
+========================================================
+
+* Harmonize the format of type names in error messages
+* Add a FIXME about a corner case of GInitiallyUnowned handling
+
 Overview of changes in Glib::Object::Introspection 0.027
 ========================================================
 
