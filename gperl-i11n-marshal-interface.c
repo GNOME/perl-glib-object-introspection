@@ -13,15 +13,15 @@ instance_sv_to_pointer (GICallableInfo *info, SV *sv)
 
 	/* FIXME: Much of this code is duplicated in sv_to_interface. */
 
-	dwarn ("  instance_sv_to_pointer: container name: %s, info type: %d\n",
+	dwarn ("container name = %s, info type = %d (%s)\n",
 	       g_base_info_get_name (container),
-	       info_type);
+	       info_type, g_info_type_to_string (info_type));
 
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
 	    case GI_INFO_TYPE_INTERFACE:
 		pointer = gperl_get_object (sv);
-		dwarn ("    -> object pointer: %p\n", pointer);
+		dwarn ("  -> object pointer: %p\n", pointer);
 		break;
 
 	    case GI_INFO_TYPE_BOXED:
@@ -30,22 +30,22 @@ instance_sv_to_pointer (GICallableInfo *info, SV *sv)
 	    {
 		GType type = get_gtype ((GIRegisteredTypeInfo *) container);
 		if (!type || type == G_TYPE_NONE) {
-			dwarn ("    unboxed type\n");
+			dwarn ("  -> untyped record\n");
 			pointer = sv_to_struct (GI_TRANSFER_NOTHING,
 			                        container,
 			                        info_type,
 			                        sv);
 		} else {
-			dwarn ("    boxed type: %s (%"G_GSIZE_FORMAT")\n",
+			dwarn ("  -> boxed: type=%s (%"G_GSIZE_FORMAT")\n",
 			       g_type_name (type), type);
 			pointer = gperl_get_boxed_check (sv, type);
 		}
-		dwarn ("    -> boxed pointer: %p\n", pointer);
+		dwarn ("  -> record pointer: %p\n", pointer);
 		break;
 	    }
 
 	    default:
-		ccroak ("instance_sv_to_pointer: Don't know how to handle info type %d", info_type);
+		ccroak ("Don't know how to handle info type %d for instance SV", info_type);
 	}
 
 	return pointer;
@@ -64,15 +64,15 @@ instance_pointer_to_sv (GICallableInfo *info, gpointer pointer)
 
 	/* FIXME: Much of this code is duplicated in interface_to_sv. */
 
-	dwarn ("  instance_pointer_to_sv: container name: %s, info type: %d\n",
+	dwarn ("container name = %s, info type = %d (%s)\n",
 	       g_base_info_get_name (container),
-	       info_type);
+	       info_type, g_info_type_to_string (info_type));
 
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
 	    case GI_INFO_TYPE_INTERFACE:
 		sv = gperl_new_object (pointer, FALSE);
-		dwarn ("    -> object SV: %p\n", sv);
+		dwarn ("  -> object SV: %p\n", sv);
 		break;
 
 	    case GI_INFO_TYPE_BOXED:
@@ -81,19 +81,19 @@ instance_pointer_to_sv (GICallableInfo *info, gpointer pointer)
 	    {
 		GType type = get_gtype ((GIRegisteredTypeInfo *) container);
 		if (!type || type == G_TYPE_NONE) {
-			dwarn ("    unboxed type\n");
+			dwarn ("  -> untyped record\n");
 			sv = struct_to_sv (container, info_type, pointer, FALSE);
 		} else {
-			dwarn ("    boxed type: %s (%"G_GSIZE_FORMAT")\n",
+			dwarn ("  -> boxed: type=%s (%"G_GSIZE_FORMAT")\n",
 			       g_type_name (type), type);
 			sv = gperl_new_boxed (pointer, type, FALSE);
 		}
-		dwarn ("    -> boxed pointer: %p\n", pointer);
+		dwarn ("  -> record pointer: %p\n", pointer);
 		break;
 	    }
 
 	    default:
-		ccroak ("instance_pointer_to_sv: Don't know how to handle info type %d", info_type);
+		ccroak ("Don't know how to handle info type %d for instance pointer", info_type);
 	}
 
 	return sv;
@@ -116,8 +116,9 @@ sv_to_interface (GIArgInfo * arg_info,
 		ccroak ("Could not convert sv %p to pointer", sv);
 	info_type = g_base_info_get_type (interface);
 
-	dwarn ("    interface %p (%s) of type %d\n",
-	       interface, g_base_info_get_name (interface), info_type);
+	dwarn ("interface = %p (%s), type = %d (%s)\n",
+	       interface, g_base_info_get_name (interface),
+	       info_type, g_info_type_to_string (info_type));
 
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
@@ -155,7 +156,7 @@ sv_to_interface (GIArgInfo * arg_info,
 		if (!type || type == G_TYPE_NONE) {
 			const gchar *namespace, *name, *package;
 			GType parent_type;
-			dwarn ("    untyped record\n");
+			dwarn ("  -> untyped record\n");
 			g_assert (!need_value_semantics);
 			/* Find out whether this untyped record is a member of
 			 * a boxed union before using raw hash-to-struct
@@ -181,14 +182,14 @@ sv_to_interface (GIArgInfo * arg_info,
 
 		else if (type == G_TYPE_CLOSURE) {
 			/* FIXME: User cannot supply user data. */
-			dwarn ("    closure type\n");
+			dwarn ("  -> closure\n");
 			g_assert (!need_value_semantics);
 			arg->v_pointer = gperl_closure_new (sv, NULL, FALSE);
 		}
 
 		else if (type == G_TYPE_VALUE) {
 			GValue *gvalue = SvGValueWrapper (sv);
-			dwarn ("    value type\n");
+			dwarn ("  -> value\n");
 			if (!gvalue)
 				ccroak ("Cannot convert arbitrary SV to GValue");
 			if (need_value_semantics) {
@@ -206,7 +207,7 @@ sv_to_interface (GIArgInfo * arg_info,
 		}
 
 		else if (g_type_is_a (type, G_TYPE_BOXED)) {
-			dwarn ("    boxed type: %s, name=%s, caller-allocates=%d, is-pointer=%d\n",
+			dwarn ("  -> boxed: type=%s, name=%s, caller-allocates=%d, is-pointer=%d\n",
 			       g_type_name (type),
 			       g_base_info_get_name (interface),
 			       g_arg_info_is_caller_allocates (arg_info),
@@ -233,7 +234,7 @@ sv_to_interface (GIArgInfo * arg_info,
 
 #if GLIB_CHECK_VERSION (2, 24, 0)
 		else if (g_type_is_a (type, G_TYPE_VARIANT)) {
-			dwarn ("    variant type\n");
+			dwarn ("  -> variant type\n");
 			g_assert (!need_value_semantics);
 			arg->v_pointer = SvGVariant (sv);
 			if (GI_TRANSFER_EVERYTHING == transfer)
@@ -298,14 +299,14 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 	GIInfoType info_type;
 	SV *sv = NULL;
 
-	dwarn ("  interface_to_sv: arg %p, info %p\n",
-	       arg, info);
+	dwarn ("arg %p, info %p\n", arg, info);
 
 	interface = g_type_info_get_interface (info);
 	if (!interface)
 		ccroak ("Could not convert arg %p to SV", arg);
 	info_type = g_base_info_get_type (interface);
-	dwarn ("    info type: %d (%s)\n", info_type, g_info_type_to_string (info_type));
+	dwarn ("  info type: %d (%s)\n",
+	       info_type, g_info_type_to_string (info_type));
 
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
@@ -321,26 +322,26 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 		GType type;
 		type = get_gtype ((GIRegisteredTypeInfo *) interface);
 		if (!type || type == G_TYPE_NONE) {
-			dwarn ("    untyped record\n");
+			dwarn ("  -> untyped record\n");
 			sv = struct_to_sv (interface, info_type, arg->v_pointer, own);
 		}
 
 		else if (type == G_TYPE_VALUE) {
-			dwarn ("    value type\n");
+			dwarn ("  -> value\n");
 			sv = gperl_sv_from_value (arg->v_pointer);
 			if (own)
 				g_boxed_free (type, arg->v_pointer);
 		}
 
 		else if (g_type_is_a (type, G_TYPE_BOXED)) {
-			dwarn ("    boxed type: %"G_GSIZE_FORMAT" (%s)\n",
+			dwarn ("  -> boxed: type=%"G_GSIZE_FORMAT" (%s)\n",
 			       type, g_type_name (type));
 			sv = gperl_new_boxed (arg->v_pointer, type, own);
 		}
 
 #if GLIB_CHECK_VERSION (2, 24, 0)
 		else if (g_type_is_a (type, G_TYPE_VARIANT)) {
-			dwarn ("    variant type\n");
+			dwarn ("  -> variant\n");
 			sv = own ? newSVGVariant_noinc (arg->v_pointer)
 			         : newSVGVariant (arg->v_pointer);
 		}

@@ -48,7 +48,7 @@ generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer cl
 			HV * stash = gv_stashpv (target_package, 0);
 			GV * slot = gv_fetchmethod (stash, perl_method_name);
 			if (!slot) {
-				dwarn ("generic_class_init: skipping vfunc %s.%s because it has no implementation\n",
+				dwarn ("skipping vfunc %s.%s because it has no implementation\n",
 				      g_base_info_get_name (info), vfunc_name);
 				g_base_info_unref (vfunc_info);
 				g_free (perl_method_name);
@@ -68,7 +68,7 @@ generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer cl
 		/* callback_info takes over ownership of perl_method_name. */
 		callback_info = create_perl_callback_closure_for_named_sub (
 		                  field_interface_info, perl_method_name);
-		dwarn ("generic_class_init: installing vfunc %s.%s as %s at offset %d (vs. %d) inside %p\n",
+		dwarn ("installing vfunc %s.%s as %s at offset %d (vs. %d) inside %p\n",
 		       g_base_info_get_name (info), vfunc_name, perl_method_name,
 		       field_offset, g_vfunc_info_get_offset (vfunc_info),
 		       class);

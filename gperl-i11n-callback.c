@@ -65,7 +65,7 @@ static void
 release_perl_callback (gpointer data)
 {
 	GPerlI11nPerlCallbackInfo *info = data;
-	dwarn ("releasing Perl callback info %p\n", info);
+	dwarn ("info = %p\n", info);
 
 	/* g_callable_info_free_closure reaches into info->cif, so it needs to
 	 * be called before we free it.  See
@@ -119,7 +119,7 @@ static void
 release_c_callback (gpointer data)
 {
 	GPerlI11nCCallbackInfo *info = data;
-	dwarn ("releasing C callback info %p\n", info);
+	dwarn ("info = %p\n", info);
 
 	/* FIXME: we cannot call the destroy notify here because it might be
 	 * our own release_perl_callback which would try to free the ffi stuff

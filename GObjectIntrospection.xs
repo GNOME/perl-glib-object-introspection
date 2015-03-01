@@ -27,7 +27,10 @@
 
 /* #define NOISY */
 #ifdef NOISY
-# define dwarn(...) warn(__VA_ARGS__)
+# define dwarn(msg...)	G_STMT_START { \
+				g_printerr ("%s: ", G_STRFUNC); \
+				g_printerr (msg); \
+			} G_STMT_END
 #else
 # define dwarn(...)
 #endif
@@ -397,17 +400,20 @@ _register_types (class, namespace, package)
 		info_type = g_base_info_get_type (info);
 		name = g_base_info_get_name (info);
 
-		dwarn ("setting up %s::%s\n", namespace, name);
+		dwarn ("setting up %s.%s\n", namespace, name);
 
 		if (info_type == GI_INFO_TYPE_CONSTANT) {
+			dwarn ("  -> constant\n");
 			av_push (constants, newSVpv (name, 0));
 		}
 
 		if (info_type == GI_INFO_TYPE_FUNCTION) {
+			dwarn ("  -> global function\n");
 			av_push (global_functions, newSVpv (name, 0));
 		}
 
 		if (info_type == GI_INFO_TYPE_INTERFACE) {
+			dwarn ("  -> interface\n");
 			av_push (interfaces, newSVpv (name, 0));
 		}
 
@@ -419,6 +425,7 @@ _register_types (class, namespace, package)
 		    info_type == GI_INFO_TYPE_ENUM ||
 		    info_type == GI_INFO_TYPE_FLAGS)
 		{
+			dwarn ("  looking for methods\n");
 			store_methods (namespaced_functions, info, info_type);
 		}
 
@@ -426,10 +433,12 @@ _register_types (class, namespace, package)
 		    info_type == GI_INFO_TYPE_STRUCT ||
 		    info_type == GI_INFO_TYPE_UNION)
 		{
+			dwarn ("  looking for fields\n");
 			store_fields (fields, info, info_type);
 		}
 
 		if (info_type == GI_INFO_TYPE_OBJECT) {
+			dwarn ("  looking for vfuncs\n");
 			store_objects_with_vfuncs (objects_with_vfuncs, info);
 		}
 
@@ -559,7 +568,7 @@ _register_boxed_synonym (class, const gchar *reg_basename, const gchar *reg_name
 		ccroak ("Could not lookup GType from function %s",
 		        syn_gtype_function);
 
-	dwarn ("registering synonym %s => %s",
+	dwarn ("%s => %s",
 	       g_type_name (reg_type),
 	       g_type_name (syn_type));
 	gperl_register_boxed_synonym (reg_type, syn_type);
@@ -759,7 +768,7 @@ _install_overrides (class, basename, object_name, target_package)
 	GType gtype;
 	gpointer klass;
     CODE:
-	dwarn ("_install_overrides: %s%s for %s\n",
+	dwarn ("%s.%s for %s\n",
 	       basename, object_name, target_package);
 	repository = g_irepository_get_default ();
 	info = g_irepository_find_by_name (repository, basename, object_name);
@@ -856,7 +865,7 @@ _invoke_fallback_vfunc (class, vfunc_package, vfunc_name, target_package, ...)
 	gint field_offset;
 	gpointer func_pointer;
     PPCODE:
-	dwarn ("_invoke_fallback_vfunc: %s::%s, target = %s\n",
+	dwarn ("%s::%s, target = %s\n",
 	       vfunc_package, vfunc_name, target_package);
 	gtype = gperl_object_type_from_package (target_package);
 	klass = g_type_class_peek (gtype);
@@ -926,8 +935,7 @@ _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *si
 	                                           signal_info);
 	g_base_info_unref (closure_marshal_info);
 
-	dwarn ("_use_generic_signal_marshaller_for: "
-	       "package %s, signal %s => closure %p\n",
+	dwarn ("package = %s, signal = %s => closure = %p\n",
 	       package, signal, closure);
 	gperl_signal_set_marshaller_for (gtype, (gchar*) signal, (GClosureMarshal) closure);
 
@@ -953,7 +961,7 @@ _use_generic_signal_marshaller_for (class, const gchar *package, const gchar *si
 	 * work correctly for signals prior to commit
 	 * d8970fbc500a8b20853b564536251315587450d9 in
 	 * gobject-introspection. */
-	warn ("*** Cannot use generic signal marshallers for signal %s of %s "
+	warn ("*** Cannot use generic signal marshallers for signal '%s' of %s "
 	      "unless gobject-introspection >= 1.33.10; "
 	      "any handlers connected to the signal "
 	      "might thus be invoked incorrectly\n",

@@ -13,7 +13,10 @@ sv_to_arg (SV * sv,
 {
 	GITypeTag tag = g_type_info_get_tag (type_info);
 
-	if (!gperl_sv_is_defined (sv))
+	dwarn ("type info = %p, arg info = %p, tag = %d (%s)\n",
+	       type_info, arg_info, tag, g_type_tag_to_string (tag));
+
+	if (!gperl_sv_is_defined (sv)) {
 		/* Interfaces, booleans and void types need to be able to
 		 * handle undef separately.*/
 		if (!may_be_null && tag != GI_TYPE_TAG_INTERFACE
@@ -27,13 +30,13 @@ sv_to_arg (SV * sv,
 				ccroak ("undefined value encountered");
 			}
 		}
+	}
 
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
 		/* returns NULL if no match is found */
 		arg->v_pointer = sv_to_callback_data (sv, invocation_info);
-		dwarn ("    argument with no type information -> pointer %p\n",
-		       arg->v_pointer);
+		dwarn ("  -> pointer %p\n", arg->v_pointer);
 		break;
 
 	    case GI_TYPE_TAG_BOOLEAN:
@@ -96,7 +99,6 @@ sv_to_arg (SV * sv,
 		break;
 
 	    case GI_TYPE_TAG_INTERFACE:
-		dwarn ("    type %p -> interface\n", type_info);
 		sv_to_interface (arg_info, type_info, transfer, may_be_null,
 		                 sv, arg, invocation_info);
 		break;
@@ -153,7 +155,7 @@ arg_to_sv (GIArgument * arg,
 	GITypeTag tag = g_type_info_get_tag (info);
 	gboolean own = transfer >= GI_TRANSFER_CONTAINER;
 
-	dwarn ("  arg_to_sv: info %p with type tag %d (%s)\n",
+	dwarn ("info = %p, tag = %d (%s)\n",
 	       info, tag, g_type_tag_to_string (tag));
 
 	switch (tag) {
@@ -164,7 +166,7 @@ arg_to_sv (GIArgument * arg,
 		if (sv) {
 			SvREFCNT_inc (sv);
 		}
-		dwarn ("    argument with no type information -> SV %p\n", sv);
+		dwarn ("  -> SV %p\n", sv);
 		return sv ? sv : &PL_sv_undef;
 	    }
 

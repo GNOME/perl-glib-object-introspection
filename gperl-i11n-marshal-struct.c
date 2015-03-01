@@ -30,7 +30,7 @@ struct_to_sv (GIBaseInfo* info,
 {
 	HV *hv;
 
-	dwarn ("%s: pointer %p\n", G_STRFUNC, pointer);
+	dwarn ("pointer = %p\n", pointer);
 
 	if (pointer == NULL) {
 		return &PL_sv_undef;
@@ -62,6 +62,7 @@ struct_to_sv (GIBaseInfo* info,
 			SV *sv;
 			field_info =
 				g_struct_info_get_field ((GIStructInfo *) info, i);
+			dwarn ("  field %d (%s)\n", i, g_base_info_get_name (field_info));
 			/* FIXME: Check GIFieldInfoFlags. */
 			/* FIXME: Is it right to use GI_TRANSFER_NOTHING
 			 * here? */
@@ -105,7 +106,7 @@ sv_to_struct (GITransfer transfer,
 	GITransfer field_transfer;
 	gpointer pointer = NULL;
 
-	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
+	dwarn ("sv = %p\n", sv);
 
 	if (!gperl_sv_is_defined (sv))
 		return NULL;
@@ -139,10 +140,10 @@ sv_to_struct (GITransfer transfer,
 		g_assert_not_reached ();
 	}
 
-	dwarn ("  size: %"G_GSIZE_FORMAT"\n", size);
+	dwarn ("  size = %"G_GSIZE_FORMAT"\n", size);
 
 	field_transfer = GI_TRANSFER_NOTHING;
-	dwarn ("  transfer: %d\n", transfer);
+	dwarn ("  transfer = %d\n", transfer);
 	switch (transfer) {
 	    case GI_TRANSFER_EVERYTHING:
 		field_transfer = GI_TRANSFER_EVERYTHING;
@@ -173,6 +174,7 @@ sv_to_struct (GITransfer transfer,
 			/* FIXME: Check GIFieldInfoFlags. */
 			field_name = g_base_info_get_name (
 			               (GIBaseInfo *) field_info);
+			dwarn ("  field %d (%s)\n", i, field_name);
 			svp = hv_fetch (hv, field_name, strlen (field_name), 0);
 			if (svp && gperl_sv_is_defined (*svp)) {
 				set_field (field_info, pointer,

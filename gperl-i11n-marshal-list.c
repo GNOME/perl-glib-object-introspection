@@ -3,14 +3,14 @@
 static void
 free_list (GList *list)
 {
-	dwarn ("free_list %p\n", list);
+	dwarn ("%p\n", list);
 	g_list_free (list);
 }
 
 static void
 free_slist (GSList *list)
 {
-	dwarn ("free_slist %p\n", list);
+	dwarn ("%p\n", list);
 	g_slist_free (list);
 }
 
@@ -40,7 +40,7 @@ glist_to_sv (GITypeInfo* info,
 		: GI_TRANSFER_NOTHING;
 
 	param_info = g_type_info_get_param_type (info, 0);
-	dwarn ("    G(S)List: pointer %p, param_info %p with type tag %d (%s)\n",
+	dwarn ("pointer = %p, param_info = %p, param tag = %d (%s)\n",
 	       pointer,
 	       param_info,
 	       g_type_info_get_tag (param_info),
@@ -51,7 +51,7 @@ glist_to_sv (GITypeInfo* info,
 	av = newAV ();
 	for (i = pointer; i; i = i->next) {
 		GIArgument arg = {0,};
-		dwarn ("      converting pointer %p\n", i->data);
+		dwarn ("  element %p: %p\n", i, i->data);
 		arg.v_pointer = i->data;
 		value = arg_to_sv (&arg, param_info, item_transfer, NULL);
 		if (value)
@@ -67,6 +67,8 @@ glist_to_sv (GITypeInfo* info,
 
 	g_base_info_unref ((GIBaseInfo *) param_info);
 
+	dwarn ("  -> AV = %p, length = %ld\n", av, av_len (av) + 1);
+
 	return newRV_noinc ((SV *) av);
 }
 
@@ -80,7 +82,7 @@ sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * sv, GPerlI11nInvo
 	gboolean is_slist;
 	gint i, length;
 
-	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
+	dwarn ("sv = %p\n", sv);
 
 	if (!gperl_sv_is_defined (sv))
 		return NULL;
@@ -94,7 +96,7 @@ sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * sv, GPerlI11nInvo
 		: GI_TRANSFER_NOTHING;
 
 	param_info = g_type_info_get_param_type (type_info, 0);
-	dwarn ("  G(S)List: param_info %p with type tag %d (%s) and transfer %d\n",
+	dwarn ("  param_info = %p, param tag = %d (%s), transfer = %d\n",
 	       param_info,
 	       g_type_info_get_tag (param_info),
 	       g_type_tag_to_string (g_type_info_get_tag (param_info)),
@@ -106,9 +108,9 @@ sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * sv, GPerlI11nInvo
 	for (i = 0; i < length; i++) {
 		SV **svp;
 		svp = av_fetch (av, i, 0);
+		dwarn ("  element %d: svp = %p\n", i, svp);
 		if (svp && gperl_sv_is_defined (*svp)) {
 			GIArgument arg;
-			dwarn ("    converting SV %p\n", *svp);
 			/* FIXME: Is it OK to always allow undef here? */
 			sv_to_arg (*svp, &arg, NULL, param_info,
 			           item_transfer, TRUE, NULL);
@@ -126,7 +128,7 @@ sv_to_glist (GITransfer transfer, GITypeInfo * type_info, SV * sv, GPerlI11nInvo
 		                 is_slist ? ((GFunc)free_slist) : ((GFunc)free_list),
 		                 list);
 
-	dwarn ("    -> list %p of length %d\n", list, g_list_length (list));
+	dwarn ("  -> list = %p, length = %d\n", list, g_list_length (list));
 
 	g_base_info_unref ((GIBaseInfo *) param_info);
 

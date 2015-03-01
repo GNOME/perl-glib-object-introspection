@@ -86,7 +86,7 @@ invoke_c_code (GICallableInfo *info,
 		 * point. */
 		iinfo.base.current_pos = i; /* + method_offset; */
 
-		dwarn ("  arg %d, tag: %d (%s), is_pointer: %d, is_automatic: %d\n",
+		dwarn ("arg %d: tag = %d (%s), is_pointer = %d, is_automatic = %d\n",
 		       i,
 		       g_type_info_get_tag (arg_type),
 		       g_type_tag_to_string (g_type_info_get_tag (arg_type)),
@@ -232,6 +232,7 @@ invoke_c_code (GICallableInfo *info,
 	   )
 	{
 		SV *value;
+		dwarn ("return value: type = %p\n", iinfo.base.return_type_info);
 		value = SAVED_STACK_SV (arg_to_sv (&return_value,
 		                                   iinfo.base.return_type_info,
 		                                   iinfo.base.return_type_transfer,
@@ -259,6 +260,7 @@ invoke_c_code (GICallableInfo *info,
 		    {
 			GITransfer transfer;
 			SV *sv;
+			dwarn ("out/inout arg at pos %d\n", i);
 			/* If we allocated the memory ourselves, we always own it. */
 			transfer = g_arg_info_is_caller_allocates (arg_info)
 			         ? GI_TRANSFER_CONTAINER
@@ -281,7 +283,7 @@ invoke_c_code (GICallableInfo *info,
 
 	_clear_c_invocation_info (&iinfo);
 
-	dwarn ("  number of return values: %d\n", n_return_values);
+	dwarn ("n_return_values = %d\n", n_return_values);
 
 	PUTBACK;
 }
@@ -301,11 +303,9 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 
 	prepare_invocation_info ((GPerlI11nInvocationInfo *) iinfo, info);
 
-	dwarn ("C invoke: %s::%s::%s => %s\n"
-	       "  n_args: %d\n",
+	dwarn ("%s::%s::%s => %s\n",
 	       package, namespace, function,
-	       g_base_info_get_name (info),
-	       g_callable_info_get_n_args (info));
+	       g_base_info_get_name (info));
 
 	iinfo->target_package = package;
 	iinfo->target_namespace = namespace;
@@ -347,12 +347,16 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 		iinfo->n_invoke_args++;
 	}
 
-	dwarn ("C invoke: %s\n"
-	       "  n_args: %d, n_invoke_args: %d, n_given_args: %d\n"
-	       "  is_constructor: %d, is_method: %d\n",
-	       iinfo->base.is_vfunc ? g_base_info_get_name (info) : g_function_info_get_symbol (info),
-	       iinfo->base.n_args, iinfo->n_invoke_args, iinfo->n_given_args,
-	       iinfo->is_constructor, iinfo->is_method);
+	dwarn ("  args = %u, given = %u, invoke = %u\n",
+	       iinfo->base.n_args,
+	       iinfo->n_given_args,
+	       iinfo->n_invoke_args);
+
+	dwarn ("  symbol = %s\n",
+	       iinfo->base.is_vfunc ? g_base_info_get_name (info) : g_function_info_get_symbol (info));
+
+	dwarn ("  is_constructor = %d, is_method = %d, throws = %d\n",
+	       iinfo->is_constructor, iinfo->is_method, iinfo->throws);
 
 	/* allocate enough space for all args in both the out and in lists.
 	 * we'll only use as much as we need.  since function argument lists

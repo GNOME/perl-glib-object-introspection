@@ -12,7 +12,7 @@ sv_to_callback (GIArgInfo * arg_info,
 
 	/* the destroy notify func is handled by _handle_automatic_arg */
 
-	dwarn ("      Perl callback at %d (%s)\n",
+	dwarn ("pos = %d, name = %s\n",
 	       invocation_info->current_pos,
 	       g_base_info_get_name (arg_info));
 
@@ -23,7 +23,7 @@ sv_to_callback (GIArgInfo * arg_info,
 	callback_info->free_after_use = FALSE;
 	g_base_info_unref (callback_interface_info);
 
-	dwarn ("      Perl callback data at %d, destroy at %d\n",
+	dwarn ("  data at %d, destroy at %d\n",
 	       callback_info->data_pos, callback_info->destroy_pos);
 
 	scope = (!gperl_sv_is_defined (sv))
@@ -31,17 +31,17 @@ sv_to_callback (GIArgInfo * arg_info,
 		: g_arg_info_get_scope (arg_info);
 	switch (scope) {
 	    case GI_SCOPE_TYPE_CALL:
-		dwarn ("      Perl callback has scope 'call'\n");
+		dwarn ("  scope = 'call'\n");
 		free_after_call (invocation_info,
 		                 (GFunc) release_perl_callback, callback_info);
 		break;
 	    case GI_SCOPE_TYPE_NOTIFIED:
-		dwarn ("      Perl callback has scope 'notified'\n");
+		dwarn ("  scope = 'notified'\n");
 		/* This case is already taken care of by the notify
 		 * stuff above */
 		break;
 	    case GI_SCOPE_TYPE_ASYNC:
-		dwarn ("      Perl callback has scope 'async'\n");
+		dwarn ("  scope = 'async'\n");
 		/* FIXME: callback_info->free_after_use = TRUE; */
 		break;
 	    default:
@@ -53,7 +53,7 @@ sv_to_callback (GIArgInfo * arg_info,
 		g_slist_prepend (invocation_info->callback_infos,
 		                 callback_info);
 
-	dwarn ("      returning Perl closure %p from info %p\n",
+	dwarn ("  -> closure %p from info %p\n",
 	       callback_info->closure, callback_info);
 	return callback_info->closure;
 }
@@ -68,7 +68,7 @@ sv_to_callback_data (SV * sv,
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
 		GPerlI11nPerlCallbackInfo *callback_info = l->data;
 		if (callback_info->data_pos == ((gint) invocation_info->current_pos)) {
-			dwarn ("      user data for Perl callback %p\n",
+			dwarn ("user data for Perl callback %p\n",
 			       callback_info);
 			attach_perl_callback_data (callback_info, sv);
 			/* If the user did not specify any code and data and if
@@ -81,7 +81,7 @@ sv_to_callback_data (SV * sv,
 			    !gperl_sv_is_defined (callback_info->data) &&
 			    -1 == callback_info->destroy_pos)
 			{
-				dwarn ("        handing over NULL");
+				dwarn ("  -> handing over NULL");
 				return NULL;
 			}
 			return callback_info;
@@ -89,7 +89,7 @@ sv_to_callback_data (SV * sv,
 	}
 	if (invocation_info->is_callback) {
 		GPerlI11nCCallbackInfo *wrapper = INT2PTR (GPerlI11nCCallbackInfo*, SvIV (sv));
-		dwarn ("      user data for C callback %p\n", wrapper);
+		dwarn ("user data for C callback %p\n", wrapper);
 		return wrapper->data;
 	}
 	return NULL;
@@ -107,7 +107,7 @@ callback_to_sv (GICallableInfo *interface, gpointer func, GPerlI11nInvocationInf
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
 		GPerlI11nCCallbackInfo *callback_info = l->data;
 		if ((gint) invocation_info->current_pos == callback_info->destroy_pos) {
-			dwarn ("      destroy notify for C callback %p\n",
+			dwarn ("destroy notify for C callback %p\n",
 			       callback_info);
 			callback_info->destroy = func;
 			/* release_c_callback is called from
@@ -119,7 +119,7 @@ callback_to_sv (GICallableInfo *interface, gpointer func, GPerlI11nInvocationInf
 	arg_info = g_callable_info_get_arg (invocation_info->interface,
 	                                    (gint) invocation_info->current_pos);
 
-	dwarn ("      C callback at %d (%s)\n",
+	dwarn ("C callback: pos = %d, name = %s\n",
 	       invocation_info->current_pos,
 	       g_base_info_get_name (arg_info));
 
@@ -137,7 +137,7 @@ callback_to_sv (GICallableInfo *interface, gpointer func, GPerlI11nInvocationInf
 	}
 	callback_info->data_sv = data_sv;
 
-	dwarn ("      C callback data at %d, destroy at %d\n",
+	dwarn ("  data at %d, destroy at %d\n",
 	       callback_info->data_pos, callback_info->destroy_pos);
 
 
@@ -145,7 +145,7 @@ callback_to_sv (GICallableInfo *interface, gpointer func, GPerlI11nInvocationInf
 		g_slist_prepend (invocation_info->callback_infos,
 		                 callback_info);
 
-	dwarn ("      returning C closure %p from info %p\n",
+	dwarn ("  -> SV %p from info %p\n",
 	       code_sv, callback_info);
 	return code_sv;
 }
@@ -160,7 +160,7 @@ callback_data_to_sv (gpointer data,
 	for (l = invocation_info->callback_infos; l != NULL; l = l->next) {
 		GPerlI11nCCallbackInfo *callback_info = l->data;
 		if (callback_info->data_pos == (gint) invocation_info->current_pos) {
-			dwarn ("      user data for C callback %p\n",
+			dwarn ("user data for C callback %p\n",
 			       callback_info);
 			attach_c_callback_data (callback_info, data);
 			return callback_info->data_sv;
@@ -168,7 +168,7 @@ callback_data_to_sv (gpointer data,
 	}
 	if (data && invocation_info->is_callback) {
 		GPerlI11nPerlCallbackInfo *wrapper = data;
-		dwarn ("      user data for Perl callback %p\n", wrapper);
+		dwarn ("user data for Perl callback %p\n", wrapper);
 		return wrapper->data;
 	}
 	return NULL;

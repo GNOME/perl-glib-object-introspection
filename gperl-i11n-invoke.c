@@ -7,10 +7,7 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	gint orig_n_args;
 	guint i;
 
-	dwarn ("invoke: %s\n"
-	       "  n_args: %d\n",
-	       g_base_info_get_name (info),
-	       g_callable_info_get_n_args (info));
+	dwarn ("%s\n", g_base_info_get_name (info));
 
 	iinfo->interface = info;
 
@@ -24,6 +21,7 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	orig_n_args = g_callable_info_get_n_args (info);
 	g_assert (orig_n_args >= 0);
 	iinfo->n_args = (guint) orig_n_args;
+	dwarn ("  n_args = %u\n", iinfo->n_args);
 
 	if (iinfo->n_args) {
 		iinfo->arg_infos = gperl_alloc_temp (sizeof (GITypeInfo*) * iinfo->n_args);

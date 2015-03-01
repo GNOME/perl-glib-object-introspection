@@ -25,7 +25,7 @@ get_function_info (GIRepository *repository,
                    const gchar *namespace,
                    const gchar *method)
 {
-	dwarn ("%s: %s, %s, %s\n", G_STRFUNC, basename, namespace, method);
+	dwarn ("%s, %s, %s\n", basename, namespace, method);
 
 	if (namespace) {
 		GIFunctionInfo *function_info = NULL;

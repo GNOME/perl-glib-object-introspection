@@ -16,6 +16,8 @@ ghash_to_sv (GITypeInfo *info,
 	GHashTableIter iter;
 	HV *hv;
 
+	dwarn ("pointer = %p\n", pointer);
+
 	if (pointer == NULL) {
 		return &PL_sv_undef;
 	}
@@ -32,10 +34,7 @@ ghash_to_sv (GITypeInfo *info,
 	value_type_tag = g_type_info_get_tag (value_param_info);
 #endif
 
-	dwarn ("    GHashTable: pointer %p\n"
-	       "      key type tag %d (%s)\n"
-	       "      value type tag %d (%s)\n",
-	       pointer,
+	dwarn ("  key tag = %d (%s), value tag = %d (%s)\n",
 	       key_type_tag, g_type_tag_to_string (key_type_tag),
 	       value_type_tag, g_type_tag_to_string (value_type_tag));
 
@@ -46,13 +45,13 @@ ghash_to_sv (GITypeInfo *info,
 		GIArgument arg = { 0, };
 		SV *key_sv, *value_sv;
 
-		dwarn ("      converting key pointer %p\n", key_p);
+		dwarn ("  key pointer %p\n", key_p);
 		arg.v_pointer = key_p;
 		key_sv = arg_to_sv (&arg, key_param_info, item_transfer, NULL);
 		if (key_sv == NULL)
                         break;
 
-		dwarn ("      converting value pointer %p\n", value_p);
+		dwarn ("  value pointer %p\n", value_p);
 		arg.v_pointer = value_p;
 		value_sv = arg_to_sv (&arg, value_param_info, item_transfer, NULL);
 		if (value_sv == NULL)
@@ -82,7 +81,7 @@ sv_to_ghash (GITransfer transfer,
 	GEqualFunc equal_func;
 	I32 n_keys;
 
-	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
+	dwarn ("sv = %p\n", sv);
 
 	if (!gperl_sv_is_defined (sv))
 		return NULL;
@@ -123,9 +122,7 @@ sv_to_ghash (GITransfer transfer,
 		break;
 	}
 
-	dwarn ("  GHashTable with transfer %d\n"
-	       "    key_param_info %p with type tag %d (%s)\n"
-	       "    value_param_info %p with type tag %d (%s)\n",
+	dwarn ("  transfer = %d, key info = %p, key tag = %d (%s), value info = %p, value tag = %d (%s)\n",
 	       transfer,
 	       key_param_info,
 	       g_type_info_get_tag (key_param_info),
@@ -148,8 +145,8 @@ sv_to_ghash (GITransfer transfer,
 		key_p = value_p = NULL;
 
 		sv = hv_iterkeysv (he);
+		dwarn ("  key SV %p\n", sv);
 		if (sv && gperl_sv_is_defined (sv)) {
-			dwarn ("    converting key SV %p\n", sv);
 			/* FIXME: Is it OK to always allow undef here? */
 			sv_to_arg (sv, &arg, NULL, key_param_info,
 			           item_transfer, TRUE, NULL);
@@ -157,8 +154,8 @@ sv_to_ghash (GITransfer transfer,
 		}
 
 		sv = hv_iterval (hv, he);
+		dwarn ("  value SV %p\n", sv);
 		if (sv && gperl_sv_is_defined (sv)) {
-			dwarn ("    converting value SV %p\n", sv);
 			sv_to_arg (sv, &arg, NULL, key_param_info,
 			           item_transfer, TRUE, NULL);
 			value_p = arg.v_pointer;
@@ -169,7 +166,7 @@ sv_to_ghash (GITransfer transfer,
 	}
 
 out:
-	dwarn ("    -> hash %p of size %d\n", hash, g_hash_table_size (hash));
+	dwarn ("  -> hash %p of size %d\n", hash, g_hash_table_size (hash));
 
 	g_base_info_unref ((GIBaseInfo *) key_param_info);
 	g_base_info_unref ((GIBaseInfo *) value_param_info);

@@ -64,9 +64,9 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 		data_sv = info->data ? SvREFCNT_inc (info->data) : NULL;
 		first_sv = info->swap_data ? data_sv     : instance_sv;
 		last_sv  = info->swap_data ? instance_sv : data_sv;
-		dwarn ("  info->data = %p, info->swap_data = %d\n",
+		dwarn ("info->data = %p, info->swap_data = %d\n",
 		       info->data, info->swap_data);
-		dwarn ("  instance = %p, data = %p, first = %p, last = %p\n",
+		dwarn ("instance = %p, data = %p, first = %p, last = %p\n",
 		       instance_sv, data_sv, first_sv, last_sv);
 		if (first_sv)
 			XPUSHs (sv_2mortal (first_sv));
@@ -85,25 +85,19 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 
 		iinfo.base.current_pos = i;
 
-		dwarn ("arg info: %s (%p)\n"
-		       "  direction: %d\n"
-		       "  is return value: %d\n"
-		       "  is optional: %d\n"
-		       "  may be null: %d\n"
-		       "  transfer: %d\n",
-		       g_base_info_get_name (arg_info), arg_info,
-		       g_arg_info_get_direction (arg_info),
+		dwarn ("arg %d: info = %p (%s)\n",
+		       i, arg_info, g_base_info_get_name (arg_info));
+		dwarn ("  dir = %d, is retval = %d, is optional = %d, may be null = %d, transfer = %d\n",
+		       direction,
 		       g_arg_info_is_return_value (arg_info),
 		       g_arg_info_is_optional (arg_info),
 		       g_arg_info_may_be_null (arg_info),
-		       g_arg_info_get_ownership_transfer (arg_info));
-
-		dwarn ("arg type: %p\n"
-		       "  is pointer: %d\n"
-		       "  tag: %s (%d)\n",
+		       transfer);
+		dwarn ("  arg type = %p, is pointer = %d, tag = %d (%s)\n",
 		       arg_type,
 		       g_type_info_is_pointer (arg_type),
-		       g_type_tag_to_string (g_type_info_get_tag (arg_type)), g_type_info_get_tag (arg_type));
+		       g_type_info_get_tag (arg_type),
+		       g_type_tag_to_string (g_type_info_get_tag (arg_type)));
 
 		if (direction == GI_DIRECTION_IN ||
 		    direction == GI_DIRECTION_INOUT)
@@ -221,6 +215,8 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 				 * (nor is there an annotation for it). */
 				gboolean may_be_null = TRUE;
 				gboolean is_caller_allocated = g_arg_info_is_caller_allocates (arg_info);
+				dwarn ("out/inout arg, pos = %d, is_caller_allocated = %d\n",
+				       i, is_caller_allocated);
 				if (is_caller_allocated) {
 					tmp_arg.v_pointer = out_pointer;
 				}
@@ -248,13 +244,11 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 		transfer = iinfo.base.return_type_transfer;
 		may_be_null = g_callable_info_may_return_null (cb_interface); /* FIXME */
 
-		dwarn ("ret type: %p\n"
-		       "  is pointer: %d\n"
-		       "  tag: %d\n"
-		       "  transfer: %d\n",
-		       type_info,
+		dwarn ("return value: type = %p\n", type_info);
+		dwarn ("  is pointer = %d, tag = %d (%s), transfer = %d\n",
 		       g_type_info_is_pointer (type_info),
 		       g_type_info_get_tag (type_info),
+		       g_type_tag_to_string (g_type_info_get_tag (type_info)),
 		       transfer);
 
 		sv_to_arg (POPs, &arg, NULL, type_info,
@@ -305,7 +299,8 @@ invoke_perl_signal_handler (ffi_cif* cif, gpointer resp, gpointer* args, gpointe
 	PERL_UNUSED_VAR (resp);
 	PERL_UNUSED_VAR (marshal_data);
 
-	dwarn ("invoke_perl_signal_handler: n args %d\n",
+	dwarn ("%s, n_args = %d\n",
+	       g_base_info_get_name (signal_info->interface),
 	       g_callable_info_get_n_args (signal_info->interface));
 
 	cb_info = create_perl_callback_closure (signal_info->interface,
@@ -342,8 +337,7 @@ _prepare_perl_invocation_info (GPerlI11nPerlInvocationInfo *iinfo,
 
 	prepare_invocation_info ((GPerlI11nInvocationInfo *) iinfo, info);
 
-	dwarn ("Perl invoke: %s\n"
-	       "  n_args: %d\n",
+	dwarn ("%s, n_args = %d\n",
 	       g_base_info_get_name (info),
 	       g_callable_info_get_n_args (info));
 

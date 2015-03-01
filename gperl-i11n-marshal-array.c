@@ -37,28 +37,28 @@ _need_struct_value_semantics (GIArrayType array_type, GITypeInfo *param_info, GI
 static void
 _free_raw_array (gpointer raw_array)
 {
-	dwarn ("free_raw_array %p\n", raw_array);
+	dwarn ("%p\n", raw_array);
 	g_free (raw_array);
 }
 
 static void
 _free_array (GArray *array)
 {
-	dwarn ("free_array %p\n", array);
+	dwarn ("%p\n", array);
 	g_array_free (array, TRUE);
 }
 
 static void
 _free_ptr_array (GPtrArray *array)
 {
-	dwarn ("free_ptr_array %p\n", array);
+	dwarn ("%p\n", array);
 	g_ptr_array_free (array, TRUE);
 }
 
 static void
 _free_byte_array (GByteArray *array)
 {
-	dwarn ("free_byte_array %p\n", array);
+	dwarn ("%p\n", array);
 	g_byte_array_free (array, TRUE);
 }
 
@@ -79,6 +79,8 @@ array_to_sv (GITypeInfo *info,
 	gboolean need_struct_value_semantics;
 	gssize length = -1, i;
 	AV *av;
+
+	dwarn ("pointer %p\n", pointer);
 
 	if (pointer == NULL) {
 		return &PL_sv_undef;
@@ -146,11 +148,11 @@ array_to_sv (GITypeInfo *info,
 	need_struct_value_semantics =
 		_need_struct_value_semantics (array_type, param_info, param_tag);
 
-	dwarn ("    C array: pointer %p, array %p, elements %p, "
-	       "length %"G_GSSIZE_FORMAT", item size %"G_GSIZE_FORMAT", "
-	       "param_info %p with type tag %d (%s)\n",
-	       pointer, array, elements,
-	       length, item_size,
+	dwarn ("type %d, array %p, elements %p\n",
+	       array_type, array, elements);
+	dwarn ("length %"G_GSSIZE_FORMAT", item size %"G_GSIZE_FORMAT", param_info %p, param_tag %d (%s)\n",
+	       length,
+	       item_size,
 	       param_info,
 	       param_tag,
 	       g_type_tag_to_string (param_tag));
@@ -159,6 +161,7 @@ array_to_sv (GITypeInfo *info,
 		GIArgument arg;
 		SV *value;
 		gpointer element = elements + ((gsize) i) * item_size;
+		dwarn ("  element %"G_GSSIZE_FORMAT": %p\n", i, element);
 		if (need_struct_value_semantics) {
 			raw_to_arg (&element, &arg, param_info);
 		} else {
@@ -188,6 +191,9 @@ array_to_sv (GITypeInfo *info,
 
 	g_base_info_unref ((GIBaseInfo *) param_info);
 
+	dwarn ("  -> AV %p of length %"G_GSIZE_FORMAT"\n",
+	       av, av_len (av) + 1);
+
 	return newRV_noinc ((SV *) av);
 }
 
@@ -212,7 +218,7 @@ sv_to_array (GITransfer transfer,
 	gsize item_size;
 	gboolean need_struct_value_semantics;
 
-	dwarn ("%s: sv %p\n", G_STRFUNC, sv);
+	dwarn ("sv %p\n", sv);
 
 	/* Add an array info entry even before the undef check so that the
 	 * corresponding length arg is set to zero later by
@@ -241,9 +247,11 @@ sv_to_array (GITransfer transfer,
 
 	param_info = g_type_info_get_param_type (type_info, 0);
 	param_tag = g_type_info_get_tag (param_info);
-	dwarn ("  GArray: param_info %p with type tag %d (%s) and transfer %d\n",
-	       param_info, param_tag,
-	       g_type_tag_to_string (g_type_info_get_tag (param_info)),
+	dwarn ("type %d, param_info %p, param_tag %d (%s), transfer %d\n",
+	       array_type,
+	       param_info,
+	       param_tag,
+	       g_type_tag_to_string (param_tag),
 	       transfer);
 
 	need_struct_value_semantics =
@@ -270,10 +278,10 @@ sv_to_array (GITransfer transfer,
 	for (i = 0; i < length; i++) {
 		SV **svp;
 		svp = av_fetch (av, i, 0);
+		dwarn ("  element %"G_GSIZE_FORMAT": svp = %p\n", i, svp);
 		if (svp && gperl_sv_is_defined (*svp)) {
 			GIArgument arg;
 
-			dwarn ("    converting SV %p\n", *svp);
 			/* FIXME: Is it OK to always allow undef here? */
 			sv_to_arg (*svp, &arg, NULL, param_info,
 			           item_transfer, TRUE, NULL);
@@ -300,8 +308,6 @@ sv_to_array (GITransfer transfer,
 			}
 		}
 	}
-
-	dwarn ("    -> array %p of size %d\n", array, array->len);
 
 	if (length_pos >= 0) {
 		array_info->length = length;
@@ -330,6 +336,9 @@ sv_to_array (GITransfer transfer,
 	}
 
 	g_base_info_unref ((GIBaseInfo *) param_info);
+
+	dwarn ("  -> array %p of length %"G_GSIZE_FORMAT"\n",
+	       return_array, length);
 
 	return return_array;
 }
