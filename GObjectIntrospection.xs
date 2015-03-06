@@ -617,7 +617,6 @@ _construct_boxed (class, package)
 	repository = g_irepository_get_default ();
 	info = g_irepository_find_by_gtype (repository, gtype);
 	if (!info) {
-		g_base_info_unref (info);
 		ccroak ("Could not fetch information for package %s; "
 		        "perhaps it has not been loaded via "
 		        "Glib::Object::Introspection?",
