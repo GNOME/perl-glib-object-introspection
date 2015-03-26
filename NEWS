@@ -1,6 +1,7 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.029
 ========================================================
 
+* Hook up the generic Glib::Boxed constructor on load, not in setup()
 * Add support for marshalling GVariants.
 * Add support for marshalling GArrays, GPtrArrays and GByteArrays.
 * Support flat arrays when converting from C to Perl.
