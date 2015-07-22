@@ -47,7 +47,7 @@ generic_class_init (GIObjectInfo *info, const gchar *target_package, gpointer cl
 			 * struct member. */
 			HV * stash = gv_stashpv (target_package, 0);
 			GV * slot = gv_fetchmethod (stash, perl_method_name);
-			if (!slot) {
+			if (!slot || !GvCV (slot)) {
 				dwarn ("skipping vfunc %s.%s because it has no implementation\n",
 				      g_base_info_get_name (info), vfunc_name);
 				g_base_info_unref (vfunc_info);

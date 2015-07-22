@@ -28,6 +28,7 @@ require XSLoader;
 XSLoader::load(__PACKAGE__, $VERSION);
 
 my @OBJECT_PACKAGES_WITH_VFUNCS;
+my %SEEN;
 our %_FORBIDDEN_SUB_NAMES = map { $_ => 1 } qw/AUTOLOAD CLONE DESTROY BEGIN
                                                UNITCHECK CHECK INIT END/;
 our %_BASENAME_TO_PACKAGE;
@@ -67,6 +68,14 @@ sub setup {
   my $package = $params{package};
   my $search_path = $params{search_path} || undef;
   my $name_corrections = $params{name_corrections} || {};
+
+  # Avoid repeating setting up a library as this can lead to issues, e.g., due
+  # to types being registered more than once with perl-Glib.  In particular,
+  # the lazy-loading mechanism of Glib::Object is not prepared to handle
+  # repeated type registrations.
+  if ($SEEN{$basename}{$version}{$package}++) {
+    return;
+  }
 
   $_BASENAME_TO_PACKAGE{$basename} = $package;
 
@@ -177,9 +186,11 @@ sub setup {
   foreach my $packaged_signal (@use_generic_signal_marshaller_for) {
     __PACKAGE__->_use_generic_signal_marshaller_for (@$packaged_signal);
   }
+
+  return;
 }
 
-sub INIT {
+INIT {
   no strict qw(refs);
 
   # Hook up the implemented vfuncs first.
