@@ -6,7 +6,11 @@ use strict;
 use warnings;
 use utf8;
 
-plan tests => 6;
+if (check_gi_version (1, 32, 0)) {
+  plan tests => 6;
+} else {
+  plan skip_all => 'Need gobject-introspection 1.32.0';
+}
 
 my $v1 = Glib::Variant->new ("i", 27);
 my $v2 = Glib::Variant->new ("s", "Hello");
