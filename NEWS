@@ -1,7 +1,9 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.030
 ========================================================
 
 * Avoid repeating setting up a library as this can lead to issues.
+* Add some missing version guards to the tests
+* Added t/variants.t to MANIFEST
 
 Overview of changes in Glib::Object::Introspection 0.029
 ========================================================
