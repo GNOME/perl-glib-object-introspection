@@ -44,5 +44,6 @@ t/interface-implementation.t
 t/objects.t
 t/structs.t
 t/values.t
+t/variants.t
 t/vfunc-chaining.t
 t/vfunc-ref-counting.t
