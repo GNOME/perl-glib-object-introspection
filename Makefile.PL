@@ -46,6 +46,7 @@ my %pod_files = (
    'lib/Glib/Object/Introspection.pm'
      => '$(INST_MAN3DIR)/Glib::Object::Introspection.$(MAN3EXT)',
 );
+my @exe_files = qw(bin/perli11ndoc);
 
 my %meta_merge = (
         q(meta-spec)          => {
@@ -158,6 +159,7 @@ WriteMakefile(
   PREREQ_PM	=> \%CONFIG_REQ_PM,
   XSPROTOARG	=> '-noprototypes',
   MAN3PODS	=> \%pod_files,
+  EXE_FILES     => \@exe_files,
   META_MERGE	=> \%meta_merge,
   $deps->get_makefile_vars,
 );
