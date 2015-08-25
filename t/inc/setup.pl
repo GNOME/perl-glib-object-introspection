@@ -2,8 +2,15 @@ use Config;
 use Glib::Object::Introspection;
 use Test::More;
 
-unless (-e qq(build/libregress.$Config{dlext}) &&
-        -e qq(build/libgimarshallingtests.$Config{dlext}))
+my $lib_ext;
+if ( $^O =~ /darwin/ ) {
+    $lib_ext = $Config{so};
+} else {
+    $lib_ext = $Config{dlext};
+}
+
+unless (-e qq(build/libregress.$lib_ext) &&
+        -e qq(build/libgimarshallingtests.$lib_ext))
 {
   plan skip_all => 'Need the test libraries';
 }

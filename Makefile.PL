@@ -172,6 +172,12 @@ sub compile_test_libraries {
   print 'Trying to build test libraries... ';
 
   my $success = eval {
+    my $lib_ext;
+    if ( $^O =~ /darwin/ ) {
+       $lib_ext = $Config{so};
+    } else {
+       $lib_ext = $Config{dlext};
+    }
     my $gidatadir = ExtUtils::PkgConfig->variable ('gobject-introspection-1.0',
                                                    'gidatadir');
     die 'Could not find gobject-introspection-1.0' unless defined $gidatadir;
@@ -215,7 +221,7 @@ sub compile_test_libraries {
             $cairo_flags{cflags} $cairo_gobject_flags{cflags} $gio_flags{cflags} \\
             $testsdir/regress.c \\
             $cairo_flags{libs} $cairo_gobject_flags{libs} $gio_flags{libs} \\
-            -o libregress.$Config{dlext} $pipe);
+            -o libregress.$lib_ext $pipe);
     push @commands,
          qq($gir_cmd \\
             --include=cairo-1.0 --include=Gio-2.0 \\
@@ -233,7 +239,7 @@ sub compile_test_libraries {
             $gio_flags{cflags} \\
             $testsdir/gimarshallingtests.c \\
             $gio_flags{libs} \\
-            -o libgimarshallingtests.$Config{dlext} $pipe);
+            -o libgimarshallingtests.$lib_ext $pipe);
     push @commands,
          qq($gir_cmd \\
             --include=Gio-2.0 \\
