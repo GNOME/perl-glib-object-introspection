@@ -1,7 +1,8 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.031
 ========================================================
 
 * Add perli11ndoc, an interactive documentation viewer
+* Added perli11ndoc to MANIFEST
 
 Overview of changes in Glib::Object::Introspection 0.030
 ========================================================
