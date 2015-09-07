@@ -281,6 +281,8 @@ package Glib::Object::Introspection;
 1;
 __END__
 
+=encoding utf8
+
 =head1 NAME
 
 Glib::Object::Introspection - Dynamically create Perl language bindings
@@ -301,16 +303,13 @@ Glib::Object::Introspection uses the gobject-introspection and libffi projects
 to dynamically create Perl bindings for a wide variety of libraries.  Examples
 include gtk+, webkit, libsoup and many more.
 
-=head1 DESCRIPTION
-
-=head2 C<< Glib::Object::Introspection->setup >>
+=head1 DESCRIPTION FOR LIBRARY USERS
 
 To allow Glib::Object::Introspection to create bindings for a library, the
 library must have installed a typelib file, for example
 C<$prefix/lib/girepository-1.0/Gtk-3.0.typelib>.  In your code you then simply
-call C<< Glib::Object::Introspection->setup >> to set everything up.  This
-method takes a couple of key-value pairs as arguments.  These three are
-mandatory:
+call C<< Glib::Object::Introspection->setup >> with the following key-value
+pairs to set everything up:
 
 =over
 
@@ -327,13 +326,195 @@ For C<Gtk-3.0.typelib>, it is '3.0'.
 =item package => $package
 
 The name of the Perl package where every class and method of the library should
-be rooted.  If a library with basename 'Gtk' contains an object 'GtkWindow',
-and you pick as the package 'Gtk3', then that object will be available as
+be rooted.  If a library with basename 'Gtk' contains an class 'GtkWindow',
+and you pick as the package 'Gtk3', then that class will be available as
 'Gtk3::Window'.
 
 =back
 
-The rest are optional:
+The Perl wrappers created by C<Glib::Object::Introspection> follow the
+conventions of the L<Glib> module and old hand-written bindings like L<Gtk2>.
+You can use the included tool C<perli11ndoc> to view the documentation of all
+installed libraries organized and displayed in accordance with these
+conventions.  The guiding principles underlying the conventions are described
+in the following.
+
+=head2 Namespaces and Objects
+
+The namespaces of the C libraries are mapped to Perl packages according to the
+C<package> option specified, for example:
+
+  gtk_ => Gtk3
+  gdk_ => Gtk3::Gdk
+  gdk_pixbuf_ => Gtk3::Gdk::Pixbuf
+  pango_ => Pango
+
+Classes, interfaces and boxed and fundamental types get their own namespaces,
+in a way, as the concept of the GType is completely replaced in the Perl
+bindings by the Perl package name.
+
+  GtkButton => Gtk3::Button
+  GdkPixbuf => Gtk3::Gdk::Pixbuf
+  GtkScrolledWindow => Gtk3::ScrolledWindow
+  PangoFontDescription => Pango::FontDescription
+
+With this package mapping and Perl's built-in method lookup, the bindings can
+do object casting for you.  This gives us a rather comfortably object-oriented
+syntax, using normal Perl object semantics:
+
+  in C:
+    GtkWidget * b;
+    b = gtk_check_button_new_with_mnemonic ("_Something");
+    gtk_toggle_button_set_active (GTK_TOGGLE_BUTTON (b), TRUE);
+    gtk_widget_show (b);
+
+  in Perl:
+    my $b = Gtk3::CheckButton->new_with_mnemonic ('_Something');
+    $b->set_active (1);
+    $b->show;
+
+You see from this that cast macros are not necessary and that you don't need to
+type namespace prefixes quite so often, so your code is a lot shorter.
+
+=head2 Flags and Enums
+
+Flags and enum values are handled as strings, because it's much more readable
+than numbers, and because it's automagical thanks to the GType system.  Values
+are referred to by their nicknames; basically, strip the common prefix,
+lower-case it, and optionally convert '_' to '-':
+
+  GTK_WINDOW_TOPLEVEL => 'toplevel'
+  GTK_BUTTONS_OK_CANCEL => 'ok-cancel' (or 'ok_cancel')
+
+Flags are a special case.  You can't (sensibly) bitwise-or these
+string-constants, so you provide a reference to an array of them instead.
+Anonymous arrays are useful here, and an empty anonymous array is a simple
+way to say 'no flags'.
+
+  FOO_BAR_BAZ | FOO_BAR_QUU | FOO_BAR_QUUX => [qw/baz quu qux/]
+  0 => []
+
+In some cases you need to see if a bit is set in a bitfield; methods
+returning flags therefore return an overloaded object.  See L<Glib> for
+more details on which operations are allowed on these flag objects, but
+here is a quick example:
+
+  in C:
+    /* event->state is a bitfield */
+    if (event->state & GDK_CONTROL_MASK) g_printerr ("control was down\n");
+
+  in Perl:
+    # $event->state is a special object
+    warn "control was down\n" if $event->state & "control-mask";
+
+But this also works:
+
+  warn "control was down\n" if $event->state * "control-mask";
+  warn "control was down\n" if $event->state >= "control-mask";
+  warn "control and shift were down\n"
+                            if $event->state >= ["control-mask", "shift-mask"];
+
+=head2 Memory Handling
+
+The functions for ref'ing and unref'ing objects and free'ing boxed structures
+are not even mapped to Perl, because it's all handled automagically by the
+bindings.  Objects will be kept alive so long as you have a Perl scalar
+pointing to it or the object is referenced in another way, e.g. from a
+container.
+
+The only thing you have to be careful about is the lifespan of non
+reference counted structures, which means most things derived from
+C<Glib::Boxed>.  If it comes from a signal callback it might be good
+only until you return, or if it's the insides of another object then
+it might be good only while that object lives.  If in doubt you can
+C<copy>.  Structs from C<copy> or C<new> are yours and live as long as
+referred to from Perl.
+
+=head2 Callbacks
+
+Use normal Perl callback/closure tricks with callbacks.  The most common use
+you'll have for callbacks is with the L<Glib> C<signal_connect> method:
+
+  $widget->signal_connect (event => \&event_handler, $user_data);
+  $button->signal_connect (clicked => sub { warn "hi!\n" });
+
+$user_data is optional, and with Perl closures you don't often need it
+(see L<perlsub/Persistent variables with closures>).
+
+The userdata is held in a scalar, initialized from what you give in
+C<signal_connect> etc.  It's passed to the callback in usual Perl
+"call by reference" style which means the callback can modify its last
+argument, ie. $_[-1], to modify the held userdata.  This is a little
+subtle, but you can use it for some "state" associated with the
+connection.
+
+  $widget->signal_connect (activate => \&my_func, 1);
+  sub my_func {
+    print "activation count: $_[-1]\n";
+    $_[-1] ++;
+  }
+
+Because the held userdata is a new scalar there's no change to the
+variable (etc.) you originally passed to C<signal_connect>.
+
+If you have a parent object in the userdata (or closure) you have to be careful
+about circular references preventing parent and child being destroyed.  See
+L<perlobj/Two-Phased Garbage Collection> about this generally.  Toplevel
+widgets like C<Gtk3::Window> always need an explicit C<< $widget->destroy >> so
+their C<destroy> signal is a good place to break circular references.  But for
+other widgets it's usually friendliest to avoid circularities in the first
+place, either by using weak references in the userdata, or possibly locating a
+parent dynamically with C<< $widget->get_ancestor >>.
+
+=head2 Miscellaneous
+
+In C you can only return one value from a function, and it is a common practice
+to modify pointers passed in to simulate returning multiple values.  In Perl,
+you can return lists; any functions which modify arguments are changed to
+return them instead.
+
+Arguments and return values that have the types GList or GSList or which are C
+arrays of values will be converted to and from references to normal Perl
+arrays.  The same holds for GHashTable and references to normal Perl hashes.
+
+You don't need to specify string lengths.  You can always use C<substr> to pass
+different parts of a string.
+
+Anything that uses GError in C will C<croak> on failure, setting $@ to a
+magical exception object, which is overloaded to print as the
+returned error message.  The ideology here is that GError is to be used
+for runtime exceptions, and C<croak> is how you do that in Perl.  You can
+catch a croak very easily by wrapping the function in an eval:
+
+  eval {
+    my $pixbuf = Gtk3::Gdk::Pixbuf->new_from_file ($filename);
+    $image->set_from_pixbuf ($pixbuf);
+  };
+  if ($@) {
+    print "$@\n"; # prints the possibly-localized error message
+    if (Glib::Error::matches ($@, 'Gtk3::Gdk::Pixbuf::Error',
+                                  'unknown-format')) {
+      change_format_and_try_again ();
+    } elsif (Glib::Error::matches ($@, 'Glib::File::Error', 'noent')) {
+      change_source_dir_and_try_again ();
+    } else {
+      # don't know how to handle this
+      die $@;
+    }
+  }
+
+This has the added advantage of letting you bunch things together as you would
+with a try/throw/catch block in C++ -- you get cleaner code.  By using
+Glib::Error exception objects, you don't have to rely on string matching
+on a possibly localized error message; you can match errors by explicit and
+predictable conditions.  See L<Glib::Error> for more information.
+
+=head1 DESCRIPTION FOR LIBRARY BINDING AUTHORS
+
+=head2 C<< Glib::Object::Introspection->setup >>
+
+C<< Glib::Object::Introspection->setup >> takes a few optional arguments that
+augment the generated API:
 
 =over
 
@@ -496,6 +677,8 @@ behavior.
 
 =over
 
+=item perl-Glib: L<Glib>
+
 =item gobject-introspection: L<http://live.gnome.org/GObjectIntrospection>
 
 =item libffi: L<http://sourceware.org/libffi/>
@@ -503,8 +686,6 @@ behavior.
 =back
 
 =head1 AUTHORS
-
-=encoding utf8
 
 =over
 
