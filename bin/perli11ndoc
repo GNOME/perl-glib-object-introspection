@@ -168,6 +168,62 @@ sub find_attribute {
   return $attribute_list->pop->value;
 }
 
+sub find_full_element_name {
+  my ($self, $element) = @_;
+  my $name = $self->find_attribute ($element, 'name');
+  return () unless defined $name;
+
+  if ($name =~ /\./) {
+    die "Unexpected fully qualified name '$name' encountered; aborting\n";
+  }
+
+  my $package = '';
+  my $current_element = $element;
+  while (1) {
+    my $parent = $current_element->parentNode;
+    last unless defined $parent;
+    if ($parent->nodeName eq 'namespace') {
+      $package = $self->{basename} . '::' . $package;
+      last;
+    }
+    $package = $self->find_attribute ($parent, 'name') . '::' . $package;
+    $current_element = $parent;
+  }
+
+  my $full_name = $package . $name;
+  $package =~ s/::$//;
+  return ($package, $name, $full_name);
+}
+
+sub find_parameters_and_return_value {
+  my ($self, $element) = @_;
+
+  my (@in, @out);
+  my $parameter_list = $self->{xpc}->find ('core:parameters/core:parameter', $element);
+  foreach my $parameter ($parameter_list->get_nodelist) {
+    my $direction = $self->find_attribute ($parameter, 'direction') // 'in';
+    if ($direction eq 'inout' || $direction eq 'out') {
+      push @out, $parameter;
+    }
+    if ($direction eq 'inout' || $direction eq 'in') {
+      push @in, $parameter;
+    }
+  }
+
+  my $retval = undef;
+  my $retval_list = $self->{xpc}->find ('core:return-value', $element);
+  if ($retval_list->size == 1) {
+    $retval = $retval_list->[0];
+    if (defined $retval) {
+      if ($self->find_type_name ($retval) eq 'none') {
+        $retval = undef;
+      }
+    }
+  }
+
+  return (\@in, $retval, \@out);
+}
+
 sub find_type_name {
   my ($self, $element) = @_;
   # FIXME: Sometimes, fields or parameters have a <callback> or <array> element
@@ -395,39 +451,158 @@ sub format_bitfield_and_enumeration {
 # ------------------------------------------------------------------------------
 
 sub format_callable {
-  my ($self, $element, $heading) = @_;
+  my ($self, $element, $heading, $synopsis_format, $flags_formatter) = @_;
+  $flags_formatter //= 'format_callable_flags';
+
   my $text = '';
-  my $full_name = $self->format_full_element_name ($element);
-  my $flags = $self->format_callable_flags ($element);
+
+  my ($package, $name, $full_name) = $self->find_full_element_name ($element);
+  my $flags = $self->$flags_formatter ($element);
   $text .= "$heading\n\n  $full_name$flags\n";
+
+  my ($in, $retval, $out) = $self->find_parameters_and_return_value ($element);
+
+  # --- synopsis ---
+  my @in_names = map { '$' . $self->find_attribute ($_, 'name') } @$in;
+  my @out_names = map { '$' . $self->find_attribute ($_, 'name') } @$out;
+  if (defined $retval) {
+    unshift @out_names, '$retval';
+  }
+
+  my $in_list = join ', ', @in_names;
+  my $in_list_pre_comma = @in_names > 0 ? ", $in_list" : '';
+  my $in_list_post_comma = @in_names > 0 ? "$in_list, " : '';
+  my $out_list = join ', ', @out_names;
+  my $out_list_parens = @out_names > 1 ? "($out_list)" : $out_list;
+  my $out_list_assign = @out_names > 0 ? "$out_list_parens = " : '';
+
+  my $synopsis = $synopsis_format;
+  $synopsis =~ s/\[\[PACKAGE\]\]/$package/g;
+  $synopsis =~ s/\[\[NAME\]\]/$name/g;
+  $synopsis =~ s/\[\[NAME_UC\]\]/uc $name/ge;
+  $synopsis =~ s/\[\[FULL_NAME\]\]/$full_name/g;
+  $synopsis =~ s/\[\[IN_LIST\]\]/$in_list/g;
+  $synopsis =~ s/\[\[IN_LIST_PRE_COMMA\]\]/$in_list_pre_comma/g;
+  $synopsis =~ s/\[\[IN_LIST_POST_COMMA\]\]/$in_list_post_comma/g;
+  $synopsis =~ s/\[\[OUT_LIST\]\]/$out_list/g;
+  $synopsis =~ s/\[\[OUT_LIST_PARENS\]\]/$out_list_parens/g;
+  $synopsis =~ s/\[\[OUT_LIST_ASSIGN\]\]/$out_list_assign/g;
+
+  $text .= "\nSYNOPSIS\n\n  $synopsis\n";
+
+  # --- description ---
   $text .= $self->format_description ($element);
-  $text .= $self->format_parameters_and_return_values ($element);
+
+  # --- in ---
+  if (@$in) {
+    $text .= "\nPARAMETERS\n\n";
+    foreach my $parameter (@$in) {
+      my $name = $self->find_attribute ($parameter, 'name');
+      my $type_name = $self->find_type_name ($parameter);
+      my $full_type_name = $self->format_full_type_name ($type_name);
+      $text .= "  • $name: $full_type_name\n";
+      my $doc = $self->format_docs ($parameter, '    ');
+      if (defined $doc) {
+        $text .= "$doc\n";
+      }
+      $text .= "\n";
+    }
+    $text =~ s/\n\n\Z/\n/;
+  }
+
+  # --- retval & out ---
+  my $retval_type_name = 'none';
+  if (defined $retval) {
+    $retval_type_name = $self->find_type_name ($retval);
+  }
+  if ($retval_type_name ne 'none' || @$out) {
+    $text .= "\nRETURN VALUES\n\n";
+    if ($retval_type_name ne 'none') {
+      my $full_retval_type_name =
+        $self->format_full_type_name ($retval_type_name);
+      $text .= "  • $full_retval_type_name\n";
+      my $doc = $self->format_docs ($retval, '    ');
+      if (defined $doc) {
+        $text .= "$doc\n\n";
+      }
+    }
+    if (@$out) {
+      foreach my $parameter (@$out) {
+        my $name = $self->find_attribute ($parameter, 'name');
+        push @out_names, $name;
+        my $type_name = $self->find_type_name ($parameter);
+        my $full_type_name = $self->format_full_type_name ($type_name);
+        $text .= "  • $name: $full_type_name\n";
+        my $doc = $self->format_docs ($parameter, '    ');
+        if (defined $doc) {
+          $text .= "$doc\n\n";
+        }
+      }
+    }
+    $text =~ s/\n\n\Z/\n/;
+  }
+
   return $text;
 }
 
 sub format_callback {
   my ($self, $element) = @_;
-  return $self->format_callable ($element, 'CALLBACK');
+  my $synopsis_format = <<'__EOS__';
+sub {
+    my ([[IN_LIST]]) = @_;
+    ...
+    return [[OUT_LIST_PARENS]];
+  }
+__EOS__
+  return $self->format_callable ($element, 'CALLBACK', $synopsis_format);
 }
 
 sub format_constructor {
   my ($self, $element) = @_;
-  return $self->format_callable ($element, 'CONSTRUCTOR');
+  my $synopsis_format = '$object = [[PACKAGE]]->[[NAME]] ([[IN_LIST]])';
+  return $self->format_callable ($element, 'CONSTRUCTOR', $synopsis_format);
 }
 
 sub format_function {
   my ($self, $element) = @_;
-  return $self->format_callable ($element, 'FUNCTION');
+  my $synopsis_format = '[[OUT_LIST_ASSIGN]][[FULL_NAME]] ([[IN_LIST]])';
+  return $self->format_callable ($element, 'FUNCTION', $synopsis_format);
 }
 
 sub format_method {
   my ($self, $element) = @_;
-  return $self->format_callable ($element, 'METHOD');
+  my $synopsis_format = '[[OUT_LIST_ASSIGN]]$object->[[NAME]] ([[IN_LIST]])';
+  return $self->format_callable ($element, 'METHOD', $synopsis_format);
+}
+
+sub format_signal {
+  my ($self, $element) = @_;
+  my $synopsis_format = <<'__EOS__';
+$object->signal_connect ('[[NAME]]' => sub {
+    my ($object, [[IN_LIST_POST_COMMA]]$data) = @_;
+    ...
+    return [[OUT_LIST_PARENS]];
+  }, $data);
+__EOS__
+  return $self->format_callable ($element,
+                                 'SIGNAL',
+                                 $synopsis_format,
+                                 'format_signal_flags');
 }
 
 sub format_virtual_method {
   my ($self, $element) = @_;
-  return $self->format_callable ($element, 'VIRTUAL METHOD');
+  my $synopsis_format = <<'__EOS__';
+sub [[NAME_UC]] {
+    my ($object[[IN_LIST_PRE_COMMA]]) = @_;
+    ...
+    return [[OUT_LIST_PARENS]];
+  }
+__EOS__
+  return $self->format_callable ($element,
+                                 'VIRTUAL METHOD',
+                                 $synopsis_format,
+                                 'format_virtual_method_flags');
 }
 
 # ------------------------------------------------------------------------------
@@ -593,19 +768,6 @@ sub format_record {
 
 # ------------------------------------------------------------------------------
 
-sub format_signal {
-  my ($self, $element) = @_;
-  my $text = '';
-  my $full_name = $self->format_full_element_name ($element);
-  my $flags = $self->format_signal_flags ($element);
-  $text .= "SIGNAL\n\n  $full_name$flags\n";
-  $text .= $self->format_description ($element);
-  $text .= $self->format_parameters_and_return_values ($element);
-  return $text;
-}
-
-# ------------------------------------------------------------------------------
-
 sub format_sub_constructors {
   my ($self, $element) = @_;
   my $text = '';
@@ -730,10 +892,8 @@ sub format_sub_virtual_methods {
     $text .= "\nVIRTUAL METHODS\n\n";
     foreach my $vfunc ($vfunc_list->get_nodelist) {
       my $name = $self->find_attribute ($vfunc, 'name');
-      my $callable_flags = $self->format_callable_flags ($vfunc,
-                                                         qw/introspectable version/);
-      my $vfunc_flags = $self->format_virtual_method_flags ($vfunc);
-      $text .= "  • $name$vfunc_flags$callable_flags\n";
+      my $flags = $self->format_virtual_method_flags ($vfunc);
+      $text .= "  • $name$flags\n";
     }
   }
   return $text;
@@ -820,27 +980,8 @@ sub format_docs {
 
 sub format_full_element_name {
   my ($self, $element) = @_;
-  my $name = $self->find_attribute ($element, 'name');
-  return '[unknown]' unless defined $name;
-
-  if ($name =~ /\./) {
-    die "Unexpected fully qualified name '$name' encountered; aborting\n";
-  }
-
-  my $formatted_name = $name;
-  my $current_element = $element;
-  while (1) {
-    my $parent = $current_element->parentNode;
-    last unless defined $parent;
-    if ($parent->nodeName eq 'namespace') {
-      return $self->{basename} . '::' . $formatted_name;
-    }
-    $formatted_name =
-      $self->find_attribute ($parent, 'name') . '::' . $formatted_name;
-    $current_element = $parent;
-  }
-
-  die "Could not format '$name'; aborting\n";
+  my (undef, undef, $full_name) = $self->find_full_element_name ($element);
+  return $full_name;
 }
 
 sub format_full_type_name {
@@ -866,71 +1007,6 @@ sub format_full_type_names {
       $text .= "  • $full_type_name\n";
     }
   }
-  return $text;
-}
-
-sub format_parameters_and_return_values {
-  my ($self, $element) = @_;
-
-  my $text = '';
-
-  my @inout_out;
-  my $parameter_list = $self->{xpc}->find ('core:parameters/core:parameter', $element);
-  if ($parameter_list->size > 0) {
-    $text .= "\nPARAMETERS\n\n";
-    foreach my $parameter ($parameter_list->get_nodelist) {
-      my $direction = $self->find_attribute ($parameter, 'direction') // 'in';
-
-      if ($direction eq 'inout' || $direction eq 'out') {
-        push @inout_out, $parameter;
-      }
-
-      if ($direction eq 'inout' || $direction eq 'in') {
-        my $name = $self->find_attribute ($parameter, 'name');
-        my $type_name = $self->find_type_name ($parameter);
-        my $full_type_name = $self->format_full_type_name ($type_name);
-        $text .= "  • $name: $full_type_name\n";
-        my $doc = $self->format_docs ($parameter, '    ');
-        if (defined $doc) {
-          $text .= "$doc\n";
-        }
-        $text .= "\n";
-      }
-    }
-    $text =~ s/\n\n\Z/\n/;
-  }
-
-  my $retval_list = $self->{xpc}->find ('core:return-value', $element);
-  my $retval_type_name = 'none';
-  if ($retval_list->size == 1) {
-    $retval_type_name = $self->find_type_name ($retval_list->[0]);
-  }
-  if ($retval_type_name ne 'none' || @inout_out) {
-    $text .= "\nRETURN VALUES\n\n";
-    if ($retval_type_name ne 'none') {
-      my $full_retval_type_name =
-        $self->format_full_type_name ($retval_type_name);
-      $text .= "  • $full_retval_type_name\n";
-      my $doc = $self->format_docs ($retval_list->[0], '    ');
-      if (defined $doc) {
-        $text .= "$doc\n\n";
-      }
-    }
-    if (@inout_out) {
-      foreach my $parameter (@inout_out) {
-        my $name = $self->find_attribute ($parameter, 'name');
-        my $type_name = $self->find_type_name ($parameter);
-        my $full_type_name = $self->format_full_type_name ($type_name);
-        $text .= "  • $name: $full_type_name\n";
-        my $doc = $self->format_docs ($parameter, '    ');
-        if (defined $doc) {
-          $text .= "$doc\n\n";
-        }
-      }
-    }
-    $text =~ s/\n\n\Z/\n/;
-  }
-
   return $text;
 }
 
@@ -1026,8 +1102,9 @@ sub format_virtual_method_flags {
   my ($self, $element, @wanted) = @_;
   my $name = $self->find_attribute ($element, 'name');
   my @available = (
-    ['invoker', undef, sub { defined $_[0] && $_[0] ne $name
-                               ? "invoked by $_[0]" : undef }],
+    ['introspectable', 1,     sub { !$_[0] ? 'NOT INTROSPECTABLE' : undef }],
+    ['invoker',        undef, sub { defined $_[0] && $_[0] ne $name ? "invoked by $_[0]" : undef }],
+    ['version',        undef, sub { defined $_[0] ? "available since $_[0]" : undef }],
   );
   return $self->format_flags ($element, \@available, \@wanted);
 }
