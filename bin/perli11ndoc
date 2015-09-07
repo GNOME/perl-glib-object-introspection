@@ -27,12 +27,12 @@ use XML::LibXML qw//;
     exit;
   }
 
-  my $pattern = $ARGV[0];
-  my ($lib_pattern, @element_patterns) = split /::/, $pattern;
-
   if (!@ARGV) {
     die 'Usage: perli11ndoc <library name>[::<element name>[::<element name>]]';
   }
+
+  my $pattern = $ARGV[0];
+  my ($lib_pattern, @element_patterns) = split /::/, $pattern;
 
   my $gir = find_gir ($lib_pattern);
   $parser->open ($gir);
