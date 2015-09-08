@@ -1310,6 +1310,26 @@ sub setup_gir_view {
     Gtk3::CellRendererText->new,
     text => GIR_VIEW_COL_TEXT);
   $gir_view->set_headers_visible (FALSE);
+
+  $gir_view->signal_connect (key_press_event => sub {
+    my (undef, $event) = @_;
+    if ($event->keyval == Gtk3::Gdk::KEY_Left () ||
+        $event->keyval == Gtk3::Gdk::KEY_Right ()) {
+      my $selection = $gir_view->get_selection;
+      my ($model, $iter) = $selection->get_selected;
+      if (defined $iter) {
+        my $path = $model->get_path ($iter);
+        if ($event->keyval == Gtk3::Gdk::KEY_Left ()) {
+          $gir_view->collapse_row ($path);
+        } else {
+          $gir_view->expand_row ($path, FALSE);
+        }
+      }
+      return Gtk3::EVENT_STOP ();
+    }
+    return Gtk3::EVENT_PROPAGATE ();
+  });
+
   $gir_view->get_selection->signal_connect (changed => sub {
     $self->update_result_view unless $self->{suppress_gir_view_selection_changes};
   });
