@@ -1173,8 +1173,14 @@ sub new {
   $window->set_default_geometry (800, 800);
 
   my $accel_group = Gtk3::AccelGroup->new;
-  $accel_group->connect (Gtk3::Gdk::KEY_q (), qw/control-mask/, [],
-                         sub { $self->quit; });
+  $accel_group->connect (Gtk3::Gdk::KEY_q (), qw/control-mask/, [], sub {
+    $self->quit;
+    return Gtk3::EVENT_STOP ();
+  });
+  $accel_group->connect (Gtk3::Gdk::KEY_k (), qw/control-mask/, [], sub {
+    $self->{search_entry}->grab_focus;
+    return Gtk3::EVENT_STOP ();
+  });
   $window->add_accel_group ($accel_group);
 
   $self->{window} = $window;
