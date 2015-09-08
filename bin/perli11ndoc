@@ -1355,7 +1355,7 @@ sub setup_result_view {
 
   my $result_buffer = Gtk3::TextBuffer->new (undef);
   my $result_view = Gtk3::TextView->new_with_buffer ($result_buffer);
-  $result_view->set (margin => 2);
+  $result_view->set (editable => FALSE, margin => 2);
 
   $self->{result_buffer} = $result_buffer;
   $self->{result_view} = $result_view;
