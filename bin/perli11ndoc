@@ -1216,21 +1216,37 @@ sub filter_gir_view {
     } else {
       $re = qr/\Q$criterion\E/i;
     }
-    $model->foreach (sub {
-      my (undef, $path, $iter) = @_;
-      my ($text, $is_cat) = $model->get ($iter, GIR_VIEW_COL_TEXT,
-                                         GIR_VIEW_COL_IS_CATEGORY);
-      my $is_match = $text =~ $re;
-      if ($is_cat || !$is_match) {
-        $model->set ($iter, GIR_VIEW_COL_IS_VISIBLE, FALSE);
-      } else {
-        # Make the element and all its parents visible.
-        do {
-          $model->set ($iter, GIR_VIEW_COL_IS_VISIBLE, TRUE);
-        } while (defined ($iter = $model->iter_parent ($iter)));
-        $view->expand_to_path ($filter_model->convert_child_path_to_path ($path));
+
+    my $check_tree;
+    $check_tree = sub {
+      my ($iter) = @_;
+      my @children = map { $model->iter_nth_child ($iter, $_) }
+                         0..$model->iter_n_children ($iter);
+      foreach my $child (@children) {
+        my ($text, $is_cat) = $model->get ($child,
+                                           GIR_VIEW_COL_TEXT,
+                                           GIR_VIEW_COL_IS_CATEGORY);
+        if ($is_cat || $text !~ $re) { # no match
+          $model->set ($child, GIR_VIEW_COL_IS_VISIBLE, FALSE);
+          $check_tree->($child); # descend
+        } else { # match
+          # Make the element and all its parents visible.
+          my $cur = $child;
+          do {
+            $model->set ($cur, GIR_VIEW_COL_IS_VISIBLE, TRUE);
+          } while (defined ($cur = $model->iter_parent ($cur)));
+
+          # Expand the matching element and all its parents.
+          $view->expand_to_path (
+            $filter_model->convert_child_path_to_path (
+              $model->get_path ($child)));
+
+          # No need to descend as we want all children of matching elements to
+          # be visible.  (All elements are visible by default.)
+        }
       }
-    });
+    };
+    $check_tree->(undef); # start with the virtual root node
   }
 }
 
