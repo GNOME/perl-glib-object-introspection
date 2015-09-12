@@ -38,6 +38,14 @@ sub _create_invoker_sub {
   my ($basename, $namespace, $name,
       $shift_package_name, $flatten_array_ref_return,
       $handle_sentinel_boolean) = @_;
+  if ($flatten_array_ref_return && $handle_sentinel_boolean) {
+    croak sprintf
+      "Cannot handle the options flatten_array_ref and handle_sentinel_boolean " .
+      "at the same time for %s%s::%s",
+      $_BASENAME_TO_PACKAGE{$basename},
+      defined $namespace ? "::$namespace" : '',
+      $name;
+  }
   if ($flatten_array_ref_return) {
     return sub {
       shift if $shift_package_name;
