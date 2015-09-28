@@ -195,6 +195,20 @@ sub find_full_element_name {
   return ($package, $name, $full_name);
 }
 
+sub find_node_by_path {
+  my ($self, $path) = @_;
+
+  my $match_list = $self->{xpc}->find ($path, $self->{namespace});
+  if ($match_list->size < 1) {
+    die "Cannot find a matching element for the path $path\n";
+  }
+  if ($match_list->size > 1) {
+    die "Found more than one matching element for the path $path\n";
+  }
+
+  return $match_list->pop;
+}
+
 sub find_parameters_and_return_value {
   my ($self, $element) = @_;
 
@@ -370,17 +384,14 @@ sub format_search_results {
 
 sub format_node_by_path {
   my ($self, $path) = @_;
+  my $node = $self->find_node_by_path ($path);
+  return $self->format_node ($node);
+}
 
-  my $match_list = $self->{xpc}->find ($path, $self->{namespace});
-  if ($match_list->size < 1) {
-    die "Cannot find a matching element for the path $path\n";
-  }
-  if ($match_list->size > 1) {
-    die "Found more than one matching element for the path $path\n";
-  }
-
-  my $match = $match_list->pop;
-  return $self->format_node ($match);
+sub format_node_name_by_path {
+  my ($self, $path) = @_;
+  my $node = $self->find_node_by_path ($path);
+  return $self->format_full_element_name ($node);
 }
 
 sub format_node {
@@ -1149,6 +1160,7 @@ sub new {
   $self->setup_file_menu (@girs);
   $self->setup_gir_view;
   $self->setup_search_entry;
+  $self->setup_path_bar;
   $self->setup_result_view;
 
   my $gir_view_window = Gtk3::ScrolledWindow->new;
@@ -1163,14 +1175,18 @@ sub new {
   $side_box->pack_start ($self->{search_entry}, FALSE, FALSE, 0);
   $side_box->set (margin => 2);
 
+  my $result_box = Gtk3::Box->new ('vertical', 0);
+  $result_box->pack_start ($self->{path_bar}, FALSE, FALSE, 0);
+  $result_box->pack_start ($result_view_window, TRUE, TRUE, 0);
+
   my $paned = Gtk3::Paned->new ('horizontal');
   $paned->pack1 ($side_box, TRUE, TRUE);
-  $paned->pack2 ($result_view_window, TRUE, TRUE);
+  $paned->pack2 ($result_box, TRUE, TRUE);
   $paned->set_position (300);
 
   $window->add ($paned);
   $window->signal_connect (delete_event => sub { $self->quit; });
-  $window->set_default_geometry (800, 800);
+  $window->set_default_geometry (900, 800);
 
   my $accel_group = Gtk3::AccelGroup->new;
   $accel_group->connect (Gtk3::Gdk::KEY_q (), qw/control-mask/, [], sub {
@@ -1199,6 +1215,7 @@ sub filter_gir_view {
     $model->foreach (sub {
       my (undef, undef, $iter) = @_;
       $model->set ($iter, GIR_VIEW_COL_IS_VISIBLE, TRUE);
+      return FALSE; # continue
     });
 
     # Scroll to selected element.
@@ -1347,12 +1364,23 @@ sub setup_gir_view {
   });
 
   $gir_view->get_selection->signal_connect (changed => sub {
-    $self->update_result_view unless $self->{suppress_gir_view_selection_changes};
+    $self->update_results_from_selection
+      unless $self->{suppress_gir_view_selection_changes};
   });
 
   $self->{gir_model} = $gir_model;
   $self->{gir_filter_model} = $gir_filter_model;
   $self->{gir_view} = $gir_view;
+}
+
+sub setup_path_bar {
+  my ($self) = @_;
+  my $path_bar = PathBar->new (orientation => 'horizontal', spacing => 2);
+  $path_bar->set_update_func (sub {
+    my ($name, $path) = @_;
+    $self->update_results ($path);
+  });
+  $self->{path_bar} = $path_bar;
 }
 
 sub setup_search_entry {
@@ -1429,7 +1457,7 @@ sub update_gir_view {
   $self->display_results ($self->{parser}->format_namespace);
 }
 
-sub update_result_view {
+sub update_results_from_selection {
   my ($self) = @_;
   my $selection = $self->{gir_view}->get_selection;
   my ($model, $iter) = $selection->get_selected;
@@ -1437,11 +1465,235 @@ sub update_result_view {
     $self->display_results ($self->{parser}->format_namespace);
   } elsif (!$model->get ($iter, GIR_VIEW_COL_IS_CATEGORY)) {
     my $path = $model->get ($iter, GIR_VIEW_COL_PATH);
-    $self->display_results ($self->{parser}->format_node_by_path ($path));
+    my $name = $self->{parser}->format_node_name_by_path ($path);
+    $self->{path_bar}->append ($name, $path); # indirectly calls update_results
+  }
+}
+
+sub update_results {
+  my ($self, $path) = @_;
+  $self->display_results ($self->{parser}->format_node_by_path ($path));
+
+  # If display and selection are out-of-sync, clear the selection.
+  my $selection = $self->{gir_view}->get_selection;
+  my ($model, $iter) = $selection->get_selected;
+  if (defined $iter) {
+    my $sel_path = $model->get ($iter, GIR_VIEW_COL_PATH);
+    if ($sel_path ne $path) {
+      $self->{suppress_gir_view_selection_changes} = TRUE;
+      {
+        $selection->unselect_all;
+      }
+      $self->{suppress_gir_view_selection_changes} = FALSE;
+    }
   }
 }
 
 sub quit {
   my ($self) = @_;
   Gtk3::main_quit ();
+}
+
+package PathBar;
+
+# The BEGIN { eval } dance is to support not loading Gtk3 in text mode.
+BEGIN { eval 'use Glib::Object::Subclass qw/Gtk3::Box/;' }
+
+sub TRUE () {1}
+sub FALSE () {0}
+
+sub INIT_INSTANCE {
+  my ($self) = @_;
+
+  my $back_button = Gtk3::Button->new;
+  $back_button->set_image (
+    Gtk3::Image->new_from_icon_name ('go-previous-symbolic', 'button'));
+  $back_button->set_sensitive (FALSE);
+  $back_button->signal_connect (clicked => sub { $self->{path_label}->go_back });
+
+  my $forward_button = Gtk3::Button->new;
+  $forward_button->set_image (
+    Gtk3::Image->new_from_icon_name ('go-next-symbolic', 'button'));
+  $forward_button->set_sensitive (FALSE);
+  $forward_button->signal_connect (clicked => sub { $self->{path_label}->go_forward });
+
+  my $nav_box = Gtk3::Box->new ('horizontal', 2);
+  $nav_box->pack_start ($back_button, FALSE, FALSE, 0);
+  $nav_box->pack_start ($forward_button, FALSE, FALSE, 0);
+  $nav_box->get_style_context->add_class ('linked');
+
+  my $path_label = PathLabel->new;
+  $path_label->set_update_func (sub {
+    my ($name, $path) = @_;
+    $self->update_buttons;
+    if (defined $self->{update_func}) {
+      $self->{update_func}->($name, $path);
+    }
+  });
+
+  $self->pack_start ($nav_box, FALSE, FALSE, 0);
+  $self->pack_start (Gtk3::VSeparator->new, FALSE, FALSE, 0);
+  $self->pack_start ($path_label, TRUE, TRUE, 0);
+  $self->set (margin => 2);
+
+  $self->{back_button} = $back_button;
+  $self->{forward_button} = $forward_button;
+  $self->{path_label} = $path_label;
+
+  return $self;
+}
+
+sub append {
+  my ($self, $name, $path) = @_;
+  $self->{path_label}->append ($name, $path);
+}
+
+sub set_update_func {
+  my ($self, $func) = @_;
+  $self->{update_func} = $func;
+}
+
+sub update_buttons {
+  my ($self) = @_;
+  $self->{back_button}->set_sensitive ($self->{path_label}->can_go_back);
+  $self->{forward_button}->set_sensitive ($self->{path_label}->can_go_forward);
+}
+
+package PathLabel;
+
+# The BEGIN { eval } dance is to support not loading Gtk3 in text mode.
+BEGIN { eval 'use Glib::Object::Subclass qw/Gtk3::Label/;' }
+
+sub TRUE () {1}
+sub FALSE () {0}
+
+sub INIT_INSTANCE {
+  my ($self) = @_;
+
+  $self->signal_connect (activate_link => sub {
+    my (undef, $index) = @_;
+    $self->{current_child} = $index;
+    $self->update;
+    return TRUE; # handled
+  });
+  $self->set_track_visited_links (FALSE);
+
+  $self->{children} = [];
+  $self->{current_child} = undef;
+  $self->{natural_width} = 0;
+}
+
+sub append {
+  my ($self, $name, $path) = @_;
+  if (defined $self->{current_child} &&
+      $self->{current_child} < $#{$self->{children}}) {
+    splice @{$self->{children}}, $self->{current_child}+1;
+  }
+  push @{$self->{children}}, {name => $name, path => $path};
+  $self->{current_child} = $#{$self->{children}};
+  $self->update;
+}
+
+sub can_go_back {
+  my ($self) = @_;
+  return $self->{current_child} > 0;
+}
+
+sub can_go_forward {
+  my ($self) = @_;
+  return $self->{current_child} < $#{$self->{children}};
+}
+
+sub go_back {
+  my ($self) = @_;
+  return unless $self->{current_child} > 0;
+  $self->{current_child}--;
+  $self->update;
+}
+
+sub go_forward {
+  my ($self) = @_;
+  return unless $self->{current_child} < $#{$self->{children}};
+  $self->{current_child}++;
+  $self->update;
+}
+
+sub set_update_func {
+  my ($self, $func) = @_;
+  $self->{update_func} = $func;
+}
+
+sub update {
+  my ($self) = @_;
+  $self->set_markup ($self->_format_children);
+  if (defined $self->{update_func}) {
+    my $child = $self->{children}->[$self->{current_child}];
+    $self->{update_func}->($child->{name}, $child->{path});
+  }
+}
+
+sub GET_PREFERRED_WIDTH {
+  #say 'GET_PREFERRED_WIDTH';
+  my ($self) = @_;
+  (undef, $self->{natural_width}) = $self->SUPER::GET_PREFERRED_WIDTH;
+  return (0, 0);
+}
+
+sub SIZE_ALLOCATE {
+  #say 'SIZE_ALLOCATE';
+  my ($self, $allocation) = @_;
+  #print "$_ => $allocation->{$_}, " for sort keys %$allocation; print "\n";
+  if ($self->{natural_width} > $allocation->{width}) {
+    my @selected = ($self->{current_child});
+    while (1) {
+      my @candidates = @selected;
+      if ($selected[0] > 0) {
+        unshift @candidates, $selected[0]-1;
+      }
+      if ($selected[-1] < $#{$self->{children}}) {
+        push @candidates, $selected[-1]+1;
+      }
+      $self->set_markup ($self->_format_children (@candidates));
+      my ($ink_rect, $logical_rect) = $self->get_layout->get_extents;
+      my $text_width = $logical_rect->{width}/Pango::SCALE ();
+      if ($text_width > $allocation->{width}) {
+        last;
+      } else {
+        @selected = @candidates;
+      }
+    }
+    $self->set_markup ($self->_format_children (@selected));
+  }
+  $self->SUPER::SIZE_ALLOCATE ($allocation);
+}
+
+ # Use undef as an indicator for left-out children.
+sub _add_omission_markers {
+  my ($self, @indices) = @_;
+  if ($indices[0] > 0) {
+    unshift @indices, undef;
+  }
+  if ($indices[-1] < $#{$self->{children}}) {
+    push @indices, undef;
+  }
+  return @indices;
+}
+
+sub _format_child {
+  my ($self, $index) = @_;
+  return '…' unless defined $index;
+  my $name = $self->{children}->[$index]->{name};
+  my $markup = $index == $self->{current_child}
+    ? "<b>$name</b>"
+    : "<a href='$index'>$name</a>";
+  return $markup;
+}
+
+sub _format_children {
+  my ($self, @indices) = @_;
+  if (!@indices) {
+    @indices = 0..$#{$self->{children}};
+  }
+  @indices = $self->_add_omission_markers (@indices);
+  return join ' ▸ ', map { $self->_format_child ($_) } @indices;
 }
