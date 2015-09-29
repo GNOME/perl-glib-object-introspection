@@ -1,7 +1,15 @@
-Overview of changes in Glib::Object::Introspection <next>
+Overview of changes in Glib::Object::Introspection 0.032
 ========================================================
 
 * Makefile.PL/setup.pl: change library extensions on OS X
+* Docs: include an edited version of Gtk2::api
+* perli11ndoc: hush a warning when run in text mode without args
+* perli11ndoc: display a synopsis for callables
+* perli11ndoc: make Control+k focus the search entry
+* perli11ndoc: make Right/Left expand/collapse rows in the tree view
+* perli11ndoc: make the result text view readonly
+* Croak in setup for unhandled modificaion combinations
+* perli11ndoc: when filtering, show children of matching elements
 
 Overview of changes in Glib::Object::Introspection 0.031
 ========================================================
