@@ -1,3 +1,9 @@
+Overview of changes in Glib::Object::Introspection 0.040
+========================================================
+
+* Makefile.PL: Make G:O:I dependent on Glib version >= 1.320
+* Makefile.PL: Module marked as "stable"; no code changes since 0.033
+
 Overview of changes in Glib::Object::Introspection 0.033
 ========================================================
 
