@@ -294,14 +294,15 @@ package MY; # so that "SUPER" works right
 
 sub test {
   my $inherited = shift->SUPER::test(@_);
+  my $target = qr/test_dynamic :: (?:pure_all|subdirs-test_dynamic)\n\t/;
   if ($^O eq 'MSWin32') {
     # put "build" into PATH for the tests
     # FIXME: Might need tweaking for nmake...
-    $inherited =~ s/(test_dynamic :: pure_all\n\t)/.IMPORT: PATH\nPATH += ;build\n.EXPORT: PATH\n$1/;
+    $inherited =~ s/($target)/.IMPORT: PATH\nPATH += ;build\n.EXPORT: PATH\n$1/;
   }
   else {
     # put "build" into LD_LIBRARY_PATH for the tests
-    $inherited =~ s/(test_dynamic :: pure_all)\n\t/$1\n\tLD_LIBRARY_PATH=\${LD_LIBRARY_PATH}:build /;
+    $inherited =~ s/($target)/${1}LD_LIBRARY_PATH=\${LD_LIBRARY_PATH}:build /;
   }
   $inherited;
 }
