@@ -24,8 +24,8 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	dwarn ("  n_args = %u\n", iinfo->n_args);
 
 	if (iinfo->n_args) {
-		iinfo->arg_infos = gperl_alloc_temp (sizeof (GITypeInfo*) * iinfo->n_args);
-		iinfo->arg_types = gperl_alloc_temp (sizeof (GITypeInfo*) * iinfo->n_args);
+		iinfo->arg_infos = gperl_alloc_temp (sizeof (GITypeInfo) * iinfo->n_args);
+		iinfo->arg_types = gperl_alloc_temp (sizeof (GITypeInfo) * iinfo->n_args);
 		iinfo->aux_args = gperl_alloc_temp (sizeof (GIArgument) * iinfo->n_args);
 	} else {
 		iinfo->arg_infos = NULL;
@@ -34,14 +34,14 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 	}
 
 	for (i = 0 ; i < iinfo->n_args ; i++) {
-		iinfo->arg_infos[i] = g_callable_info_get_arg (info, (gint) i);
-		iinfo->arg_types[i] = g_arg_info_get_type (iinfo->arg_infos[i]);
+		g_callable_info_load_arg (info, (gint) i, &(iinfo->arg_infos[i]));
+		g_arg_info_load_type (&(iinfo->arg_infos[i]), &(iinfo->arg_types[i]));
 	}
 
-	iinfo->return_type_info = g_callable_info_get_return_type (info);
+	g_callable_info_load_return_type (info, &iinfo->return_type_info);
 	iinfo->has_return_value =
-		GI_TYPE_TAG_VOID != g_type_info_get_tag (iinfo->return_type_info);
-	iinfo->return_type_ffi = g_type_info_get_ffi_type (iinfo->return_type_info);
+		GI_TYPE_TAG_VOID != g_type_info_get_tag (&iinfo->return_type_info);
+	iinfo->return_type_ffi = g_type_info_get_ffi_type (&iinfo->return_type_info);
 	iinfo->return_type_transfer = g_callable_info_get_caller_owns (info);
 
 	iinfo->callback_infos = NULL;
@@ -55,11 +55,6 @@ clear_invocation_info (GPerlI11nInvocationInfo *iinfo)
 {
 	guint i;
 
-	for (i = 0 ; i < iinfo->n_args ; i++) {
-		g_base_info_unref ((GIBaseInfo *) iinfo->arg_types[i]);
-		g_base_info_unref ((GIBaseInfo *) iinfo->arg_infos[i]);
-	}
-
 	g_slist_free (iinfo->free_after_call);
 	iinfo->free_after_call = NULL;
 
@@ -71,9 +66,6 @@ clear_invocation_info (GPerlI11nInvocationInfo *iinfo)
 	g_slist_foreach (iinfo->array_infos, (GFunc) g_free, NULL);
 	g_slist_free (iinfo->array_infos);
 	iinfo->array_infos = NULL;
-
-	g_base_info_unref ((GIBaseInfo *) iinfo->return_type_info);
-	iinfo->return_type_info = NULL;
 }
 
 /* ------------------------------------------------------------------------- */

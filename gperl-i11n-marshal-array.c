@@ -106,7 +106,7 @@ array_to_sv (GITypeInfo *info,
 				gint length_pos = g_type_info_get_array_length (info);
 				g_assert (iinfo && iinfo->aux_args);
 				conversion_sv = arg_to_sv (&(iinfo->aux_args[length_pos]),
-				                           iinfo->arg_types[length_pos],
+				                           &(iinfo->arg_types[length_pos]),
 				                           GI_TRANSFER_NOTHING, NULL);
 				length = SvIV (conversion_sv);
 				SvREFCNT_dec (conversion_sv);

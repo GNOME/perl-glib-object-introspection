@@ -98,7 +98,7 @@ sv_to_callback_data (SV * sv,
 static SV *
 callback_to_sv (GICallableInfo *interface, gpointer func, GPerlI11nInvocationInfo *invocation_info)
 {
-	GIArgInfo *arg_info;
+	GIArgInfo arg_info;
 	GPerlI11nCCallbackInfo *callback_info;
 	HV *stash;
 	SV *code_sv, *data_sv;
@@ -116,17 +116,17 @@ callback_to_sv (GICallableInfo *interface, gpointer func, GPerlI11nInvocationInf
 		}
 	}
 
-	arg_info = g_callable_info_get_arg (invocation_info->interface,
-	                                    (gint) invocation_info->current_pos);
+	g_callable_info_load_arg (invocation_info->interface,
+	                          (gint) invocation_info->current_pos,
+	                          &arg_info);
 
 	dwarn ("C callback: pos = %d, name = %s\n",
 	       invocation_info->current_pos,
-	       g_base_info_get_name (arg_info));
+	       g_base_info_get_name (&arg_info));
 
 	callback_info = create_c_callback_closure (interface, func);
-	callback_info->data_pos = g_arg_info_get_closure (arg_info);
-	callback_info->destroy_pos = g_arg_info_get_destroy (arg_info);
-	g_base_info_unref (arg_info);
+	callback_info->data_pos = g_arg_info_get_closure (&arg_info);
+	callback_info->destroy_pos = g_arg_info_get_destroy (&arg_info);
 
 	if (func) {
 		data_sv = newSViv (PTR2IV (callback_info));

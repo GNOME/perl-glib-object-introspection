@@ -63,8 +63,8 @@ invoke_c_code (GICallableInfo *info,
 		gint perl_stack_pos, ffi_stack_pos;
 		SV *current_sv;
 
-		arg_info = iinfo.base.arg_infos[i];
-		arg_type = iinfo.base.arg_types[i];
+		arg_info = &(iinfo.base.arg_infos[i]);
+		arg_type = &(iinfo.base.arg_types[i]);
 		transfer = g_arg_info_get_ownership_transfer (arg_info);
 		may_be_null = g_arg_info_may_be_null (arg_info);
 #if GI_CHECK_VERSION (1, 29, 0)
@@ -157,8 +157,8 @@ invoke_c_code (GICallableInfo *info,
 		GITypeInfo * arg_type;
 		if (!iinfo.is_automatic_arg[i])
 			continue;
-		arg_info = iinfo.base.arg_infos[i];
-		arg_type = iinfo.base.arg_types[i];
+		arg_info = &(iinfo.base.arg_infos[i]);
+		arg_type = &(iinfo.base.arg_types[i]);
 		switch (g_arg_info_get_direction (arg_info)) {
 		    case GI_DIRECTION_IN:
 			_handle_automatic_arg (i, arg_info, arg_type, &iinfo.in_args[i], &iinfo);
@@ -217,7 +217,7 @@ invoke_c_code (GICallableInfo *info,
 #if GI_CHECK_VERSION (1, 32, 0)
 	/* libffi has special semantics for return value storage; see `man
 	 * ffi_call`.  We use gobject-introspection's extraction helper. */
-	gi_type_info_extract_ffi_return_value (iinfo.base.return_type_info,
+	gi_type_info_extract_ffi_return_value (&iinfo.base.return_type_info,
 	                                       &ffi_return_value,
 	                                       &return_value);
 #endif
@@ -232,9 +232,9 @@ invoke_c_code (GICallableInfo *info,
 	   )
 	{
 		SV *value;
-		dwarn ("return value: type = %p\n", iinfo.base.return_type_info);
+		dwarn ("return value: type = %p\n", &iinfo.base.return_type_info);
 		value = SAVED_STACK_SV (arg_to_sv (&return_value,
-		                                   iinfo.base.return_type_info,
+		                                   &iinfo.base.return_type_info,
 		                                   iinfo.base.return_type_transfer,
 		                                   &iinfo.base));
 		if (value) {
@@ -248,7 +248,7 @@ invoke_c_code (GICallableInfo *info,
 		GIArgInfo * arg_info;
 		if (iinfo.is_automatic_arg[i])
 			continue;
-		arg_info = iinfo.base.arg_infos[i];
+		arg_info = &(iinfo.base.arg_infos[i]);
 #if GI_CHECK_VERSION (1, 29, 0)
 		if (g_arg_info_is_skip (arg_info)) {
 			continue;
@@ -266,7 +266,7 @@ invoke_c_code (GICallableInfo *info,
 			         ? GI_TRANSFER_CONTAINER
 			         : g_arg_info_get_ownership_transfer (arg_info);
 			sv = SAVED_STACK_SV (arg_to_sv (iinfo.out_args[i].v_pointer,
-			                                iinfo.base.arg_types[i],
+			                                &(iinfo.base.arg_types[i]),
 			                                transfer,
 			                                &iinfo.base));
 			if (sv) {
@@ -380,8 +380,8 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 	/* Make a first pass to mark args that are filled in automatically, and
 	 * thus have no counterpart on the Perl side. */
 	for (i = 0 ; i < iinfo->base.n_args ; i++) {
-		GIArgInfo * arg_info = iinfo->base.arg_infos[i];
-		GITypeInfo * arg_type = iinfo->base.arg_types[i];
+		GIArgInfo * arg_info = &(iinfo->base.arg_infos[i]);
+		GITypeInfo * arg_type = &(iinfo->base.arg_types[i]);
 		GITypeTag arg_tag = g_type_info_get_tag (arg_type);
 
 		if (arg_tag == GI_TYPE_TAG_ARRAY) {
@@ -410,8 +410,8 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 	iinfo->n_expected_args = iinfo->constructor_offset + iinfo->method_offset;
 	iinfo->n_nullable_args = 0;
 	for (i = 0 ; i < iinfo->base.n_args ; i++) {
-		GIArgInfo * arg_info = iinfo->base.arg_infos[i];
-		GITypeInfo * arg_type = iinfo->base.arg_types[i];
+		GIArgInfo * arg_info = &(iinfo->base.arg_infos[i]);
+		GITypeInfo * arg_type = &(iinfo->base.arg_types[i]);
 		GITypeTag arg_tag = g_type_info_get_tag (arg_type);
 		gboolean is_out = GI_DIRECTION_OUT == g_arg_info_get_direction (arg_info);
 		gboolean is_automatic = iinfo->is_automatic_arg[i];
@@ -429,10 +429,10 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 
 	/* If the return value is an array which comes with an outbound length
 	 * arg, then mark that length arg as automatic, too. */
-	if (g_type_info_get_tag (iinfo->base.return_type_info) == GI_TYPE_TAG_ARRAY) {
-		gint pos = g_type_info_get_array_length (iinfo->base.return_type_info);
+	if (g_type_info_get_tag (&iinfo->base.return_type_info) == GI_TYPE_TAG_ARRAY) {
+		gint pos = g_type_info_get_array_length (&iinfo->base.return_type_info);
 		if (pos >= 0) {
-			GIArgInfo * arg_info = iinfo->base.arg_infos[pos];
+			GIArgInfo * arg_info = &(iinfo->base.arg_infos[pos]);
 			if (GI_DIRECTION_OUT == g_arg_info_get_direction (arg_info)) {
 				dwarn ("  pos %d is automatic (array length)\n", pos);
 				iinfo->is_automatic_arg[pos] = TRUE;
@@ -461,9 +461,9 @@ _prepare_c_invocation_info (GPerlI11nCInvocationInfo *iinfo,
 	 * descendant that returns a floating object but passes no reference on
 	 * to us, then we need to revisit this. */
 	if (iinfo->is_constructor &&
-	    g_type_info_get_tag (iinfo->base.return_type_info) == GI_TYPE_TAG_INTERFACE)
+	    g_type_info_get_tag (&iinfo->base.return_type_info) == GI_TYPE_TAG_INTERFACE)
 	{
-		GIBaseInfo * interface = g_type_info_get_interface (iinfo->base.return_type_info);
+		GIBaseInfo * interface = g_type_info_get_interface (&iinfo->base.return_type_info);
 		if (GI_IS_REGISTERED_TYPE_INFO (interface) &&
 		    g_type_is_a (get_gtype (interface),
 		                 G_TYPE_INITIALLY_UNOWNED))

@@ -78,8 +78,8 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	 * stack */
 	in_inout = 0;
 	for (i = 0; i < iinfo.base.n_args; i++) {
-		GIArgInfo *arg_info = iinfo.base.arg_infos[i];
-		GITypeInfo *arg_type = iinfo.base.arg_types[i];
+		GIArgInfo *arg_info = &(iinfo.base.arg_infos[i]);
+		GITypeInfo *arg_type = &(iinfo.base.arg_types[i]);
 		GITransfer transfer = g_arg_info_get_ownership_transfer (arg_info);
 		GIDirection direction = g_arg_info_get_direction (arg_info);
 
@@ -191,8 +191,8 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 
 		out_index = 0;
 		for (i = 0; i < iinfo.base.n_args; i++) {
-			GIArgInfo *arg_info = iinfo.base.arg_infos[i];
-			GITypeInfo *arg_type = iinfo.base.arg_types[i];
+			GIArgInfo *arg_info = &(iinfo.base.arg_infos[i]);
+			GITypeInfo *arg_type = &(iinfo.base.arg_types[i]);
 			GIDirection direction = g_arg_info_get_direction (arg_info);
 			gpointer out_pointer = * (gpointer *) args[i+args_offset];
 
@@ -240,7 +240,7 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 		GITransfer transfer;
 		gboolean may_be_null;
 
-		type_info = iinfo.base.return_type_info;
+		type_info = &iinfo.base.return_type_info;
 		transfer = iinfo.base.return_type_transfer;
 		may_be_null = g_callable_info_may_return_null (cb_interface); /* FIXME */
 
@@ -352,13 +352,13 @@ _prepare_perl_invocation_info (GPerlI11nPerlInvocationInfo *iinfo,
 	/* Find array length arguments and store their value in aux_args so
 	 * that array_to_sv can later fetch them. */
 	for (i = 0 ; i < iinfo->base.n_args ; i++) {
-		GITypeInfo *arg_type = iinfo->base.arg_types[i];
+		GITypeInfo *arg_type = &(iinfo->base.arg_types[i]);
 		GITypeTag arg_tag = g_type_info_get_tag (arg_type);
 
 		if (arg_tag == GI_TYPE_TAG_ARRAY) {
 			gint pos = g_type_info_get_array_length (arg_type);
 			if (pos >= 0) {
-				GITypeInfo *length_arg_type = iinfo->base.arg_types[pos];
+				GITypeInfo *length_arg_type = &(iinfo->base.arg_types[pos]);
 				raw_to_arg (args[pos], &iinfo->base.aux_args[pos], length_arg_type);
 				dwarn ("  pos %d is array length => %"G_GSIZE_FORMAT"\n",
 				       pos, iinfo->base.aux_args[pos].v_size);

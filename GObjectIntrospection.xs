@@ -104,15 +104,15 @@ typedef struct {
 	guint current_pos;
 
 	/* Information about the args from the typelib. */
-	GIArgInfo ** arg_infos;
-	GITypeInfo ** arg_types;
+	GIArgInfo * arg_infos;
+	GITypeInfo * arg_types;
 
 	/* An array of places for storing out out/in-out or automatic args. */
 	GIArgument * aux_args;
 
 	gboolean has_return_value;
 	ffi_type * return_type_ffi;
-	GITypeInfo * return_type_info;
+	GITypeInfo return_type_info;
 	GITransfer return_type_transfer;
 
 	GSList * callback_infos;
