@@ -1,6 +1,25 @@
 /* -*- mode: c; indent-tabs-mode: t; c-basic-offset: 8; -*- */
 
 static GIFunctionInfo *
+_find_struct_method (GIStructInfo *info, const gchar *method)
+{
+	/* g_struct_info_find_method is broken for class structs like
+	 * GtkWidgetClass, so we search manually.  See
+	 * <https://bugzilla.gnome.org/show_bug.cgi?id=700338>. */
+	gint n_methods;
+	gint i;
+	n_methods = g_struct_info_get_n_methods (info);
+	for (i = 0; i < n_methods; i++) {
+		GIFunctionInfo *method_info =
+			g_struct_info_get_method (info, i);
+		if (strEQ (g_base_info_get_name (method_info), method))
+			return method_info;
+		g_base_info_unref (method_info);
+	}
+	return NULL;
+}
+
+static GIFunctionInfo *
 _find_enum_method (GIEnumInfo *info, const gchar *method)
 {
 #if GI_CHECK_VERSION (1, 29, 17)
@@ -48,7 +67,7 @@ get_function_info (GIRepository *repository,
 			break;
 		    case GI_INFO_TYPE_BOXED:
 		    case GI_INFO_TYPE_STRUCT:
-			function_info = g_struct_info_find_method (
+			function_info = _find_struct_method (
 				(GIStructInfo *) namespace_info,
 				method);
 			break;
