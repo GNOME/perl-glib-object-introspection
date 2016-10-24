@@ -673,11 +673,20 @@ wrapper for a function that expects a GValue, do this:
   ...
   my $type = ...; # somehow get the package name that
                   # corresponds to the correct GType
-  my $real_value =
+  my $wrapper =
     Glib::Object::Introspection::GValueWrapper->new ($type, $value);
   # now use Glib::Object::Introspection->invoke and
-  # substitute $real_value where you'd use $value
+  # substitute $wrapper where you'd use $value
   ...
+
+If you need to call a function that expects an already set-up GValue and
+modifies it, use C<get_value> on the wrapper afterwards to obtain the value.
+For example:
+
+  my $wrapper =
+    Glib::Object::Introspection::GValueWrapper->new ('Glib::Boolean', 0);
+  $box->child_get_property ($label, 'expand', $gvalue);
+  my $value = $gvalue->get_value
 
 =head2 Handling extendable enumerations
 

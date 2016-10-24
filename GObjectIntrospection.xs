@@ -1039,6 +1039,16 @@ new (class, const gchar *type_package, SV *perl_value)
     OUTPUT:
 	RETVAL
 
+SV *
+get_value (SV *sv)
+    PREINIT:
+	GValue *v;
+    CODE:
+	v = SvGValueWrapper (sv);
+	RETVAL = gperl_sv_from_value (v);
+    OUTPUT:
+	RETVAL
+
 void
 DESTROY (SV *sv)
     PREINIT:
