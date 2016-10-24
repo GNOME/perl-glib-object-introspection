@@ -4,7 +4,34 @@ void _store_enum (GIEnumInfo * info, gint value, GIArgument * arg);
 gint _retrieve_enum (GIEnumInfo * info, GIArgument * arg);
 
 static gpointer
-instance_sv_to_pointer (GICallableInfo *info, SV *sv)
+instance_sv_to_class_struct_pointer (SV *sv, GPerlI11nInvocationInfo *iinfo)
+{
+	gpointer pointer = NULL;
+	GType class_type = 0;
+	dwarn ("  -> gtype struct?\n");
+	if (gperl_sv_is_ref (sv)) { /* instance? */
+		const char *package = sv_reftype (SvRV (sv), TRUE);
+		class_type = gperl_type_from_package (package);
+	} else { /* package? */
+		class_type = gperl_type_from_package (SvPV_nolen (sv));
+	}
+	dwarn ("     class_type = %s (%lu), is_classed = %d\n",
+	       g_type_name (class_type), class_type, G_TYPE_IS_CLASSED (class_type));
+	if (G_TYPE_IS_CLASSED (class_type)) {
+		pointer = g_type_class_peek (class_type);
+		if (!pointer) {
+			/* If peek() produced NULL, the class has not been
+			 * instantiated yet and needs to be created. */
+			pointer = g_type_class_ref (class_type);
+			free_after_call (iinfo, (GFunc) g_type_class_unref, pointer);
+		}
+		dwarn ("     type class = %p\n", pointer);
+	}
+	return pointer;
+}
+
+static gpointer
+instance_sv_to_pointer (GICallableInfo *info, SV *sv, GPerlI11nInvocationInfo *iinfo)
 {
 	// We do *not* own container.
 	GIBaseInfo *container = g_base_info_get_container (info);
@@ -30,11 +57,16 @@ instance_sv_to_pointer (GICallableInfo *info, SV *sv)
 	    {
 		GType type = get_gtype ((GIRegisteredTypeInfo *) container);
 		if (!type || type == G_TYPE_NONE) {
-			dwarn ("  -> untyped record\n");
-			pointer = sv_to_struct (GI_TRANSFER_NOTHING,
-			                        container,
-			                        info_type,
-			                        sv);
+			if (g_struct_info_is_gtype_struct (container)) {
+				pointer = instance_sv_to_class_struct_pointer (sv, iinfo);
+			}
+			if (!pointer) {
+				dwarn ("  -> untyped record\n");
+				pointer = sv_to_struct (GI_TRANSFER_NOTHING,
+				                        container,
+				                        info_type,
+				                        sv);
+			}
 		} else {
 			dwarn ("  -> boxed: type=%s (%"G_GSIZE_FORMAT")\n",
 			       g_type_name (type), type);

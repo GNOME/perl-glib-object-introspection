@@ -474,19 +474,7 @@ other widgets it's usually friendliest to avoid circularities in the first
 place, either by using weak references in the userdata, or possibly locating a
 parent dynamically with C<< $widget->get_ancestor >>.
 
-=head2 Miscellaneous
-
-In C you can only return one value from a function, and it is a common practice
-to modify pointers passed in to simulate returning multiple values.  In Perl,
-you can return lists; any functions which modify arguments are changed to
-return them instead.
-
-Arguments and return values that have the types GList or GSList or which are C
-arrays of values will be converted to and from references to normal Perl
-arrays.  The same holds for GHashTable and references to normal Perl hashes.
-
-You don't need to specify string lengths.  You can always use C<substr> to pass
-different parts of a string.
+=head2 Exception handling
 
 Anything that uses GError in C will C<croak> on failure, setting $@ to a
 magical exception object, which is overloaded to print as the
@@ -516,6 +504,28 @@ with a try/throw/catch block in C++ -- you get cleaner code.  By using
 Glib::Error exception objects, you don't have to rely on string matching
 on a possibly localized error message; you can match errors by explicit and
 predictable conditions.  See L<Glib::Error> for more information.
+
+=head2 Output arguments, lists, hashes
+
+In C you can only return one value from a function, and it is a common practice
+to modify pointers passed in to simulate returning multiple values.  In Perl,
+you can return lists; any functions which modify arguments are changed to
+return them instead.
+
+Arguments and return values that have the types GList or GSList or which are C
+arrays of values will be converted to and from references to normal Perl
+arrays.  The same holds for GHashTable and references to normal Perl hashes.
+
+=head2 Object class functions
+
+Object class functions like C<Gtk3::WidgetClass::find_style_propery> can be
+called either with a package name or with an instance of the package.  For
+example:
+
+  Gtk3::WidgetClass::find_style_property ('Gtk3::Button', 'image-spacing')
+
+  my $button = Gtk3::Button->new;
+  Gtk3::WidgetClass::find_style_property ($button, 'image-spacing')
 
 =head1 DESCRIPTION FOR LIBRARY BINDING AUTHORS
 

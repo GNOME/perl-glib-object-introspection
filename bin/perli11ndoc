@@ -278,7 +278,7 @@ sub enumerate_namespace {
     [Enumerations => 'core:enumeration'],
     [Bitfields => 'core:bitfield'],
     [Callbacks => 'core:callback'],
-    [Records => 'core:record', \@record_sub_categories, sub { shift =~ /(?:Class|Private)$/ }],
+    [Records => 'core:record', \@record_sub_categories, sub { shift =~ /(?:Private)$/ }],
     [Constants => 'core:constant'],
     [Aliases => 'core:alias', undef, sub { shift =~ /_autoptr$/ }],
   );
@@ -583,6 +583,17 @@ sub format_function {
 sub format_method {
   my ($self, $element) = @_;
   my $synopsis_format = '[[OUT_LIST_ASSIGN]]$object->[[NAME]] ([[IN_LIST]])';
+
+  # Treat methods of class structs as functions.
+  {
+    my $parent = $element->parentNode;
+    if ($parent->nodeName eq 'record' &&
+        defined $self->find_attribute ($parent, 'glib:is-gtype-struct-for'))
+    {
+      $synopsis_format = '[[OUT_LIST_ASSIGN]][[FULL_NAME]] ($package, [[IN_LIST]])';
+    }
+  }
+
   return $self->format_callable ($element, 'METHOD', $synopsis_format);
 }
 

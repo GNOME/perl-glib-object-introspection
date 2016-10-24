@@ -230,7 +230,7 @@ static void sv_to_interface (GIArgInfo * arg_info,
                              GPerlI11nInvocationInfo * invocation_info);
 
 static SV * instance_pointer_to_sv (GICallableInfo *info, gpointer pointer);
-static gpointer instance_sv_to_pointer (GICallableInfo *info, SV *sv);
+static gpointer instance_sv_to_pointer (GICallableInfo *info, SV *sv, GPerlI11nInvocationInfo *iinfo);
 
 static void sv_to_arg (SV * sv,
                        GIArgument * arg,

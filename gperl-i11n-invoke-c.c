@@ -46,7 +46,7 @@ invoke_c_code (GICallableInfo *info,
 	_check_n_args (&iinfo);
 
 	if (iinfo.is_method) {
-		instance = instance_sv_to_pointer (info, ST (0 + iinfo.stack_offset));
+		instance = instance_sv_to_pointer (info, ST (0 + iinfo.stack_offset), &iinfo.base);
 		iinfo.arg_types_ffi[0] = &ffi_type_pointer;
 		iinfo.args[0] = &instance;
 	}
