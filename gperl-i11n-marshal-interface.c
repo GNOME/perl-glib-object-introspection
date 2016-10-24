@@ -158,21 +158,35 @@ sv_to_interface (GIArgInfo * arg_info,
 		if (may_be_null && !gperl_sv_is_defined (sv)) {
 			arg->v_pointer = NULL;
 		} else {
-			arg->v_pointer = gperl_get_object_check (sv, get_gtype (interface));
-		}
-		if (arg->v_pointer) {
-			GObject *object = arg->v_pointer;
-			if (transfer == GI_TRANSFER_NOTHING &&
-			    object->ref_count == 1 &&
-			    SvTEMP (sv) && SvREFCNT (SvRV (sv)) == 1)
+			/* GParamSpecs are represented as classes of
+			 * fundamental type, but gperl_get_object_check cannot
+			 * handle this.  So we do it here. */
+			if (info_type == GI_INFO_TYPE_OBJECT &&
+			    g_object_info_get_fundamental (interface))
 			{
-				cwarn ("*** Asked to hand out object without ownership transfer, "
-				       "but object is about to be destroyed; "
-				       "adding an additional reference for safety");
-				transfer = GI_TRANSFER_EVERYTHING;
-			}
-			if (transfer >= GI_TRANSFER_CONTAINER) {
-				g_object_ref (arg->v_pointer);
+				GType type = G_TYPE_FUNDAMENTAL (get_gtype (interface));
+				switch (type) {
+				    case G_TYPE_PARAM:
+					arg->v_pointer = SvGParamSpec (sv);
+					break;
+				    default:
+					ccroak ("sv_to_interface: Don't know how to handle fundamental type %s (%lu)\n",
+					        g_type_name (type), type);
+				}
+			} else {
+				arg->v_pointer = gperl_get_object_check (sv, get_gtype (interface));
+				if (arg->v_pointer && transfer == GI_TRANSFER_NOTHING &&
+				    ((GObject *) arg->v_pointer)->ref_count == 1 &&
+				    SvTEMP (sv) && SvREFCNT (SvRV (sv)) == 1)
+				{
+					cwarn ("*** Asked to hand out object without ownership transfer, "
+					       "but object is about to be destroyed; "
+					       "adding an additional reference for safety");
+					transfer = GI_TRANSFER_EVERYTHING;
+				}
+				if (transfer >= GI_TRANSFER_CONTAINER) {
+					g_object_ref (arg->v_pointer);
+				}
 			}
 		}
 		break;
@@ -342,6 +356,28 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 
 	switch (info_type) {
 	    case GI_INFO_TYPE_OBJECT:
+		/* GParamSpecs are represented as classes of fundamental type,
+		 * but gperl_new_object cannot handle this.  So we do it
+		 * here. */
+		if (g_object_info_get_fundamental (interface)) {
+			GType type = G_TYPE_FUNDAMENTAL (get_gtype (interface));
+			switch (type) {
+			    case G_TYPE_PARAM:
+				sv = newSVGParamSpec (arg->v_pointer); /* does ref & sink */
+				/* FIXME: What if own=true and the pspec is not
+				 * floating?  Then we would leak.  We do not
+				 * have the API to detect this.  But it is
+				 * probably also quite rare. */
+				break;
+			    default:
+				ccroak ("interface_to_sv: Don't know how to handle fundamental type %s (%lu)\n",
+				        g_type_name (type), type);
+			}
+		} else {
+			sv = gperl_new_object (arg->v_pointer, own);
+		}
+		break;
+
 	    case GI_INFO_TYPE_INTERFACE:
 		sv = gperl_new_object (arg->v_pointer, own);
 		break;

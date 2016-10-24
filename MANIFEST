@@ -43,6 +43,7 @@ t/hashes.t
 t/inc/setup.pl
 t/interface-implementation.t
 t/objects.t
+t/param-specs.t
 t/structs.t
 t/values.t
 t/variants.t
