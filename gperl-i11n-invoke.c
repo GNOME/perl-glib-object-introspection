@@ -53,8 +53,6 @@ prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 static void
 clear_invocation_info (GPerlI11nInvocationInfo *iinfo)
 {
-	guint i;
-
 	g_slist_free (iinfo->free_after_call);
 	iinfo->free_after_call = NULL;
 
