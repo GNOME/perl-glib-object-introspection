@@ -272,15 +272,24 @@ sub enumerate_namespace {
   );
 
   my @categories = (
-    [Classes => 'core:class', \@class_and_interface_sub_categories],
+    [Classes => 'core:class', \@class_and_interface_sub_categories, sub { shift =~ /Accessible$/ }],
     [Interfaces => 'core:interface', \@class_and_interface_sub_categories],
     [Functions => 'core:function'],
     [Enumerations => 'core:enumeration'],
     [Bitfields => 'core:bitfield'],
     [Callbacks => 'core:callback'],
-    [Records => 'core:record', \@record_sub_categories, sub { shift =~ /(?:Private)$/ }],
+    [Records => 'core:record', \@record_sub_categories, sub { shift =~ /(?:Class|Iface|Interface|Private)$/ }],
     [Constants => 'core:constant'],
     [Aliases => 'core:alias', undef, sub { shift =~ /_autoptr$/ }],
+    ['Classes for accessibility' => 'core:class',
+     \@class_and_interface_sub_categories,
+     sub { shift !~ /Accessible$/ }],
+    ['Records for object classes' => 'core:record',
+     \@record_sub_categories,
+     sub { shift !~ /Class$/ }],
+    ['Records for interfaces' => 'core:record',
+     \@record_sub_categories,
+     sub { shift !~ /(?:Iface|Interface)$/ }],
   );
 
   my @results;
