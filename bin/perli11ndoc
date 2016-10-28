@@ -271,14 +271,18 @@ sub enumerate_namespace {
     [Fields => 'core:field'],
   );
 
+  my @enum_and_bitfield_sub_categories = (
+    [Functions => 'core:function'],
+  );
+
   my @categories = (
     [Classes => 'core:class', \@class_and_interface_sub_categories, sub { shift =~ /Accessible$/ }],
     [Interfaces => 'core:interface', \@class_and_interface_sub_categories],
-    [Functions => 'core:function'],
-    [Enumerations => 'core:enumeration'],
-    [Bitfields => 'core:bitfield'],
-    [Callbacks => 'core:callback'],
     [Records => 'core:record', \@record_sub_categories, sub { shift =~ /(?:Class|Iface|Interface|Private)$/ }],
+    [Enumerations => 'core:enumeration', \@enum_and_bitfield_sub_categories],
+    [Bitfields => 'core:bitfield', \@enum_and_bitfield_sub_categories],
+    [Functions => 'core:function'],
+    [Callbacks => 'core:callback'],
     [Constants => 'core:constant'],
     [Aliases => 'core:alias', undef, sub { shift =~ /_autoptr$/ }],
     ['Classes for accessibility' => 'core:class',
