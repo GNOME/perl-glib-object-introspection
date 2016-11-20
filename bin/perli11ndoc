@@ -603,7 +603,7 @@ sub format_method {
     if ($parent->nodeName eq 'record' &&
         defined $self->find_attribute ($parent, 'glib:is-gtype-struct-for'))
     {
-      $synopsis_format = '[[OUT_LIST_ASSIGN]][[FULL_NAME]] ($package, [[IN_LIST]])';
+      $synopsis_format = '[[OUT_LIST_ASSIGN]][[FULL_NAME]] ($package[[IN_LIST_PRE_COMMA]])';
     }
   }
 
