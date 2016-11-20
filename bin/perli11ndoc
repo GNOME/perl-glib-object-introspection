@@ -240,8 +240,27 @@ sub find_parameters_and_return_value {
 
 sub find_type_name {
   my ($self, $element) = @_;
-  # FIXME: Sometimes, fields or parameters have a <callback> or <array> element
-  # as its type, not <type> directly.
+
+  # arrays
+  my $array_list = $self->{xpc}->find ('core:array', $element);
+  if ($array_list->size == 1) {
+    my $array = $array_list->pop;
+    my $prefix = 'reference to array of ';
+    my $child_type_name = $self->find_type_name ($array);
+    return $prefix . $child_type_name;
+  }
+
+  # callbacks
+  my $callback_list = $self->{xpc}->find ('core:callback', $element);
+  if ($callback_list->size == 1) {
+    my $callback = $callback_list->pop;
+    my ($in, $retval, $out) = $self->find_parameters_and_return_value ($callback);
+    my $in_list = join ', ', map { $self->find_type_name ($_) } @$in;
+    my $out_list = join ', ', map { $self->find_type_name ($_) } ($retval, @$out);
+    return "callback (in: $in_list; out: $out_list)";
+  }
+
+  # bare types
   my $type_list = $self->{xpc}->find ('core:type', $element);
   return '[unknown type]' unless $type_list->size == 1;
   my $type = $type_list->pop;
@@ -553,7 +572,6 @@ sub format_callable {
     if (@$out) {
       foreach my $parameter (@$out) {
         my $name = $self->find_attribute ($parameter, 'name');
-        push @out_names, $name;
         my $type_name = $self->find_type_name ($parameter);
         my $full_type_name = $self->format_full_type_name ($type_name);
         $text .= "  • $name: $full_type_name\n";
