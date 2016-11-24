@@ -1,3 +1,14 @@
+Overview of changes in Glib::Object::Introspection 0.041
+========================================================
+
+∗ Tweak the test environment to work with newer ExtUtils::MakeMaker
+* Use the stack in favor of heap allocation during marshalling
+* Use custom code to find struct methods in order to avoid a bug
+* Remove an unused internal variable
+* Add support for object class functions
+* Add support for marshalling GParamSpec
+* Add Glib::Object::Introspection::GValueWrapper::get_value
+
 Overview of changes in Glib::Object::Introspection 0.040
 ========================================================
 
