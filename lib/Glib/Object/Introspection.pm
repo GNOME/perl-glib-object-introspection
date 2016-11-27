@@ -575,7 +575,7 @@ flattened so that they return plain lists.  For example
     'Gtk3::Window::list_toplevels'
   ]
 
-The function names refer to those after name corrections.  Functions occuring
+The function names refer to those after name corrections.  Functions occurring
 in C<flatten_array_ref_return_for> may also occur in C<class_static_methods>.
 
 =item handle_sentinel_boolean_for => [ function1, ... ]
@@ -592,7 +592,7 @@ be returned, and otherwise an empty list will be returned.
     'Gtk3::TreeSelection::get_selected'
   ]
 
-The function names refer to those after name corrections.  Functions occuring
+The function names refer to those after name corrections.  Functions occurring
 in C<handle_sentinel_boolean_for> may also occur in C<class_static_methods>.
 
 =item use_generic_signal_marshaller_for => [ [package1, signal1, [arg_converter1]], ... ]
