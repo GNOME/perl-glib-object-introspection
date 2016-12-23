@@ -1,3 +1,13 @@
+Overview of changes in Glib::Object::Introspection 0.042
+========================================================
+
+* perli11ndoc: put special classes and records into their own category
+* perli11ndoc: list functions of enums and bitfields
+* perli11ndoc: fix the synopsis formatting for class struct functions
+* perli11ndoc: correctly display array and callback parameters/return
+  values/fields
+* Fix "occuring" typo in POD (Bugzilla #775169)
+
 Overview of changes in Glib::Object::Introspection 0.041
 ========================================================
 
