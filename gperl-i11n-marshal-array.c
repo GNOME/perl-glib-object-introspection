@@ -75,7 +75,6 @@ array_to_sv (GITypeInfo *info,
 	GITypeInfo *param_info;
 	GITypeTag param_tag;
 	gsize item_size;
-	GITransfer item_transfer;
 	gboolean need_struct_value_semantics;
 	gssize length = -1, i;
 	AV *av;
@@ -132,13 +131,6 @@ array_to_sv (GITypeInfo *info,
 		ccroak ("Could not determine the length of the array");
 	}
 
-	/* FIXME: What about an array containing arrays of strings, where the
-	 * outer array is GI_TRANSFER_EVERYTHING but the inner arrays are
-	 * GI_TRANSFER_CONTAINER? */
-	item_transfer = transfer == GI_TRANSFER_EVERYTHING
-		? GI_TRANSFER_EVERYTHING
-		: GI_TRANSFER_NOTHING;
-
 	param_info = g_type_info_get_param_type (info, 0);
 	param_tag = g_type_info_get_tag (param_info);
 	item_size = size_of_type_info (param_info);
@@ -147,6 +139,7 @@ array_to_sv (GITypeInfo *info,
 
 	need_struct_value_semantics =
 		_need_struct_value_semantics (array_type, param_info, param_tag);
+	dwarn ("value semantics = %d\n", need_struct_value_semantics);
 
 	dwarn ("type %d, array %p, elements %p\n",
 	       array_type, array, elements);
@@ -161,10 +154,21 @@ array_to_sv (GITypeInfo *info,
 		GIArgument arg;
 		SV *value;
 		gpointer element = elements + ((gsize) i) * item_size;
+		GITransfer item_transfer;
 		dwarn ("  element %"G_GSSIZE_FORMAT": %p\n", i, element);
 		if (need_struct_value_semantics) {
+			/* With struct value semantics, the values are freed
+			 * further below when the array itself is freed, so we
+			 * must not free the elements here. */
+			item_transfer = GI_TRANSFER_NOTHING;
 			raw_to_arg (&element, &arg, param_info);
 		} else {
+			/* FIXME: What about an array containing arrays of strings, where the
+			 * outer array is GI_TRANSFER_EVERYTHING but the inner arrays are
+			 * GI_TRANSFER_CONTAINER? */
+			item_transfer = transfer == GI_TRANSFER_EVERYTHING
+				? GI_TRANSFER_EVERYTHING
+				: GI_TRANSFER_NOTHING;
 			raw_to_arg (element, &arg, param_info);
 		}
 		value = arg_to_sv (&arg, param_info, item_transfer, iinfo);

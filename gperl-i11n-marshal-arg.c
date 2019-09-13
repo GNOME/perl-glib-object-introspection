@@ -155,8 +155,8 @@ arg_to_sv (GIArgument * arg,
 	GITypeTag tag = g_type_info_get_tag (info);
 	gboolean own = transfer >= GI_TRANSFER_CONTAINER;
 
-	dwarn ("info = %p, tag = %d (%s)\n",
-	       info, tag, g_type_tag_to_string (tag));
+	dwarn ("info = %p, tag = %d (%s), transfer = %d, own = %d\n",
+	       info, tag, g_type_tag_to_string (tag), transfer, own);
 
 	switch (tag) {
 	    case GI_TYPE_TAG_VOID:
