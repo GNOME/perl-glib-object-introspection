@@ -475,7 +475,7 @@ _sv_to_class_struct_pointer (SV *sv, GPerlI11nInvocationInfo *iinfo)
 			/* If peek() produced NULL, the class has not been
 			 * instantiated yet and needs to be created. */
 			pointer = g_type_class_ref (class_type);
-			free_after_call (iinfo, (GFunc) g_type_class_unref, pointer);
+			free_after_call (iinfo, g_type_class_unref, pointer);
 		}
 		dwarn ("     type class = %p\n", pointer);
 	}

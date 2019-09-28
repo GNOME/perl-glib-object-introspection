@@ -42,24 +42,42 @@ _free_raw_array (gpointer raw_array)
 }
 
 static void
-_free_array (GArray *array)
+_free_array (GArray *array, gboolean free_content)
 {
-	dwarn ("%p\n", array);
-	g_array_free (array, TRUE);
+	dwarn ("%p: free_content=%d\n", array, free_content);
+	g_array_free (array, free_content);
 }
 
 static void
-_free_ptr_array (GPtrArray *array)
+_free_array_and_content (gpointer array)
 {
-	dwarn ("%p\n", array);
-	g_ptr_array_free (array, TRUE);
+	_free_array (array, TRUE);
 }
 
 static void
-_free_byte_array (GByteArray *array)
+_free_ptr_array (GPtrArray *array, gboolean free_content)
 {
-	dwarn ("%p\n", array);
-	g_byte_array_free (array, TRUE);
+	dwarn ("%p: free_content=%d\n", array, free_content);
+	g_ptr_array_free (array, free_content);
+}
+
+static void
+_free_ptr_array_and_content (gpointer array)
+{
+	_free_ptr_array (array, TRUE);
+}
+
+static void
+_free_byte_array (GByteArray *array, gboolean free_content)
+{
+	dwarn ("%p: free_content=%d\n", array, free_content);
+	g_byte_array_free (array, free_content);
+}
+
+static void
+_free_byte_array_and_content (gpointer array)
+{
+	_free_byte_array (array, TRUE);
 }
 
 /* This may call Perl code (via arg_to_sv), so it needs to be wrapped with
@@ -179,18 +197,23 @@ array_to_sv (GITypeInfo *info,
 	}
 
 	if (transfer >= GI_TRANSFER_CONTAINER) {
+		/* When we were transfered ownership of the array, we need to
+		   free it and its element storage here.  This is safe since,
+		   if the array was flat, we made sure to take copies of the
+		   elements above. */
+		free_element_data = TRUE;
 		switch (array_type) {
 		case GI_ARRAY_TYPE_C:
 			_free_raw_array (array);
 			break;
 		case GI_ARRAY_TYPE_ARRAY:
-			_free_array (array);
+			_free_array (array, free_element_data);
 			break;
 		case GI_ARRAY_TYPE_PTR_ARRAY:
-			_free_ptr_array (array);
+			_free_ptr_array (array, free_element_data);
 			break;
 		case GI_ARRAY_TYPE_BYTE_ARRAY:
-			_free_byte_array (array);
+			_free_byte_array (array, free_element_data);
 			break;
 		}
 	}
@@ -219,7 +242,7 @@ sv_to_array (GITransfer transfer,
 	GPerlI11nArrayInfo *array_info = NULL;
 	gpointer array = NULL;
 	gpointer return_array;
-	GFunc return_array_free_func;
+	GDestroyNotify return_array_free_func;
 	gboolean is_zero_terminated = FALSE;
 	gsize item_size;
 	gboolean need_struct_value_semantics;
@@ -324,16 +347,16 @@ sv_to_array (GITransfer transfer,
 	switch (array_type) {
 	case GI_ARRAY_TYPE_C:
 		return_array = g_array_free (array, FALSE);
-		return_array_free_func = (GFunc) _free_raw_array;
+		return_array_free_func = _free_raw_array;
 		break;
 	case GI_ARRAY_TYPE_ARRAY:
-		return_array_free_func = (GFunc) _free_array;
+		return_array_free_func = _free_array_and_content;
 		break;
 	case GI_ARRAY_TYPE_PTR_ARRAY:
-		return_array_free_func = (GFunc) _free_ptr_array;
+		return_array_free_func = _free_ptr_array_and_content;
 		break;
 	case GI_ARRAY_TYPE_BYTE_ARRAY:
-		return_array_free_func = (GFunc) _free_byte_array;
+		return_array_free_func = _free_byte_array_and_content;
 		break;
 	}
 

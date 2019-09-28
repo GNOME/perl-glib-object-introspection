@@ -17,13 +17,15 @@
  *
  */
 
-#include "build/gi-version.h"
-
 #include <gperl.h>
 #include <gperl_marshal.h>
 
 #include <girepository.h>
 #include <girffi.h>
+
+#ifndef GI_CHECK_VERSION
+# include "build/gi-version.h"
+#endif
 
 /* #define NOISY */
 #ifdef NOISY
@@ -181,7 +183,7 @@ static void prepare_invocation_info (GPerlI11nInvocationInfo *iinfo,
 static void clear_invocation_info (GPerlI11nInvocationInfo *iinfo);
 
 static void free_after_call (GPerlI11nInvocationInfo *iinfo,
-                             GFunc func, gpointer data);
+                             GDestroyNotify func, gpointer data);
 static void invoke_free_after_call_handlers (GPerlI11nInvocationInfo *iinfo);
 
 #if GI_CHECK_VERSION (1, 33, 10)
