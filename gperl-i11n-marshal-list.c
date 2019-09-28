@@ -53,7 +53,11 @@ glist_to_sv (GITypeInfo* info,
 		GIArgument arg = {0,};
 		dwarn ("  element %p: %p\n", i, i->data);
 		arg.v_pointer = i->data;
-		value = arg_to_sv (&arg, param_info, item_transfer, NULL);
+		value = arg_to_sv (&arg,
+		                   param_info,
+		                   item_transfer,
+		                   GPERL_I11N_MEMORY_SCOPE_IRRELEVANT,
+		                   NULL);
 		if (value)
 			av_push (av, value);
 	}

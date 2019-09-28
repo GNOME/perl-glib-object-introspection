@@ -317,13 +317,18 @@ sv_to_interface (GIArgInfo * arg_info,
  * struct_to_sv), so it needs to be wrapped with PUTBACK/SPAGAIN by the
  * caller. */
 static SV *
-interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvocationInfo *iinfo)
+interface_to_sv (GITypeInfo* info,
+                 GIArgument *arg,
+                 gboolean own,
+                 GPerlI11nMemoryScope mem_scope,
+                 GPerlI11nInvocationInfo *iinfo)
 {
 	GIBaseInfo *interface;
 	GIInfoType info_type;
 	SV *sv = NULL;
 
 	dwarn ("arg %p, info %p\n", arg, info);
+	dwarn ("  is pointer: %d\n", g_type_info_is_pointer (info));
 
 	interface = g_type_info_get_interface (info);
 	if (!interface)
@@ -382,7 +387,14 @@ interface_to_sv (GITypeInfo* info, GIArgument *arg, gboolean own, GPerlI11nInvoc
 		else if (g_type_is_a (type, G_TYPE_BOXED)) {
 			dwarn ("  -> boxed: pointer=%p, type=%"G_GSIZE_FORMAT" (%s), own=%d\n",
 			       arg->v_pointer, type, g_type_name (type), own);
-			sv = gperl_new_boxed (arg->v_pointer, type, own);
+			switch (mem_scope) {
+			    case GPERL_I11N_MEMORY_SCOPE_TEMPORARY:
+				g_assert (own == TRUE);
+				sv = gperl_new_boxed_copy (arg->v_pointer, type);
+				break;
+    			    default:
+				sv = gperl_new_boxed (arg->v_pointer, type, own);
+			}
 		}
 
 #if GLIB_CHECK_VERSION (2, 24, 0)

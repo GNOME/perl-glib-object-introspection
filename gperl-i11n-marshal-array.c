@@ -75,6 +75,8 @@ array_to_sv (GITypeInfo *info,
 	GITypeInfo *param_info;
 	GITypeTag param_tag;
 	gsize item_size;
+	GITransfer item_transfer;
+	gboolean free_element_data;
 	gboolean need_struct_value_semantics;
 	gssize length = -1, i;
 	AV *av;
@@ -106,7 +108,9 @@ array_to_sv (GITypeInfo *info,
 				g_assert (iinfo && iinfo->aux_args);
 				conversion_sv = arg_to_sv (&(iinfo->aux_args[length_pos]),
 				                           &(iinfo->arg_types[length_pos]),
-				                           GI_TRANSFER_NOTHING, NULL);
+				                           GI_TRANSFER_NOTHING,
+				                           GPERL_I11N_MEMORY_SCOPE_IRRELEVANT,
+				                           NULL);
 				length = SvIV (conversion_sv);
 				SvREFCNT_dec (conversion_sv);
 			}
@@ -135,6 +139,13 @@ array_to_sv (GITypeInfo *info,
 	param_tag = g_type_info_get_tag (param_info);
 	item_size = size_of_type_info (param_info);
 
+	/* FIXME: What about an array containing arrays of strings, where the
+	 * outer array is GI_TRANSFER_EVERYTHING but the inner arrays are
+	 * GI_TRANSFER_CONTAINER? */
+	item_transfer = transfer == GI_TRANSFER_EVERYTHING
+		? GI_TRANSFER_EVERYTHING
+		: GI_TRANSFER_NOTHING;
+
 	av = newAV ();
 
 	need_struct_value_semantics =
@@ -152,26 +163,17 @@ array_to_sv (GITypeInfo *info,
 
 	for (i = 0; i < length; i++) {
 		GIArgument arg;
-		SV *value;
+		SV *value = NULL;
 		gpointer element = elements + ((gsize) i) * item_size;
-		GITransfer item_transfer;
-		dwarn ("  element %"G_GSSIZE_FORMAT": %p\n", i, element);
+		gpointer raw_pointer = element;
+		GPerlI11nMemoryScope mem_scope = GPERL_I11N_MEMORY_SCOPE_IRRELEVANT;
 		if (need_struct_value_semantics) {
-			/* With struct value semantics, the values are freed
-			 * further below when the array itself is freed, so we
-			 * must not free the elements here. */
-			item_transfer = GI_TRANSFER_NOTHING;
-			raw_to_arg (&element, &arg, param_info);
-		} else {
-			/* FIXME: What about an array containing arrays of strings, where the
-			 * outer array is GI_TRANSFER_EVERYTHING but the inner arrays are
-			 * GI_TRANSFER_CONTAINER? */
-			item_transfer = transfer == GI_TRANSFER_EVERYTHING
-				? GI_TRANSFER_EVERYTHING
-				: GI_TRANSFER_NOTHING;
-			raw_to_arg (element, &arg, param_info);
+			raw_pointer = &element;
+			mem_scope = GPERL_I11N_MEMORY_SCOPE_TEMPORARY;
 		}
-		value = arg_to_sv (&arg, param_info, item_transfer, iinfo);
+		dwarn ("  element %"G_GSSIZE_FORMAT": %p, pointer: %p\n", i, element, raw_pointer);
+		raw_to_arg (raw_pointer, &arg, param_info);
+		value = arg_to_sv (&arg, param_info, item_transfer, mem_scope, iinfo);
 		if (value)
 			av_push (av, value);
 	}

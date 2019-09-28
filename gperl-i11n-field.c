@@ -78,6 +78,7 @@ get_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer)
 		sv = arg_to_sv (&value,
 		                field_type,
 		                GI_TRANSFER_NOTHING,
+		                GPERL_I11N_MEMORY_SCOPE_IRRELEVANT,
 		                NULL);
 	}
 
@@ -97,6 +98,7 @@ get_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer)
 		sv = arg_to_sv (&value,
 		                field_type,
 		                transfer,
+		                GPERL_I11N_MEMORY_SCOPE_IRRELEVANT,
 		                NULL);
 	}
 

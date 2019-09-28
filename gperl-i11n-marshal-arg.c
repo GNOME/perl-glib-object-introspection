@@ -150,6 +150,7 @@ static SV *
 arg_to_sv (GIArgument * arg,
            GITypeInfo * info,
            GITransfer transfer,
+           GPerlI11nMemoryScope mem_scope,
            GPerlI11nInvocationInfo *iinfo)
 {
 	GITypeTag tag = g_type_info_get_tag (info);
@@ -230,7 +231,7 @@ arg_to_sv (GIArgument * arg,
 		return array_to_sv (info, arg->v_pointer, transfer, iinfo);
 
 	    case GI_TYPE_TAG_INTERFACE:
-		return interface_to_sv (info, arg, own, iinfo);
+		return interface_to_sv (info, arg, own, mem_scope, iinfo);
 
 	    case GI_TYPE_TAG_GLIST:
 	    case GI_TYPE_TAG_GSLIST:
