@@ -190,7 +190,7 @@ SKIP: {
       package     => 'Poppler');
     1;
   };
-  skip 'flat array tests using Poppler', 1
+  skip 'flat array tests using Poppler', 16
     unless $have_poppler;
 
   my $pdf = <<__PDF__; # https://github.com/mathiasbynens/small/blob/master/pdf.pdf
