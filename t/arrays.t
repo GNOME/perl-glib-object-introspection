@@ -202,7 +202,7 @@ trailer <</Root 1 0 R>>
 __PDF__
 
   my ($major, $minor, $micro) = split /\./, Poppler::get_version ();
-  my @args = ($major > 0 || $minor >= 78) ? ($pdf, undef) : ($pdf, length $pdf, undef);
+  my @args = ($major > 0 || $minor >= 78) ? ([split //, $pdf], undef) : ($pdf, length $pdf, undef);
   my $doc = Poppler::Document->new_from_data (@args);
   my $quads = [
     Glib::Boxed::new ('Poppler::Quadrilateral',
