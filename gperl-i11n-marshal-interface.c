@@ -242,7 +242,7 @@ sv_to_interface (GIArgInfo * arg_info,
 				} else {
 					gsize n_bytes = g_struct_info_get_size (interface);
 					gpointer mem = gperl_get_boxed_check (sv, type);
-					g_memmove (arg->v_pointer, mem, n_bytes);
+					memmove (arg->v_pointer, mem, n_bytes);
 				}
 			} else {
 				if (may_be_null && !gperl_sv_is_defined (sv)) {

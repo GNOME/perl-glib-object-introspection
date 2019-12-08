@@ -148,7 +148,7 @@ set_field (GIFieldInfo *field_info, gpointer mem, GITransfer transfer, SV *sv)
 			                              interface_type,
 			                              sv);
 			size = g_struct_info_get_size (interface_info);
-			g_memmove (G_STRUCT_MEMBER_P (mem, offset), arg.v_pointer, size);
+			memmove (G_STRUCT_MEMBER_P (mem, offset), arg.v_pointer, size);
 		} else {					/* Pointer */
 			GType gtype = get_gtype (interface_info);
 			if (g_type_is_a (gtype, G_TYPE_BOXED)) {
