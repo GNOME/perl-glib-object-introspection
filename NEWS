@@ -6,7 +6,7 @@ Overview of changes in Glib::Object::Introspection 0.048
 * Avoid double-freeing struct entries in flat array
 * Copy item memory in flat arrays when we are given ownership (RT# 130280)
 * Hush a few compiler warnings
-∗ Fix skip count in t/arrays.t
+* Fix skip count in t/arrays.t
 * Adapt t/arrays.t to newer poppler versions to avoid test failures
 
 Overview of changes in Glib::Object::Introspection 0.047
