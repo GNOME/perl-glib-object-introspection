@@ -1,3 +1,8 @@
+Overview of changes in Glib::Object::Introspection 0.049
+========================================================
+
+* SV → Array: Also accept strings when a guchar* pointer is expected
+
 Overview of changes in Glib::Object::Introspection 0.048
 ========================================================
 
