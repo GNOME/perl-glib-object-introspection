@@ -444,6 +444,7 @@ _fill_ffi_return_value (GITypeInfo *return_info,
 				*(ffi_arg *) resp = (ffi_arg) arg->v_pointer;
 				break;
 			}
+			g_base_info_unref (interface_info);
 			break;
 		}
 	    default:
