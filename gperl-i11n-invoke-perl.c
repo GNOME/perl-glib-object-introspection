@@ -29,13 +29,13 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	info = (GPerlI11nPerlCallbackInfo *) userdata;
 	cb_interface = (GICallableInfo *) info->interface;
 
-	_prepare_perl_invocation_info (&iinfo, cb_interface, args);
-
 	/* set perl context */
 	GPERL_CALLBACK_MARSHAL_INIT (info);
 
 	ENTER;
 	SAVETMPS;
+
+	_prepare_perl_invocation_info (&iinfo, cb_interface, args);
 
 	PUSHMARK (SP);
 
