@@ -1,0 +1,82 @@
+include:
+  - remote: 'https://gitlab.gnome.org/GNOME/citemplates/raw/HEAD/flatpak/flatpak_ci_initiative.yml'
+  - remote: 'https://gitlab.freedesktop.org/freedesktop/ci-templates/-/raw/34f4ade99434043f88e164933f570301fd18b125/templates/fedora.yml'
+  - remote: 'https://gitlab.freedesktop.org/freedesktop/ci-templates/-/raw/34f4ade99434043f88e164933f570301fd18b125/templates/ci-fairy.yml'
+
+stages:
+  - prep
+  - build
+
+variables:
+  FDO_UPSTREAM_REPO: GNOME/perl-glib-object-introspection
+
+default:
+  # Cancel jobs if newer commits are pushed to the branch
+  interruptible: true
+  # Auto-retry jobs in case of infra failures
+  retry:
+    max: 1
+    when:
+      - 'runner_system_failure'
+      - 'stuck_or_timeout_failure'
+      - 'scheduler_failure'
+      - 'api_failure'
+
+workflow:
+  rules:
+    # Allow to switch from branch pipelines to MR pipelines seamlessly
+    # https://docs.gitlab.com/ee/ci/jobs/job_control.html#avoid-duplicate-pipelines
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_PIPELINE_SOURCE == "push"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Don't trigger a branch pipeline if there is an open MR
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: '$CI_COMMIT_BRANCH'
+    - if: '$CI_COMMIT_TAG'
+
+.perl.fedora:37:
+  variables:
+    FDO_DISTRIBUTION_VERSION: '37'
+    FDO_DISTRIBUTION_TAG: '2023-02-22.0'
+    FDO_DISTRIBUTION_PACKAGES:
+      coreutils
+      findutils
+      make
+      perl-Cairo-GObject
+      perl-ExtUtils-Depends
+      perl-ExtUtils-MakeMaker
+      perl-ExtUtils-PkgConfig
+      perl-Glib-devel
+      perl-Test-Simple
+      perl-devel
+      pkgconfig(cairo-gobject)
+      pkgconfig(gio-2.0)
+      pkgconfig(gio-unix-2.0)
+      pkgconfig(gobject-introspection-1.0)
+  retry:
+    max: 2
+    when:
+      - 'always'
+
+build-fedora-container:
+  extends:
+    - .fdo.container-build@fedora@x86_64
+    - .perl.fedora:37
+  stage: prep
+
+build:
+  stage: build
+  extends:
+    - .fdo.distribution-image@fedora
+    - .perl.fedora:37
+  script:
+    - perl Makefile.PL
+    - make
+    - make test
+  artifacts:
+    expire_in: 7 days
+    paths:
+      - build
+      - blib
+    when: on_failure
