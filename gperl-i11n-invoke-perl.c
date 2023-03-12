@@ -29,13 +29,13 @@ invoke_perl_code (ffi_cif* cif, gpointer resp, gpointer* args, gpointer userdata
 	info = (GPerlI11nPerlCallbackInfo *) userdata;
 	cb_interface = (GICallableInfo *) info->interface;
 
-	_prepare_perl_invocation_info (&iinfo, cb_interface, args);
-
 	/* set perl context */
 	GPERL_CALLBACK_MARSHAL_INIT (info);
 
 	ENTER;
 	SAVETMPS;
+
+	_prepare_perl_invocation_info (&iinfo, cb_interface, args);
 
 	PUSHMARK (SP);
 
@@ -444,6 +444,7 @@ _fill_ffi_return_value (GITypeInfo *return_info,
 				*(ffi_arg *) resp = (ffi_arg) arg->v_pointer;
 				break;
 			}
+			g_base_info_unref (interface_info);
 			break;
 		}
 	    default:
