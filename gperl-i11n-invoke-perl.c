@@ -315,7 +315,12 @@ invoke_perl_signal_handler (ffi_cif* cif, gpointer resp, gpointer* args, gpointe
 		cb_info->args_converter = SvREFCNT_inc (signal_info->args_converter);
 
 	c_closure.closure = *closure;
+
+#if GI_CHECK_VERSION (1, 72, 0)
+        c_closure.callback = g_callable_info_get_closure_native_address (signal_info->interface, cb_info->closure);
+#else
 	c_closure.callback = cb_info->closure;
+#endif
 	/* If marshal_data is non-NULL, gi_cclosure_marshal_generic uses it as
 	 * the callback.  Hence we pass NULL so that c_closure.callback is
 	 * used. */
