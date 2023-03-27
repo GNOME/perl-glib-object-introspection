@@ -1876,3 +1876,64 @@ sub _format_children {
   @indices = $self->_add_omission_markers (@indices);
   return join ' ▸ ', map { $self->_format_child ($_) } @indices;
 }
+
+__END__
+
+=encoding utf8
+ 
+=head1 NAME
+ 
+perli11ndoc - view documentation of installed libraries bound using
+Glib::Object::Introspection
+ 
+=head1 ABSTRACT
+ 
+perli11ndoc allows you to view Perl documentation for Glib libraries bound to
+Perl using Glib::Object::Introspection. Glib::Object::Introspection uses the
+gobject-introspection and libffi projects to dynamically create Perl bindings
+for a wide variety of libraries. Examples include gtk+, webkit, libsoup and
+many more. All libraries currently installed will be shown with Perl-specific
+documentation and examples. Where Glib::Object::Introspection differs from the
+C library, differences are pointed out and the Perl-specific interface is
+defined.
+ 
+=head1 DEPENDENCIES
+
+perli11ndoc requires that XML::LibXML be installed to run. It also requires
+that the corresponding C library headers be installed on the system to provide
+documentation. For instance, on a Debian-based system you would need
+libgtk-3-dev to see the Perl introspected documentation for Gtk3.
+
+=head1 SEE ALSO
+ 
+=over
+ 
+=item perl-Glib: L<Glib>
+ 
+=item gobject-introspection: L<http://live.gnome.org/GObjectIntrospection>
+ 
+=item libffi: L<http://sourceware.org/libffi/>
+
+=item Glib::Object::Introspection: L<https://metacpan.org/pod/Glib::Object::Introspection>
+ 
+=back
+ 
+=head1 AUTHORS
+ 
+=over
+ 
+=item Emmanuele Bassi <ebassi at linux intel com>
+ 
+=item muppet <scott asofyet org>
+ 
+=item Torsten Schönfeld <kaffeetisch at gmx de>
+ 
+=back
+ 
+=head1 LICENSE
+ 
+This utility is free software; you can redistribute it and/or modify it under
+the terms of the Lesser General Public License (LGPL).  For more information,
+see http://www.fsf.org/licenses/lgpl.txt
+ 
+=cut
