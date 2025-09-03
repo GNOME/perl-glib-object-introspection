@@ -1,7 +1,8 @@
 include:
-  - remote: 'https://gitlab.gnome.org/GNOME/citemplates/raw/HEAD/flatpak/flatpak_ci_initiative.yml'
-  - remote: 'https://gitlab.gnome.org/Infrastructure/freedesktop-ci-templates/-/raw/34f4ade99434043f88e164933f570301fd18b125/templates/fedora.yml'
-  - remote: 'https://gitlab.gnome.org/Infrastructure/freedesktop-ci-templates/-/raw/34f4ade99434043f88e164933f570301fd18b125/templates/ci-fairy.yml'
+  - project: 'Infrastructure/freedesktop-ci-templates'
+    ref: '707b49ef'
+    file:
+      - 'templates/fedora.yml'
 
 stages:
   - prep
@@ -35,10 +36,10 @@ workflow:
     - if: '$CI_COMMIT_BRANCH'
     - if: '$CI_COMMIT_TAG'
 
-.perl.fedora:40:
+.perl.fedora:42:
   variables:
-    FDO_DISTRIBUTION_VERSION: '40'
-    FDO_DISTRIBUTION_TAG: '2024-09-14.0'
+    FDO_DISTRIBUTION_VERSION: '42'
+    FDO_DISTRIBUTION_TAG: '2025-09-03.0'
     FDO_DISTRIBUTION_PACKAGES:
       coreutils
       findutils
@@ -50,10 +51,10 @@ workflow:
       perl-Glib-devel
       perl-Test-Simple
       perl-devel
-      pkgconfig(cairo-gobject)
-      pkgconfig(gio-2.0)
-      pkgconfig(gio-unix-2.0)
-      pkgconfig(gobject-introspection-1.0)
+      'pkgconfig(cairo-gobject)'
+      'pkgconfig(gio-2.0)'
+      'pkgconfig(gio-unix-2.0)'
+      'pkgconfig(gobject-introspection-1.0)'
   retry:
     max: 2
     when:
@@ -62,14 +63,18 @@ workflow:
 build-fedora-container:
   extends:
     - .fdo.container-build@fedora@x86_64
-    - .perl.fedora:40
+    - .perl.fedora:42
   stage: prep
+  retry:
+    max: 2
+    exit_codes: 137
 
 build:
   stage: build
   extends:
     - .fdo.distribution-image@fedora
-    - .perl.fedora:40
+    - .perl.fedora:42
+  needs: ['build-fedora-container']
   script:
     - perl Makefile.PL
     - make
