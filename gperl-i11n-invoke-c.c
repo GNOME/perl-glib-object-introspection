@@ -14,6 +14,7 @@ static void _handle_automatic_arg (guint pos,
                                    GITypeInfo * arg_type,
                                    GIArgument * arg,
                                    GPerlI11nCInvocationInfo * invocation_info);
+static gboolean _is_basic_scalar (GITypeInfo *arg_type);
 static gpointer _allocate_out_mem (GITypeInfo *arg_type);
 
 static void
@@ -114,7 +115,8 @@ invoke_c_code (GICallableInfo *info,
 			break;
 
 		    case GI_DIRECTION_OUT:
-			if (g_arg_info_is_caller_allocates (arg_info)) {
+			if (g_arg_info_is_caller_allocates (arg_info) &&
+			    !_is_basic_scalar (arg_type)) {
 				iinfo.base.aux_args[i].v_pointer =
 					_allocate_out_mem (arg_type);
 				iinfo.out_args[i].v_pointer = &iinfo.base.aux_args[i];
@@ -259,15 +261,19 @@ invoke_c_code (GICallableInfo *info,
 		    case GI_DIRECTION_OUT:
 		    case GI_DIRECTION_INOUT:
 		    {
+			GITypeInfo * arg_type;
 			GITransfer transfer;
 			SV *sv;
 			dwarn ("out/inout arg at pos %d\n", i);
+
+			arg_type = &(iinfo.base.arg_types[i]);
 			/* If we allocated the memory ourselves, we always own it. */
-			transfer = g_arg_info_is_caller_allocates (arg_info)
+			transfer = g_arg_info_is_caller_allocates (arg_info) &&
+			           !_is_basic_scalar (arg_type)
 			         ? GI_TRANSFER_CONTAINER
 			         : g_arg_info_get_ownership_transfer (arg_info);
 			sv = SAVED_STACK_SV (arg_to_sv (iinfo.out_args[i].v_pointer,
-			                                &(iinfo.base.arg_types[i]),
+			                                arg_type,
 			                                transfer,
 			                                GPERL_I11N_MEMORY_SCOPE_IRRELEVANT,
 			                                &iinfo.base));
@@ -570,6 +576,32 @@ _handle_automatic_arg (guint pos,
 	}
 
 	ccroak ("Could not handle automatic arg %d", pos);
+}
+
+static gboolean
+_is_basic_scalar (GITypeInfo *arg_type)
+{
+	if (g_type_info_is_pointer (arg_type))
+		return FALSE;
+
+	switch (g_type_info_get_tag (arg_type)) {
+	    case GI_TYPE_TAG_BOOLEAN:
+	    case GI_TYPE_TAG_INT8:
+	    case GI_TYPE_TAG_UINT8:
+	    case GI_TYPE_TAG_INT16:
+	    case GI_TYPE_TAG_UINT16:
+	    case GI_TYPE_TAG_INT32:
+	    case GI_TYPE_TAG_UINT32:
+	    case GI_TYPE_TAG_INT64:
+	    case GI_TYPE_TAG_UINT64:
+	    case GI_TYPE_TAG_FLOAT:
+	    case GI_TYPE_TAG_DOUBLE:
+	    case GI_TYPE_TAG_GTYPE:
+	    case GI_TYPE_TAG_UNICHAR:
+		return TRUE;
+	    default:
+		return FALSE;
+	}
 }
 
 static gpointer
